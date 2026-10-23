@@ -41,18 +41,19 @@ function Werkzeugleiste({ werkKennung }) {
 
   return (
     <>
-      <div className="h-12" />
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white/95 dark:bg-neutral-800/95 dark:border-neutral-700 text-sm">
+      <div className="h-16 sm:h-12" />
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white dark:bg-neutral-800 dark:border-neutral-700 text-sm">
         <div className="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
           {wer && werkKennung && darf(wer, "werke.bearbeiten") && (
             <a className={link} href={`/verwaltung/werke/?werk=${encodeURIComponent(werkKennung)}`}>
-              ✎ Dieses Werk bearbeiten
+              ✎ <span className="hidden sm:inline">Dieses </span>Werk bearbeiten
             </a>
           )}
           <a className={link} href="/verwaltung/">Verwaltung</a>
           {wer && darf(wer, "lesen") && <Stand ich={nutzer.email} erlaubt={darf(wer, "veroeffentlichen")} />}
           <span className="ml-auto text-gray-600 dark:text-gray-400">
-            {nutzer.email}{wer === null && " (kein Zugriff)"} ·{" "}
+            <span className="hidden sm:inline">{nutzer.email} · </span>
+            {wer === null && "Kein Zugriff · "}
             <button className={link} onClick={() => signOut(auth)}>Abmelden</button>
           </span>
         </div>
@@ -67,7 +68,7 @@ function Stand({ ich, erlaubt }) {
   const letzte = liste?.[0];
 
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex items-center gap-2 order-last w-full sm:order-none sm:w-auto">
       {fehler ? <span className="text-red-700">{fehler}</span>
         : beschaeftigt ? <span>Veröffentlichung läuft …</span>
         : letzte?.status === "fehler" ? <span className="text-red-700">Letzte Veröffentlichung fehlgeschlagen</span>
