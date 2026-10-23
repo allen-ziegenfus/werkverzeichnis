@@ -51,12 +51,12 @@ const { werk, slug, workSlug, titel, nachher, vorher } = Astro.props;
   <SuchNavigation client:only />
   <nav class="print:hidden">
     <ul class="flex flex-row flex-wrap">
-      <li><a class="text-blue-800" href="/">Startseite</a>&nbsp; / &nbsp;</li>
+      <li><a class="text-blue-800 dark:text-blue-400" href="/">Startseite</a>&nbsp; / &nbsp;</li>
       <li>
-        <a class="text-blue-800" href={`/${slug}`}> {titel}</a>&nbsp; / &nbsp;
+        <a class="text-blue-800 dark:text-blue-400" href={`/${slug}`}> {titel}</a>&nbsp; / &nbsp;
       </li>
       <li>
-        <a class="text-blue-800" href={`/${slug}/${workSlug}`}>{werk.InvNr}</a>
+        <a class="text-blue-800 dark:text-blue-400" href={`/${slug}/${workSlug}`}>{werk.InvNr}</a>
       </li>
     </ul>
   </nav>
