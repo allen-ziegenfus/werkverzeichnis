@@ -83,11 +83,13 @@ service cloud.firestore {
 
     function gueltigeWerkgruppe(d) {
       // cover: Pfad des Titelbilds in Cloud Storage.
-      return d.keys().hasOnly(["titel", "kurztitel", "reihenfolge", "cover"])
+      // updatedAt: damit Veröffentlichen die Änderung als offen zählt.
+      return d.keys().hasOnly(["titel", "kurztitel", "reihenfolge", "cover", "updatedAt"])
         && d.titel is string && d.titel.size() > 0
         && (d.get("kurztitel", null) == null || d.kurztitel is string)
         && d.reihenfolge is int
-        && (d.get("cover", null) == null || d.cover is string);
+        && (d.get("cover", null) == null || d.cover is string)
+        && d.updatedAt == request.time;
     }
 
     match /artists/{kuenstler}/werkgruppen/{werkgruppe} {

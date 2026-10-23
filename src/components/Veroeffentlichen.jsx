@@ -16,11 +16,12 @@ const STATUS = {
 };
 const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
 const knopf = "px-3 py-1 border rounded disabled:opacity-40";
-const HOECHSTENS = 100;
-const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
+export const HOECHSTENS = 100;
+export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 
-export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
+/** Der Stand der Veröffentlichung, live; geteilt von Verwaltung und Werkzeugleiste. */
+export function useVeroeffentlichung(kuenstlerId, ich) {
   const [liste, setListe] = useState();
   const [zuletzt, setZuletzt] = useState();  // null: nie veröffentlicht
   const [aenderungen, setAenderungen] = useState();
@@ -38,8 +39,7 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
     e => setFehler(e.message)), [kuenstlerId]);
 
   // Änderungen seitdem, live, damit das Speichern einer Seite sie aktualisiert;
-  // höchstens HOECHSTENS + 1 werden gelesen. Werkgruppen haben keinen
-  // Zeitstempel, ihre Änderungen zählen nicht mit.
+  // höchstens HOECHSTENS + 1 werden gelesen.
   useEffect(() => {
     if (zuletzt === undefined) return;
     setAenderungen({});
@@ -48,11 +48,13 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
         orderBy(feld, "desc"), limit(HOECHSTENS + 1)),
       snap => setAenderungen(a => ({ ...a, [c]: snap.docs.map(d => ({ id: d.id, ...d.data() })) })),
       e => setFehler(e.message));
-    const beenden = [seit("history", "at"), seit("seiten", "updatedAt")];
+    const beenden = [seit("history", "at"), seit("seiten", "updatedAt"), seit("werkgruppen", "updatedAt")];
     return () => beenden.forEach(f => f());
   }, [kuenstlerId, zuletzt]);
 
-  const beschaeftigt = liste?.some(v => ["angefordert", "läuft"].includes(v.status));
+  const geladen = ["history", "seiten", "werkgruppen"].every(c => aenderungen?.[c] !== undefined);
+  // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
+  const beschaeftigt = liste?.some(v => ["angefordert", "wartet", "läuft"].includes(v.status));
 
   async function veroeffentlichen() {
     setFehler(undefined);
@@ -63,15 +65,23 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
     }
   }
 
+  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, fehler, beschaeftigt, veroeffentlichen };
+}
+
+export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
+  const { liste, zuletzt, aenderungen, fehler, beschaeftigt, veroeffentlichen } =
+    useVeroeffentlichung(kuenstlerId, ich);
+
   return (
     <div className="pt-4 space-y-2">
       <h3 className="text-lg">Veröffentlichen</h3>
-      {aenderungen?.history !== undefined && aenderungen?.seiten !== undefined && (
+      {aenderungen && (
         <details className="text-sm">
           <summary className="cursor-pointer">
             {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)}): ` : "Noch nie veröffentlicht. "}
             {anzahl(aenderungen.history.length)} Änderung{aenderungen.history.length === 1 ? "" : "en"} an Werken,{" "}
-            {anzahl(aenderungen.seiten.length)} geänderte Seite{aenderungen.seiten.length === 1 ? "" : "n"}.
+            {anzahl(aenderungen.seiten.length)} geänderte Seite{aenderungen.seiten.length === 1 ? "" : "n"},{" "}
+            {anzahl(aenderungen.werkgruppen.length)} geänderte Werkgruppe{aenderungen.werkgruppen.length === 1 ? "" : "n"}.
           </summary>
           <ul className="pl-4 pt-1">
             {aenderungen.history.slice(0, HOECHSTENS).map(h => (
@@ -81,6 +91,9 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
             ))}
             {aenderungen.seiten.slice(0, HOECHSTENS).map(s => (
               <li key={s.id}>{wann(s.updatedAt)} · Seite „{s.titel || s.id}“</li>
+            ))}
+            {aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => (
+              <li key={g.id}>{wann(g.updatedAt)} · Werkgruppe „{g.titel || g.id}“</li>
             ))}
           </ul>
         </details>

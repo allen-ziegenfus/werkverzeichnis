@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import {
   collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
@@ -32,6 +32,8 @@ export default function WerkEditor() {
   const [verlauf, setVerlauf] = useState([]);
   const [speichert, setSpeichert] = useState(false);
   const [hinweis, setHinweis] = useState();
+  // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
+  const ziel = useRef(new URLSearchParams(location.search).get("werk"));
 
   // Firebase behält die Sitzung selbst (IndexedDB), nach dem Neuladen bleibt man angemeldet.
   useEffect(() => onAuthStateChanged(auth, setNutzer), []);
@@ -40,7 +42,13 @@ export default function WerkEditor() {
     if (!nutzer) return;
     setFehler(undefined);
     getDocs(collection(kuenstler, "werkgruppen"))
-      .then(s => setGruppen(s.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .then(async s => {
+        setGruppen(s.docs.map(d => ({ id: d.id, ...d.data() })));
+        if (!ziel.current) return;
+        const w = await getDoc(doc(kuenstler, "works", ziel.current));
+        if (w.exists()) setGruppe(w.get("werkgruppe"));
+        else { setFehler(`Werk „${ziel.current}“ nicht gefunden.`); ziel.current = null; }
+      })
       .catch(e => setFehler(e.code === "permission-denied"
         ? `Kein Zugriff mit ${nutzer.email}.` : e.message));
   }, [nutzer]);
@@ -49,8 +57,14 @@ export default function WerkEditor() {
     if (!gruppe) return;
     setWerke(undefined); setWerk(undefined);
     getDocs(query(collection(kuenstler, "works"), where("werkgruppe", "==", gruppe)))
-      .then(s => setWerke(s.docs.map(d => ({ id: d.id, data: d.data() }))
-        .sort((a, b) => Number(a.data.InvNr.replace(/\D/g, "")) - Number(b.data.InvNr.replace(/\D/g, "")))))
+      .then(s => {
+        const liste = s.docs.map(d => ({ id: d.id, data: d.data() }))
+          .sort((a, b) => Number(a.data.InvNr.replace(/\D/g, "")) - Number(b.data.InvNr.replace(/\D/g, "")));
+        setWerke(liste);
+        const w = liste.find(x => x.id === ziel.current);
+        ziel.current = null;
+        if (w) return oeffnen(w);
+      })
       .catch(e => setFehler(e.message));
   }, [gruppe]);
 

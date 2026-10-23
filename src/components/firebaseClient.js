@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, getFirestore } from "firebase/firestore";
 
 /** Die Firebase-App der Verwaltung und des Editors. Absichtlich öffentlich. */
@@ -15,3 +15,12 @@ export const auth = getAuth(app);
 export const db = getFirestore(app, "werkverzeichnis");
 export const KUENSTLER = "kutscher";
 export const kuenstler = doc(db, "artists", KUENSTLER);
+
+// Merkt sich, ob auf diesem Gerät jemand angemeldet ist; nur dann lädt das
+// Layout die Werkzeugleiste.
+onAuthStateChanged(auth, n => {
+  try {
+    if (n) localStorage.setItem("bearbeiter", "1");
+    else localStorage.removeItem("bearbeiter");
+  } catch {}
+});
