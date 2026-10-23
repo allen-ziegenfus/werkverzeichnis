@@ -24,6 +24,8 @@ onAuthStateChanged(auth, n => {
     if (n) localStorage.setItem("bearbeiter", "1");
     else localStorage.removeItem("bearbeiter");
   } catch {}
+  const link = document.getElementById("anmelden");
+  if (link) link.hidden = !!n;
   const el = document.getElementById("werkzeugleiste");
   if (n && el) import("./Werkzeugleiste.jsx").then(m => m.anzeigen(el));
 });
