@@ -13,7 +13,10 @@ import { HOECHSTENS, useVeroeffentlichung } from "./Veroeffentlichen.jsx";
  * Hellgrau auch im dunklen Modus, damit sie sich von der Seite abhebt.
  */
 
+/** Höchstens einmal je Seite; Layout und Anmeldung rufen es beide auf. */
 export function anzeigen(el) {
+  if (el.dataset.angezeigt) return;
+  el.dataset.angezeigt = "1";
   createRoot(el).render(<Werkzeugleiste werkKennung={el.dataset.werk} />);
 }
 
