@@ -14,7 +14,7 @@ Cloudflare-Token für Terraform; jede Seite hat ihr eigenes Projekt. Diese Anlei
 erledigt die wenigen Schritte, die Terraform nicht kann. In der Cloud Shell öffnen:
 
 ```
-https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/allen-ziegenfus/allen-ziegenfus.github.io&cloudshell_git_branch=firestore-build&cloudshell_tutorial=infra/BOOTSTRAP.md
+https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/allen-ziegenfus/werkverzeichnis&cloudshell_git_branch=main&cloudshell_tutorial=infra/BOOTSTRAP.md
 ```
 
 ## 1. Das Cloudflare-Token für Terraform

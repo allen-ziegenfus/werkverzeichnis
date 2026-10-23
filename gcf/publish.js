@@ -21,7 +21,7 @@ const SERVICEKONTO = `publish-function@${PROJEKT}.iam.gserviceaccount.com`;
 
 /** Welcher Trigger und welcher Branch die Seite welcher Künstler:in bauen. */
 const SEITEN = {
-  kutscher: { trigger: "werkverzeichnis-firestore-build", branch: "firestore-build" },
+  kutscher: { trigger: "werkverzeichnis-main", branch: "main" },
 };
 
 const ENDE = { SUCCESS: "fertig", FAILURE: "fehler", INTERNAL_ERROR: "fehler", TIMEOUT: "fehler",
