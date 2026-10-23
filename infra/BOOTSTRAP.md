@@ -105,7 +105,7 @@ Aus dem Repo, mit den eigenen Zugangsdaten:
 ```sh
 node tools/rules_deploy.mjs                     # Firestore-Regeln (vorher die Tests)
 (cd gcf && npm ci) && firebase deploy --only functions --project <seiten-projekt>
-node tools/super_admin.mjs grant <deine-email>  # dann die Künstler:in in /firestore-test/admin anlegen
+node tools/super_admin.mjs grant <deine-email>  # dann die Künstler:in in /verwaltung/ anlegen
 ```
 
 Ein Push auf den Branch der Seite baut und deployt sie; Veröffentlichen ebenso.

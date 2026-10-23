@@ -24,8 +24,8 @@ Webversionen gibt es noch nicht, ein Werk ohne Werkgruppe) den Build scheitern.
 
 ## Bearbeiten und veröffentlichen
 
-- `/firestore-test/admin/`: Künstler:innen, Rollen, Werkgruppen, Seiten, Veröffentlichen
-- `/firestore-test/bearbeiten/`: Werke
+- `/verwaltung/`: Künstler:innen, Rollen, Werkgruppen, Seiten, Veröffentlichen
+- `/verwaltung/werke/`: Werke
 
 Wer was darf, steht in `firestore.rules` (getestet mit `tools/rules_test.mjs`,
 deployt mit `tools/rules_deploy.mjs`); Super-Admins setzt `tools/super_admin.mjs`.
