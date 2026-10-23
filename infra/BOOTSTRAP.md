@@ -13,9 +13,7 @@ Ein **Infra-Projekt** hält die Deployments, das Terraform-Servicekonto und das
 Cloudflare-Token für Terraform; jede Seite hat ihr eigenes Projekt. Diese Anleitung
 erledigt die wenigen Schritte, die Terraform nicht kann. In der Cloud Shell öffnen:
 
-```
-https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/allen-ziegenfus/werkverzeichnis&cloudshell_git_branch=main&cloudshell_tutorial=infra/BOOTSTRAP.md
-```
+[![In Cloud Shell öffnen](https://www.gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/allen-ziegenfus/werkverzeichnis&cloudshell_git_branch=main&cloudshell_tutorial=infra/BOOTSTRAP.md)
 
 ## 1. Das Cloudflare-Token für Terraform
 
