@@ -89,7 +89,7 @@ const { werk, slug, workSlug, titel, nachher, vorher } = Astro.props;
       <div class="m-2 flex flex-row text-4xl justify-around">
         {
           vorher && (
-            <a class="print:hidden text-gray-500" href={vorher}>
+            <a class="print:hidden text-gray-500 dark:text-gray-400" href={vorher}>
               {" "}
               &lt;
             </a>
@@ -97,7 +97,7 @@ const { werk, slug, workSlug, titel, nachher, vorher } = Astro.props;
         }
         {
           nachher && (
-            <a class="print:hidden text-gray-500" href={nachher}>
+            <a class="print:hidden text-gray-500 dark:text-gray-400" href={nachher}>
               {" "}
               &gt;
             </a>
