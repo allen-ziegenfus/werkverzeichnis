@@ -7,6 +7,6 @@ import sitemap from "@astrojs/sitemap";
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [tailwind(), react(), sitemap({ filter: (page) => !page.includes("/bearbeiten/") && !page.includes("/firestore-test/") })],
+  integrations: [tailwind(), react(), sitemap({ filter: (page) => !page.includes("/verwaltung/") })],
   site: process.env.SITE
 });
