@@ -10,6 +10,7 @@ import { HOECHSTENS, useVeroeffentlichung } from "./Veroeffentlichen.jsx";
  * Die feste Leiste unten für angemeldete Bearbeiter:innen, auf jeder Seite:
  * Werk bearbeiten, Verwaltung, Stand der Veröffentlichung, Abmelden. Das Layout
  * lädt sie nur, wenn sich auf diesem Gerät schon jemand angemeldet hat.
+ * Hellgrau auch im dunklen Modus, damit sie sich von der Seite abhebt.
  */
 
 export function anzeigen(el) {
@@ -17,7 +18,7 @@ export function anzeigen(el) {
 }
 
 const link = "underline hover:no-underline";
-const knopf = "px-2 py-0.5 border border-gray-400 rounded bg-white dark:bg-neutral-700 dark:border-neutral-500 disabled:opacity-40";
+const knopf = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 
 function Werkzeugleiste({ werkKennung }) {
   const [nutzer, setNutzer] = useState(undefined);
@@ -42,7 +43,7 @@ function Werkzeugleiste({ werkKennung }) {
   return (
     <>
       <div className="h-16 sm:h-12" />
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-300 bg-gray-200 dark:bg-neutral-800 dark:border-neutral-700 text-sm">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-400 bg-gray-200 text-black text-sm">
         <div className="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
           {wer && werkKennung && darf(wer, "werke.bearbeiten") && (
             <a className={link} href={`/verwaltung/werke/?werk=${encodeURIComponent(werkKennung)}`}>
@@ -51,7 +52,7 @@ function Werkzeugleiste({ werkKennung }) {
           )}
           <a className={link} href="/verwaltung/">Verwaltung</a>
           {wer && darf(wer, "lesen") && <Stand ich={nutzer.email} erlaubt={darf(wer, "veroeffentlichen")} />}
-          <span className="ml-auto text-gray-600 dark:text-gray-400">
+          <span className="ml-auto text-gray-600">
             <span className="hidden sm:inline">{nutzer.email} · </span>
             {wer === null && "Kein Zugriff · "}
             <button className={link} onClick={() => signOut(auth)}>Abmelden</button>
