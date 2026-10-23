@@ -16,11 +16,12 @@ const STATUS = {
 };
 const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
 const knopf = "px-3 py-1 border rounded disabled:opacity-40";
-const HOECHSTENS = 100;
-const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
+export const HOECHSTENS = 100;
+export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 
-export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
+/** Der Stand der Veröffentlichung, live; geteilt von Verwaltung und Werkzeugleiste. */
+export function useVeroeffentlichung(kuenstlerId, ich) {
   const [liste, setListe] = useState();
   const [zuletzt, setZuletzt] = useState();  // null: nie veröffentlicht
   const [aenderungen, setAenderungen] = useState();
@@ -52,6 +53,7 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
     return () => beenden.forEach(f => f());
   }, [kuenstlerId, zuletzt]);
 
+  const geladen = aenderungen?.history !== undefined && aenderungen?.seiten !== undefined;
   const beschaeftigt = liste?.some(v => ["angefordert", "läuft"].includes(v.status));
 
   async function veroeffentlichen() {
@@ -63,10 +65,17 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
     }
   }
 
+  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, fehler, beschaeftigt, veroeffentlichen };
+}
+
+export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
+  const { liste, zuletzt, aenderungen, fehler, beschaeftigt, veroeffentlichen } =
+    useVeroeffentlichung(kuenstlerId, ich);
+
   return (
     <div className="pt-4 space-y-2">
       <h3 className="text-lg">Veröffentlichen</h3>
-      {aenderungen?.history !== undefined && aenderungen?.seiten !== undefined && (
+      {aenderungen && (
         <details className="text-sm">
           <summary className="cursor-pointer">
             {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)}): ` : "Noch nie veröffentlicht. "}

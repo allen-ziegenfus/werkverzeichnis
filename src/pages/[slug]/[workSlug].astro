@@ -46,6 +46,7 @@ const { werk, slug, workSlug, titel, nachher, vorher } = Astro.props;
   titel={werk.Titel + " - " + einstellungen.websiteTitel}
   beschreibung={werk.Beschreibung}
   bild={werk.Bilder[0].video ? werk.Thumbnail : werk.Bilder[0].src}
+  werkKennung={workSlug}
 >
   <SuchNavigation client:only />
   <nav class="print:hidden">
