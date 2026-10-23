@@ -39,8 +39,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     e => setFehler(e.message)), [kuenstlerId]);
 
   // Änderungen seitdem, live, damit das Speichern einer Seite sie aktualisiert;
-  // höchstens HOECHSTENS + 1 werden gelesen. Werkgruppen haben keinen
-  // Zeitstempel, ihre Änderungen zählen nicht mit.
+  // höchstens HOECHSTENS + 1 werden gelesen.
   useEffect(() => {
     if (zuletzt === undefined) return;
     setAenderungen({});
@@ -49,11 +48,11 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
         orderBy(feld, "desc"), limit(HOECHSTENS + 1)),
       snap => setAenderungen(a => ({ ...a, [c]: snap.docs.map(d => ({ id: d.id, ...d.data() })) })),
       e => setFehler(e.message));
-    const beenden = [seit("history", "at"), seit("seiten", "updatedAt")];
+    const beenden = [seit("history", "at"), seit("seiten", "updatedAt"), seit("werkgruppen", "updatedAt")];
     return () => beenden.forEach(f => f());
   }, [kuenstlerId, zuletzt]);
 
-  const geladen = aenderungen?.history !== undefined && aenderungen?.seiten !== undefined;
+  const geladen = ["history", "seiten", "werkgruppen"].every(c => aenderungen?.[c] !== undefined);
   const beschaeftigt = liste?.some(v => ["angefordert", "läuft"].includes(v.status));
 
   async function veroeffentlichen() {
@@ -80,7 +79,8 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
           <summary className="cursor-pointer">
             {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)}): ` : "Noch nie veröffentlicht. "}
             {anzahl(aenderungen.history.length)} Änderung{aenderungen.history.length === 1 ? "" : "en"} an Werken,{" "}
-            {anzahl(aenderungen.seiten.length)} geänderte Seite{aenderungen.seiten.length === 1 ? "" : "n"}.
+            {anzahl(aenderungen.seiten.length)} geänderte Seite{aenderungen.seiten.length === 1 ? "" : "n"},{" "}
+            {anzahl(aenderungen.werkgruppen.length)} geänderte Werkgruppe{aenderungen.werkgruppen.length === 1 ? "" : "n"}.
           </summary>
           <ul className="pl-4 pt-1">
             {aenderungen.history.slice(0, HOECHSTENS).map(h => (
@@ -90,6 +90,9 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
             ))}
             {aenderungen.seiten.slice(0, HOECHSTENS).map(s => (
               <li key={s.id}>{wann(s.updatedAt)} · Seite „{s.titel || s.id}“</li>
+            ))}
+            {aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => (
+              <li key={g.id}>{wann(g.updatedAt)} · Werkgruppe „{g.titel || g.id}“</li>
             ))}
           </ul>
         </details>

@@ -17,7 +17,7 @@ export function anzeigen(el) {
 }
 
 const link = "underline hover:no-underline";
-const knopf = "px-2 py-0.5 border rounded disabled:opacity-40";
+const knopf = "px-2 py-0.5 border border-gray-400 rounded bg-white dark:bg-neutral-700 dark:border-neutral-500 disabled:opacity-40";
 
 function Werkzeugleiste({ werkKennung }) {
   const [nutzer, setNutzer] = useState(undefined);
@@ -42,7 +42,7 @@ function Werkzeugleiste({ werkKennung }) {
   return (
     <>
       <div className="h-16 sm:h-12" />
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white dark:bg-neutral-800 dark:border-neutral-700 text-sm">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-300 bg-gray-200 dark:bg-neutral-800 dark:border-neutral-700 text-sm">
         <div className="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
           {wer && werkKennung && darf(wer, "werke.bearbeiten") && (
             <a className={link} href={`/verwaltung/werke/?werk=${encodeURIComponent(werkKennung)}`}>
@@ -64,7 +64,7 @@ function Werkzeugleiste({ werkKennung }) {
 
 function Stand({ ich, erlaubt }) {
   const { liste, aenderungen, fehler, beschaeftigt, veroeffentlichen } = useVeroeffentlichung(KUENSTLER, ich);
-  const n = aenderungen && aenderungen.history.length + aenderungen.seiten.length;
+  const n = aenderungen && aenderungen.history.length + aenderungen.seiten.length + aenderungen.werkgruppen.length;
   const letzte = liste?.[0];
 
   return (

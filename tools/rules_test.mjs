@@ -37,7 +37,7 @@ const kutscher = {
   active: true, updatedAt: FRUEHER,
 };
 const werk = { InvNr: "OB1", werkgruppe: "objekte", Titel: "Ding", updatedAt: FRUEHER };
-const gruppe = { titel: "Fotografie", kurztitel: null, reihenfolge: 13 };
+const gruppe = { titel: "Fotografie", kurztitel: null, reihenfolge: 13, updatedAt: JETZT };
 const seite = { titel: "Kontakt", kategorie: "Footer", reihenfolge: 1, text: "**Hallo**\n", updatedAt: FRUEHER };
 
 function anmeldung(email, { bestaetigt = true, superAdmin = false } = {}) {
@@ -139,6 +139,8 @@ const faelle = [
     "artists/kutscher/werkgruppen/fotografie", { daten: { ...gruppe, reihenfolge: "13" } }),
   fall("Werkgruppe hat keinen Bildordner mehr", "DENY", als(ADMIN), "create",
     "artists/kutscher/werkgruppen/fotografie", { daten: { ...gruppe, ordner: "fotografie" } }),
+  fall("Werkgruppe ohne aktuellen Zeitstempel", "DENY", als(ADMIN), "update",
+    "artists/kutscher/werkgruppen/fotografie", { daten: { ...gruppe, titel: "Neu", updatedAt: FRUEHER }, vorhanden: gruppe }),
   fall("niemand löscht eine Werkgruppe", "DENY", als(SUPER), "delete", "artists/kutscher/werkgruppen/objekte",
     { vorhanden: gruppe }),
 

@@ -262,7 +262,7 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
     try {
       await runTransaction(db, async tx => {
         if ((await tx.get(ref)).exists()) throw new Error(`„${id}“ gibt es schon.`);
-        tx.set(ref, { titel: titel.trim(), kurztitel: null, reihenfolge });
+        tx.set(ref, { titel: titel.trim(), kurztitel: null, reihenfolge, updatedAt: serverTimestamp() });
       });
       setTitel("");
       await laden();
@@ -274,7 +274,7 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
   async function aendern(g, aenderungen) {
     setFehler(undefined);
     try {
-      await updateDoc(doc(sammlung, g.id), aenderungen);
+      await updateDoc(doc(sammlung, g.id), { ...aenderungen, updatedAt: serverTimestamp() });
       await laden();
     } catch (e) {
       setFehler(meldung(e));
