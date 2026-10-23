@@ -21,9 +21,9 @@ const { werkgruppe } = Astro.props;
   <main>
     <nav class="print:hidden">
       <ul class="flex flex-row flex-wrap">
-        <li><a class="text-blue-800" href="/">Startseite</a>&nbsp; / &nbsp;</li>
+        <li><a class="text-blue-800 dark:text-blue-400" href="/">Startseite</a>&nbsp; / &nbsp;</li>
         <li>
-          <a class="text-blue-800" href={`/${werkgruppe.Slug}`}>
+          <a class="text-blue-800 dark:text-blue-400" href={`/${werkgruppe.Slug}`}>
             {werkgruppe.Titel}</a
           >
         </li>

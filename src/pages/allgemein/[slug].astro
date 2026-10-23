@@ -49,9 +49,9 @@ const { seite } = Astro.props;
   <main class="my-4">
     <nav class="print:hidden">
       <ul class="flex flex-row">
-        <li><a class="text-blue-800" href="/">Startseite</a>&nbsp; / &nbsp;</li>
+        <li><a class="text-blue-800 dark:text-blue-400" href="/">Startseite</a>&nbsp; / &nbsp;</li>
         <li>
-          <a class="text-blue-800" href={`/allgemein/${seite.Slug}`}> {seite.Name}</a>
+          <a class="text-blue-800 dark:text-blue-400" href={`/allgemein/${seite.Slug}`}> {seite.Name}</a>
         </li>
       </ul>
     </nav>
