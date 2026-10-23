@@ -12,10 +12,10 @@ provider "google" {
 
 # Infrastructure Manager kann man kein Secret übergeben, deshalb liest Terraform
 # das Token beim Lauf aus dem Secret Manager des Infra-Projekts (bootstrap.sh legt es ab).
-data "google_secret_manager_secret_version" "cloudflare" {
+data "google_secret_manager_secret_version_access" "cloudflare" {
   secret = "cloudflare-terraform-token"
 }
 
 provider "cloudflare" {
-  api_token = data.google_secret_manager_secret_version.cloudflare.secret_data
+  api_token = data.google_secret_manager_secret_version_access.cloudflare.secret_data
 }
