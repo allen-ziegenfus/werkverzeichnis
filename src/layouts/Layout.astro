@@ -36,6 +36,32 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
     <meta name="viewport" content="width=device-width" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="sitemap" href="/sitemap-index.xml" />
+    <style is:inline>
+      /* Formularfelder, Bildlaufleisten usw. zeichnet der Browser passend. */
+      html.dark { color-scheme: dark; }
+    </style>
+    <script is:inline>
+      // Hell oder dunkel: die Wahl über den Schalter (localStorage "farbschema"),
+      // sonst die Einstellung des Systems. Läuft vor dem ersten Zeichnen.
+      (() => {
+        const system = matchMedia("(prefers-color-scheme: dark)");
+        const gewaehlt = () => { try { return localStorage.getItem("farbschema"); } catch { return null; } };
+        const anwenden = () => document.documentElement.classList.toggle("dark",
+          (gewaehlt() ?? (system.matches ? "dunkel" : "hell")) === "dunkel");
+        anwenden();
+        system.addEventListener("change", anwenden);
+        // Der Schalter wählt das Gegenteil des Angezeigten; entspricht das dem
+        // System, folgt die Seite wieder dem System.
+        window.farbschemaUmschalten = () => {
+          const neu = document.documentElement.classList.contains("dark") ? "hell" : "dunkel";
+          try {
+            if (neu === (system.matches ? "dunkel" : "hell")) localStorage.removeItem("farbschema");
+            else localStorage.setItem("farbschema", neu);
+          } catch {}
+          document.documentElement.classList.toggle("dark", neu === "dunkel");
+        };
+      })();
+    </script>
     <meta name="generator" content={Astro.generator} />
     {keinIndex && <meta name="robots" content="noindex" />}
 
@@ -67,9 +93,9 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
       )
     }
   </head>
-  <body class="max-w-6xl m-auto p-4 md:p-6 relative">
+  <body class="max-w-6xl m-auto p-4 md:p-6 relative bg-white text-black dark:bg-neutral-900 dark:text-neutral-100">
     <Suche client:only />
-    <header class="sticky bg-white top-0 print:static">
+    <header class="sticky bg-white dark:bg-neutral-900 top-0 print:static">
       <div
         class="flex justify-center text-center py-2 md:py-5 relative items-center"
       >
@@ -82,14 +108,14 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
           </h1></a
         >
         <div class="lg:hidden ml-2 print:hidden">
-          <MenuIcon class="align-center w-7 h-7 text-gray-800" />
+          <MenuIcon class="align-center w-7 h-7 text-gray-800 dark:text-neutral-200" />
         </div>
       </div>
 
       <nav class="print:hidden">
         <Astronav closeOnClick>
           <MenuItems class="hidden justify-center lg:hidden h-screen">
-            <Dropdown class="group group:relative bg-gray-200">
+            <Dropdown class="group group:relative bg-gray-200 dark:bg-neutral-800">
               <button
                 class="text-lg w-full text-left my-2 mb-0 py-4 px-2 flex items-center"
               >
@@ -116,7 +142,7 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
                       kopfSeiten.map((seite) => (
                         <li class="py-2">
                           <a
-                            class="px-3 py-1 hover:bg-gray-800 hover:text-white cursor-pointer"
+                            class="px-3 py-1 hover:bg-gray-800 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-black cursor-pointer"
                             href={`/allgemein/${seite.Slug}`}
                           >
                             {" "}
@@ -130,7 +156,7 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
                 </div>
               </DropdownItems>
             </Dropdown>
-            <Dropdown class="group group:relative bg-gray-200">
+            <Dropdown class="group group:relative bg-gray-200 dark:bg-neutral-800">
               <button
                 class="text-lg w-full text-left my-2 py-4 px-2 flex items-center mb-0"
               >
@@ -155,7 +181,7 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
                   werkgruppen.map((werkgruppe) => (
                     <li>
                       <a
-                        class="px-2 text-sm  hover:bg-gray-800 hover:text-white cursor-pointer "
+                        class="px-2 text-sm  hover:bg-gray-800 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-black cursor-pointer "
                         href={`/${werkgruppe.Slug}`}
                       >
                         &gt;
@@ -170,7 +196,22 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
               <div class="m-3 w-7 h-7 flex print:hidden">
                 <SuchSymbol client:only />
               </div>
-              <div style="" class="m-3 w-7 h-7">
+              <div class="m-3 w-7 h-7 flex print:hidden">
+                  <button type="button" onclick="farbschemaUmschalten()" title="Hell / Dunkel"
+                          aria-label="Hell oder dunkel">
+                    <svg class="w-7 h-7 dark:hidden" xmlns="http://www.w3.org/2000/svg" fill="none"
+                         viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M21.752 15.002A9.72 9.72 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"></path>
+                    </svg>
+                    <svg class="w-7 h-7 hidden dark:block" xmlns="http://www.w3.org/2000/svg" fill="none"
+                         viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"></path>
+                    </svg>
+                  </button>
+                </div>
+                <div style="" class="m-3 w-7 h-7">
                 <a href="javascript:window.print()">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
                     <path
@@ -196,9 +237,9 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
 
           <div class="hidden lg:block">
             <MenuItems
-              class="flex w-full bg-gray-200 relative mb-4 justify-center items-center"
+              class="flex w-full bg-gray-200 dark:bg-neutral-800 relative mb-4 justify-center items-center"
             >
-              <Dropdown class="group group:relative bg-gray-200">
+              <Dropdown class="group group:relative bg-gray-200 dark:bg-neutral-800">
                 <button
                   class="text-lg text-left my-2 py-4 px-5 flex items-center"
                 >
@@ -219,11 +260,11 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
                   </svg>
                 </button>
                 <div
-                  class="absolute h-screen left-0 right-0 bg-white bg-opacity-60 group-open:block hidden"
+                  class="absolute h-screen left-0 right-0 bg-white dark:bg-neutral-900 bg-opacity-60 group-open:block hidden"
                 >
                 </div>
                 <DropdownItems
-                  class="group:absolute absolute bg-gray-200 w-full left-0"
+                  class="group:absolute absolute bg-gray-200 dark:bg-neutral-800 w-full left-0"
                 >
                   <div class="">
                     <ul>
@@ -231,7 +272,7 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
                         kopfSeiten.map((seite) => (
                           <li class="py-2 m-3">
                             <a
-                              class="px-3 py-1 hover:bg-gray-800 hover:text-white cursor-pointer"
+                              class="px-3 py-1 hover:bg-gray-800 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-black cursor-pointer"
                               href={`/allgemein/${seite.Slug}`}
                             >
                               {seite.Name}
@@ -244,7 +285,7 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
                 </DropdownItems>
               </Dropdown>
 
-              <Dropdown class="group group:relative bg-gray-200">
+              <Dropdown class="group group:relative bg-gray-200 dark:bg-neutral-800">
                 <button
                   class="text-lg w-full text-left my-2 py-4 px-6 flex items-center"
                 >
@@ -265,16 +306,16 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
                   </svg>
                 </button>
                 <div
-                  class="absolute h-screen left-0 right-0 bg-white bg-opacity-60 group-open:block hidden"
+                  class="absolute h-screen left-0 right-0 bg-white dark:bg-neutral-900 bg-opacity-60 group-open:block hidden"
                 >
                 </div>
                 <DropdownItems
-                  class="group:absolute absolute bg-gray-200 w-full left-0 grid grid-cols-4"
+                  class="group:absolute absolute bg-gray-200 dark:bg-neutral-800 w-full left-0 grid grid-cols-4"
                 >
                   {
                     werkgruppen.map((werkgruppe) => (
                       <a
-                        class="p-3 m-3 cursor-pointer border-2 rounded-lg border-gray-400 hover:border-gray-600 border-solid flex justify-center flex-wrap"
+                        class="p-3 m-3 cursor-pointer border-2 rounded-lg border-gray-400 hover:border-gray-600 dark:border-neutral-500 dark:hover:border-neutral-300 border-solid flex justify-center flex-wrap"
                         href={`/${werkgruppe.Slug}`}
                       >
                         <img src={werkgruppe.Thumbnail} class="h-[8vh]" />
@@ -287,6 +328,21 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
               <div class="m-3 flex absolute right-0">
                 <div class="m-3 w-7 h-7 flex print:hidden">
                   <SuchSymbol client:only />
+                </div>
+                <div class="m-3 w-7 h-7 flex print:hidden">
+                  <button type="button" onclick="farbschemaUmschalten()" title="Hell / Dunkel"
+                          aria-label="Hell oder dunkel">
+                    <svg class="w-7 h-7 dark:hidden" xmlns="http://www.w3.org/2000/svg" fill="none"
+                         viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M21.752 15.002A9.72 9.72 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"></path>
+                    </svg>
+                    <svg class="w-7 h-7 hidden dark:block" xmlns="http://www.w3.org/2000/svg" fill="none"
+                         viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"></path>
+                    </svg>
+                  </button>
                 </div>
                 <div style="" class="m-3 w-7 h-7">
                   <a href="javascript:window.print()">
@@ -323,13 +379,13 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
     <footer class="py-3">
       <nav>
         <ul
-          class="flex flex-row flex-wrap bg-gray-200 py-4 px-2 my-3 justify-center print:hidden"
+          class="flex flex-row flex-wrap bg-gray-200 dark:bg-neutral-800 py-4 px-2 my-3 justify-center print:hidden"
         >
           {
             fussSeiten.map((seite) => (
               <li>
                 <a
-                  class="px-3 py-2 hover:bg-gray-800 hover:text-white cursor-pointer"
+                  class="px-3 py-2 hover:bg-gray-800 hover:text-white dark:hover:bg-neutral-200 dark:hover:text-black cursor-pointer"
                   href={`/allgemein/${seite.Slug}`}
                 >
                   {seite.Name}
@@ -340,7 +396,7 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
         </ul>
         <p>
           Copyright © {jahr} {einstellungen.copyright}
-          <a class="ml-3 text-sm text-gray-400 hover:text-gray-600 print:hidden"
+          <a class="ml-3 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 print:hidden"
              href="/firestore-test/admin/" rel="nofollow">Anmelden</a>
         </p>
       </nav>

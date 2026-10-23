@@ -174,7 +174,7 @@ export default function Suche() {
       <div className="text-white fixed top-0 bottom-0 left-0 right-0 bg-black overflow-scroll z-10">
         <div className="max-w-6xl m-auto">
           <input
-            className="text-black flex my-5 mx-auto w-1/2 h-10 rounded-lg p-2"
+            className="text-black bg-white flex my-5 mx-auto w-1/2 h-10 rounded-lg p-2"
             placeholder="Suchen"
             value={suchbegriff}
             onChange={(e) => setSuchbegriff(e.target.value)}
