@@ -53,7 +53,8 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
   }, [kuenstlerId, zuletzt]);
 
   const geladen = ["history", "seiten", "werkgruppen"].every(c => aenderungen?.[c] !== undefined);
-  const beschaeftigt = liste?.some(v => ["angefordert", "läuft"].includes(v.status));
+  // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
+  const beschaeftigt = liste?.some(v => ["angefordert", "wartet", "läuft"].includes(v.status));
 
   async function veroeffentlichen() {
     setFehler(undefined);
