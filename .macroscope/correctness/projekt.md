@@ -48,3 +48,5 @@ in Cloud Build neu und deployt sie zu Cloudflare Pages.
 
 - Texte der Oberfläche, Bezeichner, Kommentare, Commits und PRs sind deutsch.
   Englische Bezeichner nur, wo eine Bibliothek sie vorgibt.
+- Schreibe deine Review-Kommentare, Zusammenfassungen und Vorschläge bitte auf
+  Deutsch.
