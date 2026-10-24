@@ -5,8 +5,8 @@ import Zugang from "./Zugang.jsx";
 
 /**
  * Einstellungen der Künstler:in dieser Website. Speichert nur diese Felder; wer
- * was darf, steht auf der Seite Personen (Personen.jsx). Kennung und „aktiv“
- * verwalten Super-Admins mit Skripten (#27).
+ * was darf, steht auf der Seite Personen (Personen.jsx). Die Künstler:in legt
+ * die Zentrale an (#27).
  */
 
 const EINSTELLUNGEN = [

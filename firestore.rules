@@ -48,26 +48,19 @@ service cloud.firestore {
 
     function gueltigerKuenstler(d) {
       return d.keys().hasOnly(["titel", "websiteTitel", "titelZeile1", "titelZeile2",
-                               "copyright", "roles", "active", "updatedAt"])
+                               "copyright", "roles", "updatedAt"])
         && d.titel is string && d.titel.size() > 0
         && d.websiteTitel is string && d.titelZeile1 is string
         && d.titelZeile2 is string && d.copyright is string
         && d.roles is map && d.roles.size() <= 50
         && d.roles.values().hasOnly(berechtigungen().keys())
-        && d.active is bool
         && d.updatedAt == request.time;
     }
 
     match /artists/{kuenstler} {
       allow get: if darf(kuenstler, "lesen");
-      // Super-Admins listen alle; alle anderen fragen nach ihrer E-Mail in roles.
-      allow list: if istSuperAdmin()
-        || (angemeldet() && resource.data.roles[emailAdresse()] in berechtigungen().keys());
-
-      // Die Kennung wird zur ARTIST_ID der Seite und zum Namen eines Pages-Projekts.
-      allow create: if istSuperAdmin()
-        && kuenstler.matches("^[a-z0-9][a-z0-9-]{1,39}$")
-        && gueltigerKuenstler(request.resource.data);
+      // Kein list und kein create: Jede Website hat genau eine Künstler:in; angelegt
+      // wird sie von der Zentrale (#27) mit IAM, an diesen Regeln vorbei.
 
       // Einstellungen und Rollen sind getrennte Berechtigungen; ein Schreibvorgang
       // braucht die, deren Felder er ändert.
