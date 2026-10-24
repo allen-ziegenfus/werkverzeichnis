@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { collection, deleteDoc, doc, getDoc, getDocs, runTransaction, serverTimestamp } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
-import { db } from "./firebaseClient.js";
+import { darf } from "../werkverzeichnis/permissions.js";
+import { db, KUENSTLER } from "./firebaseClient.js";
+import Zugang from "./Zugang.jsx";
 
 // Der Editor ist groß; erst laden, wenn eine Seite geöffnet wird.
 const MarkdownEditor = lazy(() => import("./MarkdownEditor.jsx"));
@@ -17,7 +19,12 @@ const zuKennung = s => slugify(s, { lower: true }).replace(/[^a-z0-9-]/g, "").sl
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 const ordnung = (a, b) => a.kategorie.localeCompare(b.kategorie) * -1 || a.reihenfolge - b.reihenfolge;
 
-export default function Seiten({ kuenstlerId, bearbeitbar }) {
+export default function SeitenSeite() {
+  return <Zugang berechtigung="seiten.bearbeiten" kinder={({ wer }) =>
+    <Seiten kuenstlerId={KUENSTLER} bearbeitbar={darf(wer, "seiten.bearbeiten")} />} />;
+}
+
+function Seiten({ kuenstlerId, bearbeitbar }) {
   const sammlung = collection(db, "artists", kuenstlerId, "seiten");
   const [seiten, setSeiten] = useState();
   const [offen, setOffen] = useState();   // eine Seite, oder { id: "" } für eine neue
@@ -35,8 +42,7 @@ export default function Seiten({ kuenstlerId, bearbeitbar }) {
   );
 
   return (
-    <div className="pt-4 space-y-2">
-      <h3 className="text-lg">Seiten</h3>
+    <div className="space-y-2">
       {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
       <ul className="divide-y text-sm">
         {(seiten ?? []).map(s => (
