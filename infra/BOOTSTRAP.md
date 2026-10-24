@@ -105,10 +105,69 @@ Aus dem Repo, mit den eigenen Zugangsdaten:
 ```sh
 node tools/rules_deploy.mjs                     # Firestore-Regeln (vorher die Tests)
 (cd gcf && npm ci) && firebase deploy --only functions --project <seiten-projekt>
-node tools/super_admin.mjs grant <deine-email>  # dann die Künstler:in in /verwaltung/ anlegen
+node tools/super_admin.mjs grant <deine-email>  # Notschlüssel; die Künstler:in legt die Zentrale an (#27)
 ```
 
 Ein Push auf den Branch der Seite baut und deployt sie; Veröffentlichen ebenso.
+
+## 6. Die Zentrale
+
+Eine Web-App im Infra-Projekt für alles, was mehrere Seiten betrifft (#27). Nur
+erreichbar für die Google-Konten im Secret `zentrale-zugang`; das prüft IAP,
+bevor eine Anfrage die App erreicht. Einmal je Infra-Projekt:
+
+```sh
+export INFRA_PROJECT=werkverzeichnis-infra
+infra/bootstrap.sh zentrale $INFRA_PROJECT     # fragt nach den Google-Adressen
+```
+
+Das Infra-Projekt gehört zu keiner Organisation; dann braucht IAP einen eigenen
+OAuth-Client, den man nur in der Console anlegen kann:
+
+1. [Google Auth Platform → Branding](https://console.cloud.google.com/auth/branding?project=werkverzeichnis-infra):
+   *Get started*, App-Name „Werkverzeichnis Zentrale“, Support-Adresse, Zielgruppe
+   **External**, anlegen. Unter *Zielgruppe* den Status auf **In production**
+   setzen (nur Anmeldung, keine Prüfung nötig), sonst dürfen nur eingetragene
+   Testnutzer:innen hinein.
+2. [Clients](https://console.cloud.google.com/auth/clients?project=werkverzeichnis-infra):
+   *Create client*, Typ **Web application**, Name „IAP Zentrale“, anlegen;
+   Client-ID und -Secret notieren.
+3. Den Client bearbeiten und als autorisierte Weiterleitungs-URI eintragen:
+   `https://iap.googleapis.com/v1/oauth/clientIds/<CLIENT_ID>:handleRedirect`
+4. Den Client bei IAP eintragen. Die Datei mit dem Secret ist nur für dich
+   lesbar und verschwindet in jedem Fall wieder, auch wenn der Befehl scheitert
+   (Subshell, damit `trap` nicht erst beim Schließen der Shell greift):
+
+   ```sh
+   (
+     umask 077
+     datei=$(mktemp)
+     trap 'rm -f "$datei"' EXIT
+     cat > "$datei" <<EOF
+   access_settings:
+     oauth_settings:
+       client_id: <CLIENT_ID>
+       client_secret: <CLIENT_SECRET>
+   EOF
+     gcloud iap settings set "$datei" --project="$INFRA_PROJECT"
+   )
+   ```
+
+Dann Terraform und die App:
+
+```sh
+infra/apply.sh preview zentrale
+infra/apply.sh apply zentrale                  # gibt die Adresse aus
+infra/zentrale/deploy.sh                       # baut zentrale/ und deployt es
+```
+
+Wer hinein darf, ändert eine neue Version des Secrets, dann wieder
+`infra/apply.sh apply zentrale`:
+
+```sh
+printf 'name@gmail.com\nandere@gmail.com\n' | gcloud secrets versions add zentrale-zugang \
+  --project=$INFRA_PROJECT --data-file=-
+```
 
 ## Noch nicht je Seite
 

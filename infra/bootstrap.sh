@@ -7,9 +7,12 @@
 #       Cloudflare-Token für Terraform
 #   infra/bootstrap.sh add-site <infra-projekt> <seiten-projekt>
 #       erlaubt diesem Servicekonto, das Projekt einer Seite zu verwalten
+#   infra/bootstrap.sh zentrale <infra-projekt>
+#       erlaubt ihm, die Zentrale im Infra-Projekt einzurichten, und legt das
+#       Secret mit den Adressen an, die hinein dürfen
 set -euo pipefail
 
-befehl=${1:?infra or add-site}
+befehl=${1:?infra, add-site or zentrale}
 INFRA=${2:?infra project id}
 KONTO=infra-manager@$INFRA.iam.gserviceaccount.com
 
@@ -66,6 +69,27 @@ add-site)
       --role="$rolle" --condition=None >/dev/null
   done
   echo "$KONTO may now manage $SEITE."
+  ;;
+
+zentrale)
+  for rolle in \
+    roles/serviceusage.serviceUsageAdmin roles/run.admin roles/iap.admin \
+    roles/iam.serviceAccountAdmin roles/iam.serviceAccountUser roles/resourcemanager.projectIamAdmin; do
+    wiederholen gcloud projects add-iam-policy-binding "$INFRA" --member="serviceAccount:$KONTO" \
+      --role="$rolle" --condition=None >/dev/null
+  done
+
+  # Eine E-Mail-Adresse je Zeile; ändern mit einer neuen Version und apply.sh apply zentrale.
+  gcloud secrets describe zentrale-zugang --project="$INFRA" >/dev/null 2>&1 \
+    || gcloud secrets create zentrale-zugang --project="$INFRA" --replication-policy=automatic
+  wiederholen gcloud secrets add-iam-policy-binding zentrale-zugang --project="$INFRA" \
+    --member="serviceAccount:$KONTO" --role=roles/secretmanager.secretAccessor --condition=None >/dev/null
+  if [ -z "$(gcloud secrets versions list zentrale-zugang --project="$INFRA" --filter=state=enabled --format='value(name)')" ]; then
+    read -rp "Google-Adressen für die Zentrale, durch Leerzeichen getrennt: " adressen
+    [ -n "$adressen" ] && printf '%s\n' $adressen | gcloud secrets versions add zentrale-zugang \
+      --project="$INFRA" --data-file=-
+  fi
+  echo "$KONTO may now set up the Zentrale in $INFRA."
   ;;
 
 *)
