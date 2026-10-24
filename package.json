@@ -23,7 +23,7 @@
     "@types/react-dom": "^18.0.6",
     "astro": "^2.2.0",
     "astro-navbar": "^2.3.0",
-    "dotenv": "^16.0.3",
+    "dotenv": "^18.0.8",
     "firebase": "^13.0.0",
     "flexsearch": "^0.7.31",
     "google-auth-library": "^11.2.0",
