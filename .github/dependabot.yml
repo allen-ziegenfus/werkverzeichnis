@@ -1,0 +1,25 @@
+# Wöchentliche Versions-Updates (#44). Kleine Updates kommen gesammelt in einem
+# PR je Verzeichnis, große Versionssprünge einzeln. Sicherheits-Updates laufen
+# unabhängig davon.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      klein: { update-types: [minor, patch] }
+  - package-ecosystem: npm
+    directory: /gcf
+    schedule: { interval: weekly }
+    groups:
+      klein: { update-types: [minor, patch] }
+  - package-ecosystem: npm
+    directory: /zentrale
+    schedule: { interval: weekly }
+    groups:
+      klein: { update-types: [minor, patch] }
+  - package-ecosystem: terraform
+    directories: [/infra/gcp, /infra/cloudflare, /infra/zentrale]
+    schedule: { interval: monthly }
+    groups:
+      klein: { update-types: [minor, patch] }
