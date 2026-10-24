@@ -1,0 +1,34 @@
+# Deployt Firestore-Regeln und Funktionen (gcf/) einer Seite, wenn sich auf
+# ihrem Branch etwas daran ändert (#3). Der Trigger in infra/gcp lauscht nur
+# auf diese Dateien; die Seite selbst baut cloudbuild.yaml. Läuft als
+# werkverzeichnis-deploy@.
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: MUST_MATCH
+
+steps:
+  - id: install
+    name: node:24
+    entrypoint: bash
+    args: [-c, 'command -v yarn >/dev/null || npm install -g yarn@1; yarn install --frozen-lockfile --non-interactive --ignore-scripts']
+
+  # Erst testen, dann deployen; rules_deploy.mjs ruft rules_test.mjs selbst auf.
+  - id: regeln
+    name: node:24
+    args: [tools/rules_deploy.mjs]
+    entrypoint: node
+    env:
+      - FIRESTORE_PROJECT=$PROJECT_ID
+      - FIRESTORE_DATABASE=${_FIRESTORE_DATABASE}
+
+  - id: funktionen
+    name: node:22
+    entrypoint: bash
+    args:
+      - -c
+      - >-
+        (cd gcf && npm ci)
+        && npx --yes firebase-tools deploy --only functions
+        --project $PROJECT_ID --non-interactive --force
+
+timeout: 1800s
