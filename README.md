@@ -24,8 +24,16 @@ Webversionen gibt es noch nicht, ein Werk ohne Werkgruppe) den Build scheitern.
 
 ## Bearbeiten und veröffentlichen
 
-- `/verwaltung/`: Künstler:innen, Rollen, Werkgruppen, Seiten, Veröffentlichen
+Angemeldete sehen unten auf jeder Seite der Website die Werkzeugleiste mit dem Weg in die Verwaltung. Die Verwaltung hat ein eigenes, immer helles Layout mit Reitern:
+
+- `/verwaltung/`: Übersicht und Veröffentlichen
 - `/verwaltung/werke/`: Werke
+- `/verwaltung/werkgruppen/`: Werkgruppen
+- `/verwaltung/seiten/`: Inhaltsseiten
+- `/verwaltung/einstellungen/`: Titel der Website, Copyright
+- `/verwaltung/personen/`: Personen und Rollen
+
+Künstler:innen anlegen und Websites einrichten gehört nicht dazu (#27).
 
 Wer was darf, steht in `firestore.rules` (getestet mit `tools/rules_test.mjs`,
 deployt mit `tools/rules_deploy.mjs`); Super-Admins setzt `tools/super_admin.mjs`.

@@ -1,12 +1,8 @@
 ---
-import einstellungen from "../../../public/site.json";
-import Layout from "../../layouts/Layout.astro";
+import VerwaltungLayout from "../../layouts/VerwaltungLayout.astro";
 import Verwaltung from "../../components/Verwaltung.jsx";
 ---
 
-<Layout titel={"Verwaltung - " + einstellungen.websiteTitel} keinIndex>
-  <main class="max-w-3xl mx-auto p-4">
-    <h1 class="text-2xl mb-4">Verwaltung</h1>
-    <Verwaltung client:only="react" />
-  </main>
-</Layout>
+<VerwaltungLayout titel="Übersicht">
+  <Verwaltung client:only="react" />
+</VerwaltungLayout>

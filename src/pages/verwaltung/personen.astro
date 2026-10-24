@@ -1,0 +1,8 @@
+---
+import VerwaltungLayout from "../../layouts/VerwaltungLayout.astro";
+import PersonenSeite from "../../components/Personen.jsx";
+---
+
+<VerwaltungLayout titel={"Personen & Rollen"} aktiv="/verwaltung/personen/">
+  <PersonenSeite client:only="react" />
+</VerwaltungLayout>

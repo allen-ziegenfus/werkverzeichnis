@@ -1,0 +1,8 @@
+---
+import VerwaltungLayout from "../../layouts/VerwaltungLayout.astro";
+import WerkgruppenSeite from "../../components/Werkgruppen.jsx";
+---
+
+<VerwaltungLayout titel="Werkgruppen" aktiv="/verwaltung/werkgruppen/">
+  <WerkgruppenSeite client:only="react" />
+</VerwaltungLayout>
