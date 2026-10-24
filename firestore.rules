@@ -131,11 +131,13 @@ service cloud.firestore {
 
     // Veröffentlichen: Wer darf, fordert einen neuen Build der Seite an; die
     // Funktion `veroeffentlichen` (gcf/publish.js) startet Cloud Build und trägt
-    // den Rest ein.
+    // den Rest ein. Eine kurze Notiz zum Nachlesen ist freiwillig (#48).
     match /artists/{kuenstler}/veroeffentlichungen/{v} {
       allow read: if darf(kuenstler, "lesen");
       allow create: if darf(kuenstler, "veroeffentlichen")
-        && request.resource.data.keys().hasOnly(["von", "angefordert", "status"])
+        && request.resource.data.keys().hasOnly(["von", "angefordert", "status", "notiz"])
+        && (!("notiz" in request.resource.data)
+            || (request.resource.data.notiz is string && request.resource.data.notiz.size() <= 500))
         && request.resource.data.von == emailAdresse()
         && request.resource.data.angefordert == request.time
         && request.resource.data.status == "angefordert";

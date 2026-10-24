@@ -17,6 +17,7 @@ const STATUS = {
 const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
 const knopfKlein = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 export const HOECHSTENS = 100;
+export const NOTIZ_LAENGE = 500;   // wie in firestore.rules
 export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 
@@ -64,12 +65,17 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
   // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
   const beschaeftigt = liste?.some(v => ["angefordert", "wartet", "läuft"].includes(v.status));
 
-  async function veroeffentlichen() {
+  /** Legt die Anfrage an; eine Notiz (#48) wird nur mitgeschickt, wenn es eine gibt. */
+  async function veroeffentlichen(notiz = "") {
     setFehler(undefined);
+    notiz = notiz.trim();
     try {
-      await addDoc(sammlung, { von: ich, angefordert: serverTimestamp(), status: "angefordert" });
+      await addDoc(sammlung, { von: ich, angefordert: serverTimestamp(), status: "angefordert",
+        ...(notiz ? { notiz } : {}) });
+      return true;
     } catch (e) {
       setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+      return false;
     }
   }
 
@@ -80,17 +86,19 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
  * Der Stand für Werkzeugleiste und Verwaltungskopf: offene Änderungen, läuft,
  * fehlgeschlagen oder alles veröffentlicht, mit dem Knopf für Admins. Ein Klick
  * auf den Stand klappt die Einzelheiten auf (Tafel), nach oben in der Leiste
- * unten, nach unten im Kopf.
+ * unten, nach unten im Kopf. „Veröffentlichen“ klappt sie mit einem Feld für
+ * eine Notiz auf; erst der Knopf dort legt die Anfrage an.
  */
 export function Stand({ kuenstlerId, ich, erlaubt, nachOben = false, className = "" }) {
   const v = useVeroeffentlichung(kuenstlerId, ich);
   const { liste, offen: n, fehler, beschaeftigt, veroeffentlichen } = v;
   const letzte = liste?.[0];
   const [auf, setAuf] = useState(false);
+  const [fragen, setFragen] = useState(false);   // Tafel mit Notizfeld
   const ref = useRef();
 
   useEffect(() => {
-    if (!auf) return;
+    if (!auf) { setFragen(false); return; }
     const schliessen = e => { if (e.key === "Escape" || (e.type === "pointerdown" && !ref.current.contains(e.target))) setAuf(false); };
     document.addEventListener("pointerdown", schliessen);
     document.addEventListener("keydown", schliessen);
@@ -112,16 +120,45 @@ export function Stand({ kuenstlerId, ich, erlaubt, nachOben = false, className =
         {" "}<span className="text-gray-600">{auf === nachOben ? "▾" : "▴"}</span>
       </button>
       {erlaubt && (
-        <button className={knopfKlein} onClick={veroeffentlichen} disabled={!liste}>Veröffentlichen</button>
+        <button className={knopfKlein} onClick={() => { setAuf(true); setFragen(true); }}
+                disabled={!liste || (auf && fragen)}>Veröffentlichen</button>
       )}
       {auf && (
         <div className={"absolute z-50 w-[min(32rem,calc(100vw-2rem))] max-h-[60vh] overflow-auto p-3 "
           + "bg-white text-black border border-gray-400 rounded shadow-lg text-sm "
           + (nachOben ? "bottom-full left-0 mb-2" : "top-full right-0 mt-2")}>
+          {fragen && <Notiz {...v} fertig={() => setAuf(false)} />}
           <Tafel {...v} />
         </div>
       )}
     </span>
+  );
+}
+
+/** Notiz eingeben und die Anfrage abschicken. */
+function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
+  const [notiz, setNotiz] = useState("");
+  const [sendet, setSendet] = useState(false);
+  async function senden(e) {
+    e.preventDefault();
+    setSendet(true);
+    if (await veroeffentlichen(notiz)) fertig();
+    else setSendet(false);
+  }
+  return (
+    <form className="mb-3 pb-3 border-b space-y-2" onSubmit={senden}>
+      <label className="block">
+        <span className="font-bold">Notiz (freiwillig)</span>
+        <input className="border border-gray-400 rounded p-1 w-full bg-white text-black" autoFocus maxLength={NOTIZ_LAENGE}
+               placeholder="z. B. Neue Werkgruppe" value={notiz}
+               onChange={e => setNotiz(e.target.value)} />
+      </label>
+      <div className="flex items-center gap-2">
+        <button className={knopfKlein} disabled={sendet}>Jetzt veröffentlichen</button>
+        <button type="button" className="underline" onClick={fertig}>Abbrechen</button>
+        {beschaeftigt && <span className="text-gray-600">Läuft gerade; kommt danach dran.</span>}
+      </div>
+    </form>
   );
 }
 
@@ -160,6 +197,7 @@ function Tafel({ liste, zuletzt, aenderungen, fehler }) {
                 <span className={FARBE[v.status] ?? ""}>{STATUS[v.status] ?? v.status}</span>
                 {v.meldung && <span className="text-red-700"> ({v.meldung})</span>}
                 {v.logUrl && <> · <a className="underline" href={v.logUrl} target="_blank" rel="noreferrer">Log</a></>}
+                {v.notiz && <div className="pl-4 italic break-words">„{v.notiz}“</div>}
               </li>
             ))}
           </ul>
