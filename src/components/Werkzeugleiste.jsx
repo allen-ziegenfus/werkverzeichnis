@@ -18,12 +18,21 @@ import { useZugang } from "./Zugang.jsx";
 export function anzeigen(el) {
   if (el.dataset.angezeigt) return;
   el.dataset.angezeigt = "1";
-  createRoot(el).render(<Werkzeugleiste werkKennung={el.dataset.werk} />);
+  createRoot(el).render(<Werkzeugleiste {...el.dataset} />);
 }
 
 const link = "underline hover:no-underline";
 
-function Werkzeugleiste({ werkKennung }) {
+/** Der Bearbeiten-Link für das, was die Seite zeigt: [Berechtigung, Adresse, Text]. */
+function bearbeiten({ werk, werkgruppe, seite }) {
+  const k = encodeURIComponent;
+  if (werk) return ["werke.bearbeiten", `/verwaltung/werke/?werk=${k(werk)}`, "Werk"];
+  if (werkgruppe) return ["werkgruppen.bearbeiten", `/verwaltung/werkgruppen/?werkgruppe=${k(werkgruppe)}`, "Werkgruppe"];
+  if (seite) return ["seiten.bearbeiten", `/verwaltung/seiten/?seite=${k(seite)}`, "Seite"];
+}
+
+function Werkzeugleiste(kennungen) {
+  const ziel = bearbeiten(kennungen);
   const { nutzer, wer } = useZugang();
 
   if (!nutzer || wer === undefined) return null;
@@ -33,9 +42,10 @@ function Werkzeugleiste({ werkKennung }) {
       <div className="h-16 sm:h-12" />
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-400 bg-gray-200 text-black text-sm">
         <div className="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-          {wer && werkKennung && darf(wer, "werke.bearbeiten") && (
-            <a className={link} href={`/verwaltung/werke/?werk=${encodeURIComponent(werkKennung)}`}>
-              ✎ <span className="hidden sm:inline">Dieses </span>Werk bearbeiten
+          {wer && ziel && darf(wer, ziel[0]) && (
+            <a className={link} href={ziel[1]}>
+              ✎ <span className="sm:hidden">Bearbeiten</span>
+              <span className="hidden sm:inline">{ziel[2] === "Werk" ? "Dieses" : "Diese"} {ziel[2]} bearbeiten</span>
             </a>
           )}
           {wer && <a className={link} href="/verwaltung/">Verwaltung →</a>}

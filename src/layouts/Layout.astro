@@ -17,14 +17,16 @@ export interface Props {
   beschreibung?: string;
   bild?: string;
   keinIndex?: boolean;
-  /** Kennung des Werks auf dieser Seite, für „Dieses Werk bearbeiten“. */
+  /** Was diese Seite zeigt, für „Dieses Werk/Diese Werkgruppe/Diese Seite bearbeiten“. */
   werkKennung?: string;
+  werkgruppeKennung?: string;
+  seiteKennung?: string;
 }
 
 const fussSeiten = seiten.filter((seite) => seite.Kategorie === "Footer");
 const kopfSeiten = seiten.filter((seite) => seite.Kategorie === "Header");
 const jahr = new Date().getFullYear();
-const { titel, beschreibung, bild, keinIndex, werkKennung } = Astro.props;
+const { titel, beschreibung, bild, keinIndex, werkKennung, werkgruppeKennung, seiteKennung } = Astro.props;
 
 const kanonischeUrl = new URL(Astro.url.pathname, Astro.site);
 const domain = kanonischeUrl.host;
@@ -403,7 +405,8 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
         </p>
       </nav>
     </footer>
-    <div id="werkzeugleiste" data-werk={werkKennung} class="print:hidden"></div>
+    <div id="werkzeugleiste" data-werk={werkKennung} data-werkgruppe={werkgruppeKennung} data-seite={seiteKennung}
+         class="print:hidden"></div>
     <script>
       // Die Werkzeugleiste (und mit ihr Firebase) lädt nur, wer sich auf diesem
       // Gerät schon angemeldet hat; alle anderen laden nichts zusätzlich.
