@@ -398,7 +398,7 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
         </ul>
         <p>
           Copyright © {jahr} {einstellungen.copyright}
-          <a class="ml-3 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 print:hidden"
+          <a id="anmelden" class="ml-3 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 print:hidden"
              href="/verwaltung/" rel="nofollow">Anmelden</a>
         </p>
       </nav>
@@ -412,6 +412,26 @@ const vorschauBildUrl = new URL(bild, kanonischeUrl);
       if (bearbeiter) {
         import("../components/Werkzeugleiste.jsx").then(m =>
           m.anzeigen(document.getElementById("werkzeugleiste")));
+      }
+
+      // „Anmelden“ öffnet das Google-Fenster gleich hier; Firebase lädt erst,
+      // wenn jemand auf den Link zeigt. Blockiert der Browser das Fenster, geht
+      // es wie ohne Skript zur Verwaltung.
+      const anmelden = document.getElementById("anmelden");
+      if (anmelden) {
+        if (bearbeiter) anmelden.hidden = true;
+        const laden = () => import("../components/anmelden.js");
+        for (const ereignis of ["pointerenter", "focus", "touchstart"]) {
+          anmelden.addEventListener(ereignis, laden, { once: true, passive: true });
+        }
+        anmelden.addEventListener("click", async e => {
+          e.preventDefault();
+          try {
+            await (await laden()).anmelden();
+          } catch {
+            location.href = anmelden.href;
+          }
+        });
       }
     </script>
   </body>
