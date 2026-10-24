@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, where,
 } from "firebase/firestore";
@@ -15,7 +15,6 @@ const STATUS = {
   fertig: "veröffentlicht", fehler: "fehlgeschlagen",
 };
 const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
-const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 const knopfKlein = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 export const HOECHSTENS = 100;
 export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
@@ -77,79 +76,95 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
   return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, offen, fehler, beschaeftigt, veroeffentlichen };
 }
 
-export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
-  const { liste, zuletzt, aenderungen, fehler, beschaeftigt, veroeffentlichen } =
-    useVeroeffentlichung(kuenstlerId, ich);
-
-  return (
-    <div className="pt-4 space-y-2">
-      <h3 className="text-lg">Veröffentlichen</h3>
-      {aenderungen && (
-        <details className="text-sm">
-          <summary className="cursor-pointer">
-            {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)}): ` : "Noch nie veröffentlicht. "}
-            {anzahl(aenderungen.history.length)} Änderung{aenderungen.history.length === 1 ? "" : "en"} an Werken,{" "}
-            {anzahl(aenderungen.seiten.length)} geänderte Seite{aenderungen.seiten.length === 1 ? "" : "n"},{" "}
-            {anzahl(aenderungen.werkgruppen.length)} geänderte Werkgruppe{aenderungen.werkgruppen.length === 1 ? "" : "n"}
-            {aenderungen.einstellungen.length > 0 && ", Einstellungen geändert"}.
-          </summary>
-          <ul className="pl-4 pt-1">
-            {aenderungen.history.slice(0, HOECHSTENS).map(h => (
-              <li key={h.id}>
-                {wann(h.at)} · Werk {h.work}: {Object.keys(h.changes ?? {}).join(", ") || "—"} · {h.by}
-              </li>
-            ))}
-            {aenderungen.seiten.slice(0, HOECHSTENS).map(s => (
-              <li key={s.id}>{wann(s.updatedAt)} · Seite „{s.titel || s.id}“</li>
-            ))}
-            {aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => (
-              <li key={g.id}>{wann(g.updatedAt)} · Werkgruppe „{g.titel || g.id}“</li>
-            ))}
-            {aenderungen.einstellungen.map(e => (
-              <li key={e.id}>{wann(e.updatedAt)} · Einstellungen oder Personen</li>
-            ))}
-          </ul>
-        </details>
-      )}
-      {erlaubt && (
-        <button className={knopf} onClick={veroeffentlichen} disabled={!liste}>
-          {beschaeftigt ? "Erneut veröffentlichen" : "Veröffentlichen"}
-        </button>
-      )}
-      {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
-      <ul className="text-sm">
-        {(liste ?? []).map(v => (
-          <li key={v.id}>
-            {wann(v.angefordert)} · {v.von} ·{" "}
-            <span className={FARBE[v.status] ?? ""}>{STATUS[v.status] ?? v.status}</span>
-            {v.meldung && <span className="text-red-700"> ({v.meldung})</span>}
-            {v.logUrl && <> · <a className="underline" href={v.logUrl} target="_blank" rel="noreferrer">Log</a></>}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 /**
- * Kurzer Stand für Werkzeugleiste und Verwaltungskopf: offene Änderungen, läuft,
- * fehlgeschlagen oder alles veröffentlicht, mit dem Knopf für Admins.
+ * Der Stand für Werkzeugleiste und Verwaltungskopf: offene Änderungen, läuft,
+ * fehlgeschlagen oder alles veröffentlicht, mit dem Knopf für Admins. Ein Klick
+ * auf den Stand klappt die Einzelheiten auf (Tafel), nach oben in der Leiste
+ * unten, nach unten im Kopf.
  */
-export function Stand({ kuenstlerId, ich, erlaubt, className = "" }) {
-  const { liste, offen: n, fehler, beschaeftigt, veroeffentlichen } = useVeroeffentlichung(kuenstlerId, ich);
+export function Stand({ kuenstlerId, ich, erlaubt, nachOben = false, className = "" }) {
+  const v = useVeroeffentlichung(kuenstlerId, ich);
+  const { liste, offen: n, fehler, beschaeftigt, veroeffentlichen } = v;
   const letzte = liste?.[0];
+  const [auf, setAuf] = useState(false);
+  const ref = useRef();
+
+  useEffect(() => {
+    if (!auf) return;
+    const schliessen = e => { if (e.key === "Escape" || (e.type === "pointerdown" && !ref.current.contains(e.target))) setAuf(false); };
+    document.addEventListener("pointerdown", schliessen);
+    document.addEventListener("keydown", schliessen);
+    return () => {
+      document.removeEventListener("pointerdown", schliessen);
+      document.removeEventListener("keydown", schliessen);
+    };
+  }, [auf]);
 
   return (
-    <span className={`flex items-center gap-2 ${className}`}>
-      {fehler ? <span className="text-red-700">{fehler}</span>
-        : beschaeftigt ? <span>Veröffentlichung läuft …</span>
-        : letzte?.status === "fehler" ? <span className="text-red-700">Letzte Veröffentlichung fehlgeschlagen</span>
-        : n === undefined ? <span>…</span>
-        : n === 0 ? <span className="text-green-700">Alles veröffentlicht</span>
-        : <span>● {n > HOECHSTENS ? `über ${HOECHSTENS}` : n} offene Änderung{n === 1 ? "" : "en"}</span>}
+    <span ref={ref} className={`relative flex items-center gap-2 ${className}`}>
+      <button className="hover:underline text-left" aria-expanded={auf} onClick={() => setAuf(!auf)}>
+        {fehler ? <span className="text-red-700">{fehler}</span>
+          : beschaeftigt ? <span>Veröffentlichung läuft …</span>
+          : letzte?.status === "fehler" ? <span className="text-red-700">Letzte Veröffentlichung fehlgeschlagen</span>
+          : n === undefined ? <span>…</span>
+          : n === 0 ? <span className="text-green-700">Alles veröffentlicht</span>
+          : <span>● {anzahl(n)} offene Änderung{n === 1 ? "" : "en"}</span>}
+        {" "}<span className="text-gray-600">{auf === nachOben ? "▾" : "▴"}</span>
+      </button>
       {erlaubt && (
         <button className={knopfKlein} onClick={veroeffentlichen} disabled={!liste}>Veröffentlichen</button>
       )}
+      {auf && (
+        <div className={"absolute z-50 w-[min(32rem,calc(100vw-2rem))] max-h-[60vh] overflow-auto p-3 "
+          + "bg-white text-black border border-gray-400 rounded shadow-lg text-sm "
+          + (nachOben ? "bottom-full left-0 mb-2" : "top-full right-0 mt-2")}>
+          <Tafel {...v} />
+        </div>
+      )}
     </span>
+  );
+}
+
+/** Was seit der letzten Veröffentlichung geändert wurde, und die letzten Veröffentlichungen. */
+function Tafel({ liste, zuletzt, aenderungen, fehler }) {
+  const zeilen = aenderungen && [
+    ...aenderungen.history.slice(0, HOECHSTENS).map(h => ({ id: "h" + h.id, t: h.at,
+      text: <>Werk {h.work}: {Object.keys(h.changes ?? {}).join(", ") || "—"} · {h.by}</> })),
+    ...aenderungen.seiten.slice(0, HOECHSTENS).map(s => ({ id: "s" + s.id, t: s.updatedAt,
+      text: <>Seite „{s.titel || s.id}“</> })),
+    ...aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => ({ id: "g" + g.id, t: g.updatedAt,
+      text: <>Werkgruppe „{g.titel || g.id}“</> })),
+    ...aenderungen.einstellungen.map(e => ({ id: "e", t: e.updatedAt, text: <>Einstellungen oder Personen</> })),
+  ].sort((a, b) => (b.t?.toMillis() ?? 0) - (a.t?.toMillis() ?? 0));
+
+  return (
+    <div className="space-y-3">
+      {fehler && <p className="text-red-700">{fehler}</p>}
+      <div>
+        <h3 className="font-bold">
+          {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)})` : "Noch nie veröffentlicht"}
+        </h3>
+        {!zeilen ? <p>…</p> : !zeilen.length ? <p className="text-gray-600">Keine offenen Änderungen.</p> : (
+          <ul className="space-y-0.5">
+            {zeilen.map(z => <li key={z.id}><span className="text-gray-600">{wann(z.t)}</span> · {z.text}</li>)}
+          </ul>
+        )}
+      </div>
+      <div>
+        <h3 className="font-bold">Letzte Veröffentlichungen</h3>
+        {!liste?.length ? <p className="text-gray-600">Noch keine.</p> : (
+          <ul className="space-y-0.5">
+            {liste.map(v => (
+              <li key={v.id}>
+                <span className="text-gray-600">{wann(v.angefordert)}</span> · {v.von} ·{" "}
+                <span className={FARBE[v.status] ?? ""}>{STATUS[v.status] ?? v.status}</span>
+                {v.meldung && <span className="text-red-700"> ({v.meldung})</span>}
+                {v.logUrl && <> · <a className="underline" href={v.logUrl} target="_blank" rel="noreferrer">Log</a></>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
