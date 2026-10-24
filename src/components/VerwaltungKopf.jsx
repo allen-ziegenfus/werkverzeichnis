@@ -14,7 +14,7 @@ const link = "underline hover:no-underline";
 
 export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
   const { nutzer, wer } = useZugang();
-  const bereiche = wer ? BEREICHE.filter(b => darf(wer, b.berechtigung)) : [];
+  const bereiche = nutzer && wer ? BEREICHE.filter(b => darf(wer, b.berechtigung)) : [];
 
   return (
     <header className="border-b border-gray-400 bg-gray-200 text-sm">
@@ -43,7 +43,7 @@ export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
             </a>
           ))}
         </nav>
-        {wer && darf(wer, "lesen") && (
+        {nutzer && wer && darf(wer, "lesen") && (
           <Stand kuenstlerId={KUENSTLER} ich={nutzer.email} erlaubt={darf(wer, "veroeffentlichen")}
                  className="ml-auto pb-1.5" />
         )}

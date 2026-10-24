@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  addDoc, collection, limit, onSnapshot, orderBy, query, serverTimestamp, where,
+  addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, where,
 } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
 
@@ -49,11 +49,19 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
         orderBy(feld, "desc"), limit(HOECHSTENS + 1)),
       snap => setAenderungen(a => ({ ...a, [c]: snap.docs.map(d => ({ id: d.id, ...d.data() })) })),
       e => setFehler(e.message));
-    const beenden = [seit("history", "at"), seit("seiten", "updatedAt"), seit("werkgruppen", "updatedAt")];
+    // Die Einstellungen der Künstler:in (Titel, Copyright) baut catalog.ts mit ein.
+    // updatedAt ändert sich auch bei Rollen; dann zählt eine Änderung zu viel.
+    const einstellungen = onSnapshot(doc(db, "artists", kuenstlerId), d => {
+      const t = d.get("updatedAt");
+      setAenderungen(a => ({ ...a, einstellungen:
+        t && (!zuletzt || t.toMillis() > zuletzt.toMillis()) ? [{ id: "einstellungen", updatedAt: t }] : [] }));
+    }, e => setFehler(e.message));
+    const beenden = [seit("history", "at"), seit("seiten", "updatedAt"), seit("werkgruppen", "updatedAt"), einstellungen];
     return () => beenden.forEach(f => f());
   }, [kuenstlerId, zuletzt]);
 
-  const geladen = ["history", "seiten", "werkgruppen"].every(c => aenderungen?.[c] !== undefined);
+  const geladen = ["history", "seiten", "werkgruppen", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
+  const offen = geladen ? Object.values(aenderungen).reduce((n, l) => n + l.length, 0) : undefined;
   // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
   const beschaeftigt = liste?.some(v => ["angefordert", "wartet", "läuft"].includes(v.status));
 
@@ -66,7 +74,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     }
   }
 
-  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, fehler, beschaeftigt, veroeffentlichen };
+  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, offen, fehler, beschaeftigt, veroeffentlichen };
 }
 
 export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
@@ -82,7 +90,8 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
             {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)}): ` : "Noch nie veröffentlicht. "}
             {anzahl(aenderungen.history.length)} Änderung{aenderungen.history.length === 1 ? "" : "en"} an Werken,{" "}
             {anzahl(aenderungen.seiten.length)} geänderte Seite{aenderungen.seiten.length === 1 ? "" : "n"},{" "}
-            {anzahl(aenderungen.werkgruppen.length)} geänderte Werkgruppe{aenderungen.werkgruppen.length === 1 ? "" : "n"}.
+            {anzahl(aenderungen.werkgruppen.length)} geänderte Werkgruppe{aenderungen.werkgruppen.length === 1 ? "" : "n"}
+            {aenderungen.einstellungen.length > 0 && ", Einstellungen geändert"}.
           </summary>
           <ul className="pl-4 pt-1">
             {aenderungen.history.slice(0, HOECHSTENS).map(h => (
@@ -95,6 +104,9 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
             ))}
             {aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => (
               <li key={g.id}>{wann(g.updatedAt)} · Werkgruppe „{g.titel || g.id}“</li>
+            ))}
+            {aenderungen.einstellungen.map(e => (
+              <li key={e.id}>{wann(e.updatedAt)} · Einstellungen oder Personen</li>
             ))}
           </ul>
         </details>
@@ -124,8 +136,7 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
  * fehlgeschlagen oder alles veröffentlicht, mit dem Knopf für Admins.
  */
 export function Stand({ kuenstlerId, ich, erlaubt, className = "" }) {
-  const { liste, aenderungen, fehler, beschaeftigt, veroeffentlichen } = useVeroeffentlichung(kuenstlerId, ich);
-  const n = aenderungen && aenderungen.history.length + aenderungen.seiten.length + aenderungen.werkgruppen.length;
+  const { liste, offen: n, fehler, beschaeftigt, veroeffentlichen } = useVeroeffentlichung(kuenstlerId, ich);
   const letzte = liste?.[0];
 
   return (

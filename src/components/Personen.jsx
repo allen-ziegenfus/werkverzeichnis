@@ -43,7 +43,8 @@ function Personen({ ich }) {
 
   return (
     <div className="space-y-3">
-      <Rollen rollen={rollen} ich={ich} onAenderung={r => { setRollen(r); setGeaendert(true); setHinweis(undefined); }} />
+      <Rollen rollen={rollen} ich={ich} nurLesen={speichert}
+              onAenderung={r => { setRollen(r); setGeaendert(true); setHinweis(undefined); }} />
       <div className="flex gap-2 items-center">
         <button className={knopf} onClick={speichern} disabled={speichert || !geaendert}>
           {speichert ? "Speichere…" : "Speichern"}
