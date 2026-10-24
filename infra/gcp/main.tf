@@ -191,6 +191,14 @@ resource "google_service_account_iam_member" "deploy_als_funktion" {
   member             = local.konten["werkverzeichnis-deploy"]
 }
 
+# Die Firebase CLI prüft vor jedem Deploy außerdem, ob sie das App-Engine-
+# Standardkonto verwenden darf, auch wenn keine Funktion darunter läuft.
+resource "google_service_account_iam_member" "deploy_als_appspot" {
+  service_account_id = "projects/${var.projekt_id}/serviceAccounts/${var.projekt_id}@appspot.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountUser"
+  member             = local.konten["werkverzeichnis-deploy"]
+}
+
 # Cloud Build meldet hier jeden Build; gcf/publish.js (buildStatus) hört zu.
 resource "google_pubsub_topic" "cloud_builds" {
   name       = "cloud-builds"
