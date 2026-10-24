@@ -43,7 +43,10 @@ function WerkEditor({ nutzer }) {
   const [suche, setSuche] = useState("");
   const [werk, setWerk] = useState();               // {id, data} wie geladen
   const [entwurf, setEntwurf] = useState({});
-  const [verlauf, setVerlauf] = useState([]);
+  const [verlauf, setVerlauf] = useState();      // undefined, solange er lädt
+  // Welches Werk zuletzt geöffnet wurde: Ein langsamer Verlauf eines vorher
+  // geöffneten Werks darf den des aktuellen nicht überschreiben.
+  const offen = useRef();
   const [speichert, setSpeichert] = useState(false);
   const [hinweis, setHinweis] = useState();
   // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
@@ -80,8 +83,10 @@ function WerkEditor({ nutzer }) {
   }, [gruppe]);
 
   async function oeffnen(w) {
-    setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined);
+    offen.current = w.id;
+    setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined); setVerlauf(undefined);
     const v = await getDocs(query(collection(kuenstler, "history"), where("work", "==", w.id)));
+    if (offen.current !== w.id) return;
     setVerlauf(v.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.at?.toMillis() - a.at?.toMillis()));
   }
 
@@ -135,6 +140,7 @@ function WerkEditor({ nutzer }) {
    * mehr geändert hat; die anderen bleiben, wie sie sind.
    */
   function rueckgaengig(v) {
+    if (v.work !== werk.id) return;
     const { zurueck, geblieben } = zuruecksetzbar(v, werk.data);
     const text = [
       "Zurücksetzen:",
@@ -207,9 +213,10 @@ function WerkEditor({ nutzer }) {
           </div>
 
           <h3 className="text-lg pt-4">Verlauf</h3>
-          {verlauf.length === 0 && <p className="text-sm text-gray-600">Noch keine Änderungen.</p>}
+          {!verlauf && <p className="text-sm text-gray-600">Lädt…</p>}
+          {verlauf?.length === 0 && <p className="text-sm text-gray-600">Noch keine Änderungen.</p>}
           <ul className="text-sm space-y-2">
-            {verlauf.map(v => {
+            {(verlauf ?? []).map(v => {
               const kannZurueck = zuruecksetzbar(v, werk.data).zurueck.length > 0;
               const ursprung = v.rueckgaengig && verlauf.find(x => x.id === v.rueckgaengig);
               return (
