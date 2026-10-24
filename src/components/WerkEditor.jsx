@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import {
   collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
-import { kuenstler, auth, db } from "./firebaseClient.js";
+import { kuenstler, db } from "./firebaseClient.js";
+import Zugang from "./Zugang.jsx";
 
 /**
  * Der Werk-Editor (Firestore). Nur bearbeiten, eine Künstler:in.
@@ -20,8 +20,11 @@ const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Te
   "Ausstellung", "Literatur", "Bibliographie"];
 const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Material"];
 
-export default function WerkEditor() {
-  const [nutzer, setNutzer] = useState(undefined);  // undefined = wird noch geprüft
+export default function WerkEditorSeite() {
+  return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer }) => <WerkEditor nutzer={nutzer} />} />;
+}
+
+function WerkEditor({ nutzer }) {
   const [fehler, setFehler] = useState();
   const [gruppen, setGruppen] = useState();
   const [gruppe, setGruppe] = useState("");
@@ -34,9 +37,6 @@ export default function WerkEditor() {
   const [hinweis, setHinweis] = useState();
   // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
   const ziel = useRef(new URLSearchParams(location.search).get("werk"));
-
-  // Firebase behält die Sitzung selbst (IndexedDB), nach dem Neuladen bleibt man angemeldet.
-  useEffect(() => onAuthStateChanged(auth, setNutzer), []);
 
   useEffect(() => {
     if (!nutzer) return;
@@ -118,24 +118,8 @@ export default function WerkEditor() {
 
   const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 
-  if (nutzer === undefined) return <p>…</p>;
-
-  if (!nutzer) return (
-    <div className="space-y-2">
-      {fehler && <p className="text-red-700">{fehler}</p>}
-      <button className={knopf} onClick={() =>
-        signInWithPopup(auth, new GoogleAuthProvider()).catch(e => setFehler(e.message))}>
-        Mit Google anmelden (Firebase)
-      </button>
-    </div>
-  );
-
   return (
     <div className="space-y-4">
-      <p className="text-sm">
-        Angemeldet als {nutzer.email} ·{" "}
-        <button className="underline" onClick={() => signOut(auth)}>Abmelden</button>
-      </p>
       {fehler && <p className="text-red-700">{fehler}</p>}
 
       {gruppen && (
