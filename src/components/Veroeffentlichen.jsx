@@ -16,6 +16,7 @@ const STATUS = {
 };
 const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
 const knopf = "px-3 py-1 border rounded disabled:opacity-40";
+const knopfKlein = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 export const HOECHSTENS = 100;
 export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
@@ -115,5 +116,29 @@ export default function Veroeffentlichen({ kuenstlerId, ich, erlaubt }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * Kurzer Stand für Werkzeugleiste und Verwaltungskopf: offene Änderungen, läuft,
+ * fehlgeschlagen oder alles veröffentlicht, mit dem Knopf für Admins.
+ */
+export function Stand({ kuenstlerId, ich, erlaubt, className = "" }) {
+  const { liste, aenderungen, fehler, beschaeftigt, veroeffentlichen } = useVeroeffentlichung(kuenstlerId, ich);
+  const n = aenderungen && aenderungen.history.length + aenderungen.seiten.length + aenderungen.werkgruppen.length;
+  const letzte = liste?.[0];
+
+  return (
+    <span className={`flex items-center gap-2 ${className}`}>
+      {fehler ? <span className="text-red-700">{fehler}</span>
+        : beschaeftigt ? <span>Veröffentlichung läuft …</span>
+        : letzte?.status === "fehler" ? <span className="text-red-700">Letzte Veröffentlichung fehlgeschlagen</span>
+        : n === undefined ? <span>…</span>
+        : n === 0 ? <span className="text-green-700">Alles veröffentlicht</span>
+        : <span>● {n > HOECHSTENS ? `über ${HOECHSTENS}` : n} offene Änderung{n === 1 ? "" : "en"}</span>}
+      {erlaubt && (
+        <button className={knopfKlein} onClick={veroeffentlichen} disabled={!liste}>Veröffentlichen</button>
+      )}
+    </span>
   );
 }

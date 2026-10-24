@@ -24,7 +24,7 @@ Webversionen gibt es noch nicht, ein Werk ohne Werkgruppe) den Build scheitern.
 
 ## Bearbeiten und veröffentlichen
 
-Angemeldete sehen unten auf jeder Seite die Werkzeugleiste mit dem Menü der Verwaltung:
+Angemeldete sehen unten auf jeder Seite der Website die Werkzeugleiste mit dem Weg in die Verwaltung. Die Verwaltung hat ein eigenes, immer helles Layout mit Reitern:
 
 - `/verwaltung/`: Übersicht und Veröffentlichen
 - `/verwaltung/werke/`: Werke
