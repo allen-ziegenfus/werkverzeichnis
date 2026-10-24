@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
+  collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { kuenstler, db } from "./firebaseClient.js";
 import Zugang from "./Zugang.jsx";
@@ -19,6 +19,17 @@ const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Te
   "Beschreibung", "Zustand", "Standort", "Signatur", "Auflage", "Anzahl", "Foto",
   "Ausstellung", "Literatur", "Bibliographie"];
 const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Material"];
+
+/**
+ * Was sich von einem Verlaufseintrag zurücksetzen lässt: Felder, deren heutiger
+ * Wert noch der damals gespeicherte ist. Die anderen hat jemand seitdem
+ * erneut geändert; die bleiben.
+ */
+function zuruecksetzbar(v, daten) {
+  const felder = Object.entries(v.changes ?? {});
+  const gleich = ([f, c]) => (daten[f] ?? null) === (c.to ?? null);
+  return { zurueck: felder.filter(gleich), geblieben: felder.filter(x => !gleich(x)).map(([f]) => f) };
+}
 
 export default function WerkEditorSeite() {
   return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer }) => <WerkEditor nutzer={nutzer} />} />;
@@ -71,13 +82,17 @@ function WerkEditor({ nutzer }) {
   async function oeffnen(w) {
     setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined);
     const v = await getDocs(query(collection(kuenstler, "history"), where("work", "==", w.id)));
-    setVerlauf(v.docs.map(d => d.data()).sort((a, b) => b.at?.toMillis() - a.at?.toMillis()));
+    setVerlauf(v.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.at?.toMillis() - a.at?.toMillis()));
   }
 
   const geaendert = useMemo(() => werk
     ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk]);
 
-  async function speichern() {
+  /**
+   * Schreibt `neu` ({ Feld: Wert }, null entfernt das Feld) mit einem
+   * Verlaufseintrag; `extra` kommt in den Eintrag (etwa `rueckgaengig`).
+   */
+  async function schreiben(neu, extra, meldung) {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(kuenstler, "works", werk.id);
     const eintrag = doc(collection(kuenstler, "history"));
@@ -90,11 +105,11 @@ function WerkEditor({ nutzer }) {
         if (jetzt.data().updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
           throw new Error("Inzwischen von jemand anderem geändert. Bitte neu öffnen.");
         }
-        const changes = Object.fromEntries(geaendert.map(f =>
-          [f, { from: werk.data[f] ?? null, to: entwurf[f] ?? null }]));
-        tx.set(eintrag, { work: werk.id, by: nutzer.email, at: serverTimestamp(), changes });
+        const changes = Object.fromEntries(Object.entries(neu).map(([f, wert]) =>
+          [f, { from: werk.data[f] ?? null, to: wert ?? null }]));
+        tx.set(eintrag, { work: werk.id, by: nutzer.email, at: serverTimestamp(), changes, ...extra });
         tx.update(ref, {
-          ...Object.fromEntries(geaendert.map(f => [f, entwurf[f]])),
+          ...Object.fromEntries(Object.entries(neu).map(([f, wert]) => [f, wert ?? deleteField()])),
           updatedAt: serverTimestamp(),
           lastChange: eintrag.id,
         });
@@ -103,12 +118,32 @@ function WerkEditor({ nutzer }) {
       const w = { id: werk.id, data: frisch.data() };
       setWerke(ws => ws.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
-      setHinweis(`Gespeichert (${geaendert.join(", ")}).`);
+      setHinweis(meldung);
     } catch (e) {
       setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
     } finally {
       setSpeichert(false);
     }
+  }
+
+  const speichern = () => schreiben(Object.fromEntries(geaendert.map(f => [f, entwurf[f]])), {},
+    `Gespeichert (${geaendert.join(", ")}).`);
+
+  /**
+   * Setzt die Felder eines Verlaufseintrags auf ihren alten Wert zurück, als neue
+   * Änderung (der Verlauf bleibt vollständig). Nur Felder, die seitdem niemand
+   * mehr geändert hat; die anderen bleiben, wie sie sind.
+   */
+  function rueckgaengig(v) {
+    const { zurueck, geblieben } = zuruecksetzbar(v, werk.data);
+    const text = [
+      "Zurücksetzen:",
+      ...zurueck.map(([f, c]) => `  ${f}: „${c.to ?? "∅"}“ → „${c.from ?? "∅"}“`),
+      ...(geblieben.length ? ["", "Bleibt (inzwischen erneut geändert): " + geblieben.join(", ")] : []),
+    ].join("\n");
+    if (!window.confirm(text)) return;
+    schreiben(Object.fromEntries(zurueck.map(([f, c]) => [f, c.from])), { rueckgaengig: v.id },
+      `Rückgängig gemacht (${zurueck.map(([f]) => f).join(", ")}).`);
   }
 
   const treffer = (werke ?? []).filter(w => {
@@ -174,16 +209,34 @@ function WerkEditor({ nutzer }) {
           <h3 className="text-lg pt-4">Verlauf</h3>
           {verlauf.length === 0 && <p className="text-sm text-gray-600">Noch keine Änderungen.</p>}
           <ul className="text-sm space-y-2">
-            {verlauf.map((v, i) => (
-              <li key={i}>
-                <span className="text-gray-600">{v.at?.toDate().toLocaleString("de-DE")} · {v.by}</span>
-                {Object.entries(v.changes).map(([f, c]) => (
-                  <div key={f} className="pl-3">
-                    <b>{f}</b>: <s className="text-gray-500">{c.from || "∅"}</s> → {c.to || "∅"}
-                  </div>
-                ))}
-              </li>
-            ))}
+            {verlauf.map(v => {
+              const kannZurueck = zuruecksetzbar(v, werk.data).zurueck.length > 0;
+              const ursprung = v.rueckgaengig && verlauf.find(x => x.id === v.rueckgaengig);
+              return (
+                <li key={v.id}>
+                  <span className="text-gray-600">{v.at?.toDate().toLocaleString("de-DE")} · {v.by}</span>
+                  {v.rueckgaengig && (
+                    <span className="text-gray-600">
+                      {" "}· ↶ macht {ursprung ? `die Änderung vom ${ursprung.at?.toDate().toLocaleString("de-DE")}` : "eine Änderung"} rückgängig
+                    </span>
+                  )}
+                  {verlauf.some(x => x.rueckgaengig === v.id) && <span className="text-gray-600"> · rückgängig gemacht</span>}
+                  {" "}
+                  <button className="underline disabled:no-underline disabled:opacity-40"
+                          disabled={speichert || geaendert.length > 0 || !kannZurueck}
+                          title={geaendert.length ? "Erst speichern oder verwerfen."
+                            : !kannZurueck ? "Alle Felder wurden inzwischen erneut geändert." : undefined}
+                          onClick={() => rueckgaengig(v)}>
+                    Rückgängig
+                  </button>
+                  {Object.entries(v.changes).map(([f, c]) => (
+                    <div key={f} className="pl-3">
+                      <b>{f}</b>: <s className="text-gray-500">{c.from || "∅"}</s> → {c.to || "∅"}
+                    </div>
+                  ))}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
