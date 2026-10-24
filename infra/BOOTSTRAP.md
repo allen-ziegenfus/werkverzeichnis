@@ -134,16 +134,23 @@ OAuth-Client, den man nur in der Console anlegen kann:
    Client-ID und -Secret notieren.
 3. Den Client bearbeiten und als autorisierte Weiterleitungs-URI eintragen:
    `https://iap.googleapis.com/v1/oauth/clientIds/<CLIENT_ID>:handleRedirect`
-4. Den Client bei IAP eintragen (das Secret danach nicht aufheben):
+4. Den Client bei IAP eintragen. Die Datei mit dem Secret ist nur für dich
+   lesbar und verschwindet in jedem Fall wieder, auch wenn der Befehl scheitert
+   (Subshell, damit `trap` nicht erst beim Schließen der Shell greift):
 
    ```sh
-   cat > /tmp/iap.yaml <<EOF
+   (
+     umask 077
+     datei=$(mktemp)
+     trap 'rm -f "$datei"' EXIT
+     cat > "$datei" <<EOF
    access_settings:
      oauth_settings:
        client_id: <CLIENT_ID>
        client_secret: <CLIENT_SECRET>
    EOF
-   gcloud iap settings set /tmp/iap.yaml --project=$INFRA_PROJECT && rm /tmp/iap.yaml
+     gcloud iap settings set "$datei" --project="$INFRA_PROJECT"
+   )
    ```
 
 Dann Terraform und die App:
