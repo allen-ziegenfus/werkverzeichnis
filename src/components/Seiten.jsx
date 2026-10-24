@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { collection, deleteDoc, doc, getDoc, getDocs, runTransaction, serverTimestamp } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
@@ -30,9 +30,16 @@ function Seiten({ kuenstlerId, bearbeitbar }) {
   const [offen, setOffen] = useState();   // eine Seite, oder { id: "" } für eine neue
   const [fehler, setFehler] = useState();
 
+  // ?seite=<Kennung> (aus der Werkzeugleiste) öffnet diese Seite direkt, einmal.
+  const ziel = useRef(new URLSearchParams(location.search).get("seite"));
+
   async function laden() {
     const snap = await getDocs(sammlung);
-    setSeiten(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(ordnung));
+    const liste = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(ordnung);
+    setSeiten(liste);
+    const s = liste.find(x => x.id === ziel.current);
+    ziel.current = null;
+    if (s) setOffen(s);
   }
   useEffect(() => { laden().catch(e => setFehler(meldung(e))); }, [kuenstlerId]);
 

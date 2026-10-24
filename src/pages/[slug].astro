@@ -17,6 +17,7 @@ const { werkgruppe } = Astro.props;
 <Layout
   titel={werkgruppe.Titel + " - " + einstellungen.websiteTitel}
   bild={werkgruppe.Titelbild.src}
+  werkgruppeKennung={werkgruppe.Slug}
 >
   <main>
     <nav class="print:hidden">

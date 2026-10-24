@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { collection, doc, getDocs, runTransaction, serverTimestamp, updateDoc } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
@@ -21,6 +21,13 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
   const [titel, setTitel] = useState("");
   const [fehler, setFehler] = useState();
   const sammlung = collection(db, "artists", kuenstlerId, "werkgruppen");
+  // ?werkgruppe=<Kennung> (aus der Werkzeugleiste): Zeile hervorheben, Titel fokussieren.
+  const [ziel] = useState(() => new URLSearchParams(location.search).get("werkgruppe"));
+  const zielFeld = useRef();
+  useEffect(() => {
+    zielFeld.current?.scrollIntoView({ block: "center" });
+    zielFeld.current?.focus();
+  }, [gruppen === undefined]);
 
   async function laden() {
     const snap = await getDocs(sammlung);
@@ -66,7 +73,7 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
         </thead>
         <tbody>
           {(gruppen ?? []).map(g => (
-            <tr key={g.id}>
+            <tr key={g.id} className={g.id === ziel ? "bg-yellow-100" : ""}>
               <td>
                 <input type="number" className="border p-1 w-14 disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.reihenfolge}
                        onBlur={e => Number(e.target.value) !== g.reihenfolge
@@ -74,6 +81,7 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
               </td>
               <td>
                 <input className="border p-1 w-full disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.titel}
+                       ref={g.id === ziel ? zielFeld : undefined}
                        onBlur={e => e.target.value.trim() && e.target.value !== g.titel
                          && aendern(g, { titel: e.target.value.trim() })} />
               </td>

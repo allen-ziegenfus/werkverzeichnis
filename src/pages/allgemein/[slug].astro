@@ -16,7 +16,7 @@ const { seite } = Astro.props;
 
 ---
 
-<Layout titel={seite.Name + ' - ' + einstellungen.websiteTitel}>
+<Layout titel={seite.Name + ' - ' + einstellungen.websiteTitel} seiteKennung={seite.Slug}>
   <style is:global>
     .page-text p {
       text-indent: 1.5em;
