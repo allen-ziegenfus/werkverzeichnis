@@ -126,32 +126,17 @@ OAuth-Client, den man nur in der Console anlegen kann:
 
 1. [Google Auth Platform → Branding](https://console.cloud.google.com/auth/branding?project=werkverzeichnis-infra):
    *Get started*, App-Name „Werkverzeichnis Zentrale“, Support-Adresse, Zielgruppe
-   **External**, anlegen. Unter *Zielgruppe* den Status auf **In production**
-   setzen (nur Anmeldung, keine Prüfung nötig), sonst dürfen nur eingetragene
-   Testnutzer:innen hinein.
+   **External** (*Internal* gibt es nur mit Organisation; wer hinein darf,
+   entscheidet ohnehin IAP), anlegen. Unter *Zielgruppe* den Status auf **In
+   production** setzen (nur Anmeldung, keine Prüfung nötig), sonst dürfen nur
+   eingetragene Testnutzer:innen hinein.
 2. [Clients](https://console.cloud.google.com/auth/clients?project=werkverzeichnis-infra):
-   *Create client*, Typ **Web application**, Name „IAP Zentrale“, anlegen;
-   Client-ID und -Secret notieren.
-3. Den Client bearbeiten und als autorisierte Weiterleitungs-URI eintragen:
+   *Create client*, Typ **Web application**, Name „IAP Zentrale“, als
+   autorisierte Weiterleitungs-URI
    `https://iap.googleapis.com/v1/oauth/clientIds/<CLIENT_ID>:handleRedirect`
-4. Den Client bei IAP eintragen. Die Datei mit dem Secret ist nur für dich
-   lesbar und verschwindet in jedem Fall wieder, auch wenn der Befehl scheitert
-   (Subshell, damit `trap` nicht erst beim Schließen der Shell greift):
-
-   ```sh
-   (
-     umask 077
-     datei=$(mktemp)
-     trap 'rm -f "$datei"' EXIT
-     cat > "$datei" <<EOF
-   access_settings:
-     oauth_settings:
-       client_id: <CLIENT_ID>
-       client_secret: <CLIENT_SECRET>
-   EOF
-     gcloud iap settings set "$datei" --project="$INFRA_PROJECT"
-   )
-   ```
+   (die ID steht erst nach dem Anlegen fest: anlegen, dann bearbeiten).
+   Client-ID und Secret kopieren; das Secret zeigt die Console nur dieses eine
+   Mal (sonst beim Client *Add secret*).
 
 Dann Terraform und die App:
 
@@ -160,6 +145,29 @@ infra/apply.sh preview zentrale
 infra/apply.sh apply zentrale                  # gibt die Adresse aus
 infra/zentrale/deploy.sh                       # baut zentrale/ und deployt es
 ```
+
+Zuletzt den Client bei IAP eintragen, in der Console und **beim Dienst**, nicht
+beim Projekt: IAP hat Einstellungen auf beiden Ebenen, und der Dienst bringt beim
+Anlegen eigene mit (Google-verwalteter Client), die die des Projekts überdecken.
+
+3. [Security → Identity-Aware Proxy](https://console.cloud.google.com/security/iap?project=werkverzeichnis-infra),
+   beim Dienst `zentrale` die Einstellungen öffnen, unter OAuth **Custom OAuth**
+   wählen, Client-ID und Secret einfügen, speichern.
+
+Prüfen (die `clientId` muss die neue sein):
+
+```sh
+gcloud iap settings get --project=$INFRA_PROJECT --resource-type=cloud-run \
+  --region=europe-west3 --service=zentrale
+```
+
+Fehler beim Öffnen ([IAP-FAQ](https://cloud.google.com/iap/docs/faq#error_codes)),
+jeweils in einem neuen privaten Fenster prüfen:
+
+- **11**: Client-ID oder Secret falsch, oder noch der Google-verwaltete Client →
+  beim Dienst noch einmal eintragen, Secret einfügen statt tippen.
+- **9**: Weiterleitung gescheitert → Weiterleitungs-URI am Client prüfen; Projekt
+  und Dienst nicht mit verschiedenen Clients oder Secrets einrichten.
 
 Wer hinein darf, ändert eine neue Version des Secrets, dann wieder
 `infra/apply.sh apply zentrale`:
