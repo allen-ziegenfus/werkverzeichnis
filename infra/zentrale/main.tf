@@ -119,8 +119,8 @@ resource "google_project_iam_member" "deploy" {
   for_each = toset([
     "roles/run.developer",            # neue Revision
     "roles/cloudbuild.builds.editor", # Build des Images starten und abwarten
-    "roles/storage.admin",            # Quellen hochladen (Bucket run-sources-*)
-    "roles/artifactregistry.reader",  # Repository cloud-run-source-deploy prüfen
+    "roles/storage.admin",            # Quellen hochladen (Bucket run-sources-*, ebenso)
+    "roles/artifactregistry.admin",   # Repository cloud-run-source-deploy, legt gcloud beim ersten Mal an
     "roles/logging.logWriter",
     "roles/serviceusage.serviceUsageConsumer",
   ])
