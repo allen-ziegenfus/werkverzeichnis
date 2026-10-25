@@ -146,19 +146,30 @@ OAuth-Client, den man nur in der Console anlegen kann:
    Client-ID und Secret kopieren; das Secret zeigt die Console nur dieses eine
    Mal (sonst beim Client *Add secret*).
 
+Den Code deployt nach jedem Merge, der `zentrale/` ändert, der Trigger
+`zentrale-main` (`cloudbuild-zentrale.yaml`). Er braucht eine eigene
+GitHub-Verbindung im Infra-Projekt:
+
+3. [Cloud Build → Repositories (2nd gen)](https://console.cloud.google.com/cloud-build/repositories/2nd-gen?project=werkverzeichnis-infra)
+   → *Create host connection*: GitHub, Region europe-west3, Name
+   **werkverzeichnis**, die App nur für das Repository installieren. Das
+   Repository nicht verknüpfen; das macht Terraform.
+
 Dann Terraform und die App:
 
 ```sh
 infra/apply.sh preview zentrale
 infra/apply.sh apply zentrale                  # gibt die Adresse aus
-infra/zentrale/deploy.sh                       # baut zentrale/ und deployt es
+gcloud builds triggers run zentrale-main --region=europe-west3 --branch=main --project=$INFRA_PROJECT
 ```
+
+Von Hand geht es weiterhin mit `infra/zentrale/deploy.sh`.
 
 Zuletzt den Client bei IAP eintragen, in der Console und **beim Dienst**, nicht
 beim Projekt: IAP hat Einstellungen auf beiden Ebenen, und der Dienst bringt beim
 Anlegen eigene mit (Google-verwalteter Client), die die des Projekts überdecken.
 
-3. [Security → Identity-Aware Proxy](https://console.cloud.google.com/security/iap?project=werkverzeichnis-infra),
+4. [Security → Identity-Aware Proxy](https://console.cloud.google.com/security/iap?project=werkverzeichnis-infra),
    beim Dienst `zentrale` die Einstellungen öffnen, unter OAuth **Custom OAuth**
    wählen, Client-ID und Secret einfügen, speichern.
 

@@ -1,6 +1,7 @@
 # Die Zentrale (#27): eine Web-App für Super-Admin-Aufgaben in Cloud Run, nur
-# über IAP erreichbar. Den Code deployt infra/zentrale/deploy.sh; Terraform legt
-# den Dienst mit einem Platzhalter an und lässt das Image danach in Ruhe.
+# über IAP erreichbar. Den Code deployt der Trigger zentrale-<branch>
+# (cloudbuild-zentrale.yaml, #57), von Hand infra/zentrale/deploy.sh; Terraform
+# legt den Dienst mit einem Platzhalter an und lässt das Image danach in Ruhe.
 
 resource "google_project_service" "api" {
   for_each = toset([
@@ -67,7 +68,7 @@ resource "google_cloud_run_v2_service" "zentrale" {
     }
   }
 
-  # Das Image setzt deploy.sh.
+  # Das Image setzt der Trigger (oder deploy.sh).
   lifecycle {
     ignore_changes = [template[0].containers[0].image, client, client_version, template[0].labels]
   }
@@ -95,6 +96,66 @@ resource "google_iap_web_cloud_run_service_iam_member" "zugang" {
   cloud_run_service_name = google_cloud_run_v2_service.zentrale.name
   role                   = "roles/iap.httpsResourceAccessor"
   member                 = "user:${each.value}"
+}
+
+# --- Deployen beim Merge (#57) -------------------------------------------------
+
+resource "google_cloudbuildv2_repository" "repo" {
+  name              = replace(var.github_repo, "/", "-")
+  location          = var.region
+  parent_connection = var.github_verbindung
+  remote_uri        = "https://github.com/${var.github_repo}.git"
+}
+
+# Unter diesem Konto läuft der Trigger; es startet den Build des Images (als
+# zentrale-bauen@) und setzt die neue Revision.
+resource "google_service_account" "deploy" {
+  account_id   = "zentrale-deploy"
+  display_name = "Zentrale: Deploy beim Merge"
+  depends_on   = [google_project_service.api]
+}
+
+resource "google_project_iam_member" "deploy" {
+  for_each = toset([
+    "roles/run.developer",            # neue Revision
+    "roles/cloudbuild.builds.editor", # Build des Images starten und abwarten
+    "roles/storage.admin",            # Quellen hochladen (Bucket run-sources-*)
+    "roles/artifactregistry.reader",  # Repository cloud-run-source-deploy prüfen
+    "roles/logging.logWriter",
+    "roles/serviceusage.serviceUsageConsumer",
+  ])
+  project = var.infra_projekt
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.deploy.email}"
+}
+
+# Der Dienst läuft als zentrale@, das Image baut zentrale-bauen@.
+resource "google_service_account_iam_member" "deploy_als" {
+  for_each = {
+    zentrale = google_service_account.zentrale.name
+    bauen    = google_service_account.bauen.name
+  }
+  service_account_id = each.value
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.deploy.email}"
+}
+
+resource "google_cloudbuild_trigger" "zentrale" {
+  name            = "zentrale-${var.branch}"
+  description     = "Zentrale nach Cloud Run (Push auf ${var.branch})"
+  location        = var.region
+  filename        = "cloudbuild-zentrale.yaml"
+  service_account = google_service_account.deploy.id
+  included_files  = ["zentrale/**", "cloudbuild-zentrale.yaml"]
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.repo.id
+    push {
+      branch = "^${var.branch}$"
+    }
+  }
+
+  depends_on = [google_project_iam_member.deploy, google_service_account_iam_member.deploy_als]
 }
 
 output "adresse" {

@@ -1,0 +1,22 @@
+# Deployt die Zentrale (zentrale/) in ihren Cloud-Run-Dienst, wenn sich auf
+# main etwas daran ändert (#57). Wie infra/zentrale/deploy.sh: gcloud baut das
+# Image in einem zweiten Build als zentrale-bauen@. Läuft als zentrale-deploy@.
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: MUST_MATCH
+
+steps:
+  - id: deployen
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - zentrale
+      - --project=$PROJECT_ID
+      - --region=$LOCATION
+      - --source=zentrale
+      - --build-service-account=projects/$PROJECT_ID/serviceAccounts/zentrale-bauen@$PROJECT_ID.iam.gserviceaccount.com
+      - --quiet
+
+timeout: 1200s
