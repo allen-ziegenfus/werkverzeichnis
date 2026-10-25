@@ -46,11 +46,12 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
 
 ## Deployen und Zugangsdaten
 
-- Regeln (`node tools/rules_deploy.mjs`), Funktionen (`gcf/`) und Terraform
-  (`infra/`) deployt die Repo-Eigentümer:in selbst; nicht ohne ausdrückliche
-  Bitte. Ändert ein PR die Regeln so, dass alter oder neuer Code abgelehnt
-  wird, gehört in die Beschreibung, dass die Regeln vor dem Merge live sein
-  müssen (#3).
+- Regeln und Funktionen (`gcf/`) deployt nach dem Merge der Trigger
+  `werkverzeichnis-backend-<branch>` (`cloudbuild-backend.yaml`), parallel zum
+  Bau der Seite. Von Hand (`node tools/rules_deploy.mjs`) und Terraform
+  (`infra/`) nur durch die Repo-Eigentümer:in, nicht ohne ausdrückliche Bitte.
+  Lehnen die alten Regeln neuen Code ab, die Regeln vor dem Merge von Hand
+  deployen und das im PR sagen.
 - Keine Zugangsdaten, Tokens oder Schlüssel in Repo, Issues, PRs oder Logs.
 - Die alte Website im Repo `allen-ziegenfus.github.io` (Branch `master`, GitHub
   Pages) ist noch live und wird nicht angefasst.

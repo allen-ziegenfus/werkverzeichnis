@@ -1,7 +1,8 @@
 # Das Google-Cloud-Projekt einer Seite: Firestore, der Bucket der Originale, die
 # Servicekonten und was jedes darf, die Secrets (Werte kommen von Hand) und der
 # Cloud-Build-Trigger. Firestore-Regeln, die Funktionen und die Seite selbst
-# werden aus dem Repo deployt (tools/rules_deploy.mjs, firebase deploy, Cloud Build).
+# werden aus dem Repo deployt: die Seite mit cloudbuild.yaml, Regeln und Funktionen
+# mit cloudbuild-backend.yaml (#3), jeweils über einen eigenen Trigger.
 
 locals {
   bucket  = coalesce(var.bucket, "${var.projekt_id}.firebasestorage.app")
@@ -46,9 +47,10 @@ resource "google_storage_bucket" "originale" {
 
 resource "google_service_account" "konto" {
   for_each = {
-    werkverzeichnis-build = "Werkverzeichnis build"
-    bilder-function       = "Bild-Funktion: Webversionen nach R2"
-    publish-function      = "Veröffentlichen: Build starten, Status eintragen"
+    werkverzeichnis-build  = "Werkverzeichnis build"
+    bilder-function        = "Bild-Funktion: Webversionen nach R2"
+    publish-function       = "Veröffentlichen: Build starten, Status eintragen"
+    werkverzeichnis-deploy = "Regeln und Funktionen deployen (#3)"
   }
   account_id   = each.key
   display_name = each.value
@@ -65,6 +67,15 @@ resource "google_project_iam_member" "rolle" {
     "publish-datastore" = ["publish-function", "roles/datastore.user"]
     "publish-events"    = ["publish-function", "roles/eventarc.eventReceiver"]
     "publish-invoker"   = ["publish-function", "roles/run.invoker"]
+    # Regeln und Funktionen (cloudbuild-backend.yaml). Die Firebase CLI liest
+    # außerdem Projekt, APIs und IAM-Richtlinie, bevor sie deployt.
+    "deploy-logs"       = ["werkverzeichnis-deploy", "roles/logging.logWriter"]
+    "deploy-regeln"     = ["werkverzeichnis-deploy", "roles/firebaserules.admin"]
+    "deploy-funktion"   = ["werkverzeichnis-deploy", "roles/cloudfunctions.admin"]
+    "deploy-registry"   = ["werkverzeichnis-deploy", "roles/artifactregistry.admin"]
+    "deploy-firebase"   = ["werkverzeichnis-deploy", "roles/firebase.viewer"]
+    "deploy-dienste"    = ["werkverzeichnis-deploy", "roles/serviceusage.serviceUsageConsumer"]
+    "deploy-iam-lesen"  = ["werkverzeichnis-deploy", "roles/iam.securityReviewer"]
   }
   project = var.projekt_id
   member  = local.konten[each.value[0]]
@@ -146,6 +157,46 @@ resource "google_cloudbuild_trigger" "seite" {
     _PAGES_PROJECT         = var.pages_projekt
     _CLOUDFLARE_ACCOUNT_ID = var.cloudflare_konto_id
   }
+}
+
+# Regeln und Funktionen: nur wenn sich daran etwas ändert (cloudbuild-backend.yaml).
+resource "google_cloudbuild_trigger" "backend" {
+  name            = "werkverzeichnis-backend-${var.branch}"
+  description     = "Firestore-Regeln und Funktionen (Push auf ${var.branch})"
+  location        = var.region
+  filename        = "cloudbuild-backend.yaml"
+  service_account = google_service_account.konto["werkverzeichnis-deploy"].id
+  included_files = [
+    "firestore.rules", "src/werkverzeichnis/permissions.js", "tools/rules_*.mjs",
+    "gcf/**", "firebase.json", "cloudbuild-backend.yaml",
+  ]
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.repo.id
+    push {
+      branch = "^${var.branch}$"
+    }
+  }
+
+  substitutions = {
+    _FIRESTORE_DATABASE = var.firestore_datenbank
+  }
+}
+
+# Die Funktionen laufen unter eigenen Konten; wer sie deployt, muss diese verwenden dürfen.
+resource "google_service_account_iam_member" "deploy_als_funktion" {
+  for_each           = toset(["bilder-function", "publish-function"])
+  service_account_id = google_service_account.konto[each.key].name
+  role               = "roles/iam.serviceAccountUser"
+  member             = local.konten["werkverzeichnis-deploy"]
+}
+
+# Die Firebase CLI prüft vor jedem Deploy außerdem, ob sie das App-Engine-
+# Standardkonto verwenden darf, auch wenn keine Funktion darunter läuft.
+resource "google_service_account_iam_member" "deploy_als_appspot" {
+  service_account_id = "projects/${var.projekt_id}/serviceAccounts/${var.projekt_id}@appspot.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountUser"
+  member             = local.konten["werkverzeichnis-deploy"]
 }
 
 # Cloud Build meldet hier jeden Build; gcf/publish.js (buildStatus) hört zu.

@@ -100,7 +100,15 @@ infra/apply.sh apply cloudflare kutscher
 
 ## 5. Die Anwendung deployen
 
-Aus dem Repo, mit den eigenen Zugangsdaten:
+Regeln und Funktionen deployt danach der Trigger `werkverzeichnis-backend-<branch>`
+(`cloudbuild-backend.yaml`), sobald sich auf dem Branch etwas daran ändert. Beim
+ersten Mal den Trigger von Hand starten:
+
+```sh
+gcloud builds triggers run werkverzeichnis-backend-<branch> --region=europe-west3 --branch=<branch> --project <seiten-projekt>
+```
+
+Von Hand, mit den eigenen Zugangsdaten, geht es weiterhin:
 
 ```sh
 node tools/rules_deploy.mjs                     # Firestore-Regeln (vorher die Tests)

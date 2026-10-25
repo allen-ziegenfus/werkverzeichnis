@@ -36,11 +36,12 @@ Angemeldete sehen unten auf jeder Seite der Website die Werkzeugleiste mit dem W
 Künstler:innen anlegen und Websites einrichten gehört nicht dazu (#27).
 
 Wer was darf, steht in `firestore.rules` (getestet mit `tools/rules_test.mjs`,
-deployt mit `tools/rules_deploy.mjs`); Super-Admins setzt `tools/super_admin.mjs`.
+deployt mit `tools/rules_deploy.mjs`, siehe unten); Super-Admins setzt `tools/super_admin.mjs`.
 
 ## Deployen
 
 Cloud Build (`cloudbuild.yaml`) baut eine Seite und deployt sie auf Cloudflare Pages:
 bei einem Push auf den Branch der Seite und wenn jemand auf Veröffentlichen drückt.
-Die Infrastruktur samt Trigger ist Terraform in `infra/` (`infra/BOOTSTRAP.md`). Die
-Funktionen werden mit `firebase deploy --only functions` deployt.
+Die Infrastruktur samt Trigger ist Terraform in `infra/` (`infra/BOOTSTRAP.md`). Firestore-Regeln und
+Funktionen (`gcf/`) deployt ein zweiter Trigger mit `cloudbuild-backend.yaml`, nur wenn
+sich auf dem Branch etwas daran ändert.
