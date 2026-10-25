@@ -23,3 +23,8 @@ updates:
     schedule: { interval: monthly }
     groups:
       klein: { update-types: [minor, patch] }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    groups:
+      klein: { update-types: [minor, patch] }

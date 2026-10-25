@@ -5,8 +5,8 @@
 # mit cloudbuild-backend.yaml (#3), jeweils über einen eigenen Trigger.
 
 locals {
-  bucket  = coalesce(var.bucket, "${var.projekt_id}.firebasestorage.app")
-  konten  = { for k, v in google_service_account.konto : k => "serviceAccount:${v.email}" }
+  bucket = coalesce(var.bucket, "${var.projekt_id}.firebasestorage.app")
+  konten = { for k, v in google_service_account.konto : k => "serviceAccount:${v.email}" }
 }
 
 resource "google_project_service" "api" {
@@ -69,13 +69,13 @@ resource "google_project_iam_member" "rolle" {
     "publish-invoker"   = ["publish-function", "roles/run.invoker"]
     # Regeln und Funktionen (cloudbuild-backend.yaml). Die Firebase CLI liest
     # außerdem Projekt, APIs und IAM-Richtlinie, bevor sie deployt.
-    "deploy-logs"       = ["werkverzeichnis-deploy", "roles/logging.logWriter"]
-    "deploy-regeln"     = ["werkverzeichnis-deploy", "roles/firebaserules.admin"]
-    "deploy-funktion"   = ["werkverzeichnis-deploy", "roles/cloudfunctions.admin"]
-    "deploy-registry"   = ["werkverzeichnis-deploy", "roles/artifactregistry.admin"]
-    "deploy-firebase"   = ["werkverzeichnis-deploy", "roles/firebase.viewer"]
-    "deploy-dienste"    = ["werkverzeichnis-deploy", "roles/serviceusage.serviceUsageConsumer"]
-    "deploy-iam-lesen"  = ["werkverzeichnis-deploy", "roles/iam.securityReviewer"]
+    "deploy-logs"      = ["werkverzeichnis-deploy", "roles/logging.logWriter"]
+    "deploy-regeln"    = ["werkverzeichnis-deploy", "roles/firebaserules.admin"]
+    "deploy-funktion"  = ["werkverzeichnis-deploy", "roles/cloudfunctions.admin"]
+    "deploy-registry"  = ["werkverzeichnis-deploy", "roles/artifactregistry.admin"]
+    "deploy-firebase"  = ["werkverzeichnis-deploy", "roles/firebase.viewer"]
+    "deploy-dienste"   = ["werkverzeichnis-deploy", "roles/serviceusage.serviceUsageConsumer"]
+    "deploy-iam-lesen" = ["werkverzeichnis-deploy", "roles/iam.securityReviewer"]
   }
   project = var.projekt_id
   member  = local.konten[each.value[0]]
