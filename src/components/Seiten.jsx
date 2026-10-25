@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { collection, deleteDoc, doc, getDoc, getDocs, runTransaction, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
@@ -11,22 +11,30 @@ const MarkdownEditor = lazy(() => import("./MarkdownEditor.jsx"));
 /**
  * Die Inhaltsseiten (Einführung, Impressum, …) einer Künstler:in: eine Liste und
  * ein Formular mit dem Markdown-Editor. firestore.rules setzt die Berechtigung
- * `seiten.bearbeiten` durch.
+ * `seiten.bearbeiten` durch. Jedes Speichern und Löschen schreibt einen Eintrag
+ * in `seitenverlauf` mit der ganzen Fassung davor und danach (#41); daraus
+ * kommen frühere Fassungen und gelöschte Seiten zurück.
  */
 const KATEGORIEN = { Header: "Kopfzeile", Footer: "Fußzeile" };
 const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 const zuKennung = s => slugify(s, { lower: true }).replace(/[^a-z0-9-]/g, "").slice(0, 60);
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 const ordnung = (a, b) => a.kategorie.localeCompare(b.kategorie) * -1 || a.reihenfolge - b.reihenfolge;
+const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
+const neuesteZuerst = (a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0);
+const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) ?? "gerade eben";
+const FELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
 
 export default function SeitenSeite() {
-  return <Zugang berechtigung="seiten.bearbeiten" kinder={({ wer }) =>
-    <Seiten kuenstlerId={KUENSTLER} bearbeitbar={darf(wer, "seiten.bearbeiten")} />} />;
+  return <Zugang berechtigung="seiten.bearbeiten" kinder={({ nutzer, wer }) =>
+    <Seiten kuenstlerId={KUENSTLER} ich={nutzer.email} bearbeitbar={darf(wer, "seiten.bearbeiten")} />} />;
 }
 
-function Seiten({ kuenstlerId, bearbeitbar }) {
+function Seiten({ kuenstlerId, ich, bearbeitbar }) {
   const sammlung = collection(db, "artists", kuenstlerId, "seiten");
+  const verlauf = collection(db, "artists", kuenstlerId, "seitenverlauf");
   const [seiten, setSeiten] = useState();
+  const [geloescht, setGeloescht] = useState([]);   // je gelöschte Seite der letzte Löscheintrag
   const [offen, setOffen] = useState();   // eine Seite, oder { id: "" } für eine neue
   const [fehler, setFehler] = useState();
 
@@ -37,6 +45,10 @@ function Seiten({ kuenstlerId, bearbeitbar }) {
     const snap = await getDocs(sammlung);
     const liste = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(ordnung);
     setSeiten(liste);
+    const weg = (await getDocs(query(verlauf, where("nachher", "==", null)))).docs
+      .map(d => ({ id: d.id, ...d.data() })).sort(neuesteZuerst)
+      .filter((e, i, alle) => !liste.some(s => s.id === e.seite) && alle.findIndex(x => x.seite === e.seite) === i);
+    setGeloescht(weg);
     const s = liste.find(x => x.id === ziel.current);
     ziel.current = null;
     if (s) setOffen(s);
@@ -44,7 +56,7 @@ function Seiten({ kuenstlerId, bearbeitbar }) {
   useEffect(() => { laden().catch(e => setFehler(meldung(e))); }, [kuenstlerId]);
 
   if (offen) return (
-    <Seite sammlung={sammlung} seite={offen} bearbeitbar={bearbeitbar} seiten={seiten}
+    <Seite sammlung={sammlung} verlauf={verlauf} ich={ich} seite={offen} bearbeitbar={bearbeitbar} seiten={seiten}
            onSchliessen={() => { setOffen(undefined); laden(); }} />
   );
 
@@ -62,26 +74,62 @@ function Seiten({ kuenstlerId, bearbeitbar }) {
         ))}
       </ul>
       {bearbeitbar && <button className={knopf} onClick={() => setOffen({ id: "" })}>Neue Seite</button>}
+      {bearbeitbar && geloescht.length > 0 && (
+        <div className="pt-4">
+          <h3 className="font-bold text-sm">Gelöschte Seiten</h3>
+          <ul className="divide-y text-sm">
+            {geloescht.map(e => (
+              <li key={e.id} className="py-1 flex gap-2 items-center flex-wrap">
+                <span className="flex-1">
+                  {e.vorher?.titel ?? e.seite}
+                  <span className="text-gray-600"> · gelöscht {wann(e.at)} von {e.by}</span>
+                </span>
+                <button className={knopf} onClick={() => setOffen({ id: "", wiederherstellen: { id: e.seite, ...e.vorher } })}>
+                  Wiederherstellen
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
-function Seite({ sammlung, seite, bearbeitbar, seiten, onSchliessen }) {
+function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliessen }) {
   const istNeu = seite.id === "";
-  const [entwurf, setEntwurf] = useState(() => istNeu
-    ? { titel: "", kategorie: "Header", text: "",
+  const alt = seite.wiederherstellen;   // eine gelöschte Seite, mit ihrer Kennung
+  const [entwurf, setEntwurf] = useState(() => alt ? fassung(alt)
+    : istNeu ? { titel: "", kategorie: "Header", text: "",
         reihenfolge: Math.max(0, ...seiten.filter(s => s.kategorie === "Header").map(s => s.reihenfolge)) + 1 }
-    : { titel: seite.titel, kategorie: seite.kategorie, reihenfolge: seite.reihenfolge, text: seite.text });
+    : fassung(seite));
+  const [geladen, setGeladen] = useState(0);   // zählt geladene Fassungen; der Editor liest sein Markdown nur einmal
   const [geladenAm, setGeladenAm] = useState(seite.updatedAt);
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
   const setze = (k, v) => setEntwurf(e => ({ ...e, [k]: v }));
-  const id = istNeu ? zuKennung(entwurf.titel) : seite.id;
+  const id = alt ? alt.id : istNeu ? zuKennung(entwurf.titel) : seite.id;
+
+  // Frühere Fassungen dieser Seite, neueste zuerst.
+  const [eintraege, setEintraege] = useState();
+  async function verlaufLaden() {
+    const snap = await getDocs(query(verlauf, where("seite", "==", seite.id)));
+    setEintraege(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(neuesteZuerst));
+  }
+  useEffect(() => { if (!istNeu) verlaufLaden().catch(e => setFehler(meldung(e))); }, [seite.id]);
+
+  function fassungLaden(f, t) {
+    setEntwurf(fassung(f));
+    setGeladen(n => n + 1);
+    setFehler(undefined);
+    setHinweis(`Fassung vom ${wann(t)} geladen; Speichern stellt sie wieder her.`);
+  }
 
   async function speichern() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(sammlung, id);
+    const eintrag = doc(verlauf);
     try {
       await runTransaction(db, async tx => {
         const jetzt = await tx.get(ref);
@@ -90,12 +138,16 @@ function Seite({ sammlung, seite, bearbeitbar, seiten, onSchliessen }) {
         if (!istNeu && jetzt.data()?.updatedAt?.toMillis() !== geladenAm?.toMillis()) {
           throw new Error("Inzwischen von jemand anderem geändert. Bitte neu öffnen.");
         }
-        tx.set(ref, { ...entwurf, reihenfolge: Math.trunc(Number(entwurf.reihenfolge)), updatedAt: serverTimestamp() });
+        const neu = fassung({ ...entwurf, reihenfolge: Math.trunc(Number(entwurf.reihenfolge)) });
+        tx.set(eintrag, { seite: id, by: ich, at: serverTimestamp(),
+          vorher: jetzt.exists() ? fassung(jetzt.data()) : null, nachher: neu });
+        tx.set(ref, { ...neu, updatedAt: serverTimestamp(), lastChange: eintrag.id });
       });
       if (istNeu) return onSchliessen();
       const frisch = (await getDoc(ref)).data();
       setGeladenAm(frisch.updatedAt);
       setHinweis("Gespeichert.");
+      await verlaufLaden();
     } catch (e) {
       setFehler(meldung(e));
     } finally {
@@ -105,8 +157,16 @@ function Seite({ sammlung, seite, bearbeitbar, seiten, onSchliessen }) {
 
   async function loeschen() {
     if (!confirm(`Seite „${seite.titel}“ löschen?`)) return;
+    const ref = doc(sammlung, seite.id);
     try {
-      await deleteDoc(doc(sammlung, seite.id));
+      await runTransaction(db, async tx => {
+        const jetzt = await tx.get(ref);
+        if (!jetzt.exists()) return;
+        // Feste Kennung, damit die Regeln den Eintrag zum Löschen finden.
+        const eintrag = doc(verlauf, "geloescht-" + (jetzt.get("lastChange") ?? seite.id));
+        tx.set(eintrag, { seite: seite.id, by: ich, at: serverTimestamp(), vorher: fassung(jetzt.data()), nachher: null });
+        tx.delete(ref);
+      });
       onSchliessen();
     } catch (e) {
       setFehler(meldung(e));
@@ -137,9 +197,10 @@ function Seite({ sammlung, seite, bearbeitbar, seiten, onSchliessen }) {
         </label>
       </div>
       {istNeu && <p className="text-xs text-gray-600 font-mono">/allgemein/{id || "…"}</p>}
+      {alt && <p className="text-sm">Gelöschte Seite; „Anlegen“ stellt sie unter derselben Adresse wieder her.</p>}
 
       <Suspense fallback={<p className="text-sm text-gray-600">Editor wird geladen…</p>}>
-        <MarkdownEditor key={seite.id} markdown={entwurf.text} nurLesen={!bearbeitbar}
+        <MarkdownEditor key={`${seite.id}-${geladen}`} markdown={entwurf.text} nurLesen={!bearbeitbar}
                         onAenderung={text => setze("text", text)} />
       </Suspense>
 
@@ -152,6 +213,48 @@ function Seite({ sammlung, seite, bearbeitbar, seiten, onSchliessen }) {
           {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
           {fehler && <span className="text-red-700 text-sm">{fehler}</span>}
         </div>
+      )}
+      {!bearbeitbar && fehler && <p className="text-red-700 text-sm">{fehler}</p>}
+
+      {!istNeu && <Fassungen eintraege={eintraege} bearbeitbar={bearbeitbar} laden={fassungLaden} />}
+    </div>
+  );
+}
+
+/**
+ * Die Einträge einer Seite: wann, wer, was sich geändert hat; jede Fassung lässt
+ * sich ins Formular laden. Ganz unten der Stand vor dem ersten Eintrag, falls die
+ * Seite älter ist als der Verlauf.
+ */
+function Fassungen({ eintraege, bearbeitbar, laden }) {
+  if (!eintraege) return <p className="text-sm text-gray-600">Verlauf lädt…</p>;
+  const aeltester = eintraege.at(-1);
+  return (
+    <div className="pt-4">
+      <h3 className="font-bold text-sm">Frühere Fassungen</h3>
+      {!eintraege.length ? <p className="text-sm text-gray-600">Noch keine; der Verlauf beginnt mit dem nächsten Speichern.</p> : (
+        <ul className="divide-y text-sm">
+          {eintraege.map((e, i) => (
+            <li key={e.id} className="py-1 flex gap-2 items-center flex-wrap">
+              <span className="flex-1">
+                <span className="text-gray-600">{wann(e.at)}</span> · {e.by} ·{" "}
+                {!e.vorher ? "angelegt"
+                  : !e.nachher ? "gelöscht"
+                  : Object.keys(FELDER).filter(k => e.vorher[k] !== e.nachher[k]).map(k => FELDER[k]).join(", ") || "nichts geändert"}
+                {i === 0 && e.nachher && <span className="text-gray-600"> (aktuell)</span>}
+              </span>
+              {bearbeitbar && e.nachher && i > 0 && (
+                <button className={knopf} onClick={() => laden(e.nachher, e.at)}>Laden</button>
+              )}
+            </li>
+          ))}
+          {aeltester?.vorher && (
+            <li className="py-1 flex gap-2 items-center flex-wrap">
+              <span className="flex-1 text-gray-600">Stand vor dem {wann(aeltester.at)}</span>
+              {bearbeitbar && <button className={knopf} onClick={() => laden(aeltester.vorher, aeltester.at)}>Laden</button>}
+            </li>
+          )}
+        </ul>
       )}
     </div>
   );

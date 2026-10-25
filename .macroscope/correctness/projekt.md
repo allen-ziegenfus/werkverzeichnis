@@ -22,6 +22,10 @@ in Cloud Build neu und deployt sie zu Cloudflare Pages.
   Veröffentlichen zählt daran die offenen Änderungen.
 - Ein Werk wird nur in einer Transaktion geändert, die zugleich einen
   Verlaufseintrag (`history`) schreibt und `lastChange` setzt.
+- Ebenso Seiten: Anlegen, Speichern und Löschen schreiben in derselben
+  Transaktion einen Eintrag in `seitenverlauf` mit der ganzen Fassung davor und
+  danach; beim Löschen mit der Kennung `geloescht-<lastChange>`. Veröffentlichen
+  zählt geänderte Seiten an diesen Einträgen, nicht an `updatedAt`.
 - Einstellungen und Rollen sind getrennte Berechtigungen; ein Schreibvorgang auf
   `artists/{a}` soll nur die Felder ändern, die zu seiner Seite gehören
   (`updateDoc`, nicht das ganze Dokument überschreiben).

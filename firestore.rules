@@ -96,7 +96,7 @@ service cloud.firestore {
     }
 
     function gueltigeSeite(d) {
-      return d.keys().hasOnly(["titel", "kategorie", "reihenfolge", "text", "updatedAt"])
+      return d.keys().hasOnly(["titel", "kategorie", "reihenfolge", "text", "updatedAt", "lastChange"])
         && d.titel is string && d.titel.size() > 0 && d.titel.size() <= 100
         && d.kategorie in ["Header", "Footer"]
         && d.reihenfolge is int
@@ -104,14 +104,54 @@ service cloud.firestore {
         && d.updatedAt == request.time;
     }
 
+    function seitenverlauf(kuenstler, eintrag) {
+      return /databases/$(database)/documents/artists/$(kuenstler)/seitenverlauf/$(eintrag);
+    }
+
+    // Derselbe Schreibvorgang legt den Verlaufseintrag an, auf den `lastChange`
+    // zeigt, mit genau der neuen Fassung (#41).
+    function mitVerlauf(kuenstler, seite, d) {
+      let e = getAfter(seitenverlauf(kuenstler, d.lastChange)).data;
+      return !exists(seitenverlauf(kuenstler, d.lastChange))
+        && e.seite == seite
+        && e.nachher == { "titel": d.titel, "kategorie": d.kategorie, "reihenfolge": d.reihenfolge, "text": d.text };
+    }
+
+    // Beim Löschen kann die Anfrage nichts mitschicken; der Eintrag hat daher
+    // eine feste Kennung aus dem letzten Eintrag der Seite (bei Seiten von vor
+    // dem Verlauf aus ihrer Kennung).
+    function mitLoeschEintrag(kuenstler, seite) {
+      let id = "geloescht-" + resource.data.get("lastChange", seite);
+      return !exists(seitenverlauf(kuenstler, id))
+        && getAfter(seitenverlauf(kuenstler, id)).data.seite == seite
+        && getAfter(seitenverlauf(kuenstler, id)).data.nachher == null;
+    }
+
     // Inhaltsseiten (Einführung, Impressum, …): Markdown, bearbeitet in der Verwaltungsseite.
     match /artists/{kuenstler}/seiten/{seite} {
       allow read: if darf(kuenstler, "lesen");
       allow create: if darf(kuenstler, "seiten.bearbeiten")
         && seite.matches("^[a-z0-9][a-z0-9-]{0,59}$")
-        && gueltigeSeite(request.resource.data);
-      allow update: if darf(kuenstler, "seiten.bearbeiten") && gueltigeSeite(request.resource.data);
-      allow delete: if darf(kuenstler, "seiten.bearbeiten");
+        && gueltigeSeite(request.resource.data)
+        && mitVerlauf(kuenstler, seite, request.resource.data);
+      allow update: if darf(kuenstler, "seiten.bearbeiten")
+        && gueltigeSeite(request.resource.data)
+        && mitVerlauf(kuenstler, seite, request.resource.data);
+      allow delete: if darf(kuenstler, "seiten.bearbeiten") && mitLoeschEintrag(kuenstler, seite);
+    }
+
+    // Jede Fassung einer Seite, nur anfügen: vorher und nachher ganz (null beim
+    // Anlegen bzw. Löschen). Daraus stellt die Verwaltung frühere Fassungen und
+    // gelöschte Seiten wieder her; Veröffentlichen zählt die Einträge.
+    match /artists/{kuenstler}/seitenverlauf/{eintrag} {
+      allow read: if darf(kuenstler, "lesen");
+      allow create: if darf(kuenstler, "seiten.bearbeiten")
+        && request.resource.data.keys().hasOnly(["seite", "by", "at", "vorher", "nachher"])
+        && request.resource.data.seite is string
+        && request.resource.data.by == emailAdresse()
+        && request.resource.data.at == request.time
+        && (request.resource.data.vorher == null || request.resource.data.vorher is map)
+        && (request.resource.data.nachher == null || request.resource.data.nachher is map);
     }
 
     match /artists/{kuenstler}/works/{werk} {
