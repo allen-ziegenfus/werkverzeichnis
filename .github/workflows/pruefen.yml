@@ -1,5 +1,6 @@
-# Prüft jeden PR auf main ohne Zugangsdaten (#59). Was GCP braucht (Regeltests
-# über die Rules API, Terraform-Vorschau), läuft in Cloud Build.
+# Prüft jeden PR auf main ohne Zugangsdaten (#59): Terraform und den Bau der
+# Seite mit Testdaten (#68). Was GCP braucht (Regeltests über die Rules API,
+# Terraform-Vorschau), läuft in Cloud Build.
 name: Prüfen
 
 on:
@@ -28,3 +29,22 @@ jobs:
       - run: terraform fmt -check -diff
       - run: terraform init -backend=false -input=false
       - run: terraform validate
+
+  # Wie cloudbuild.yaml, aber mit tools/testdaten statt Firestore und ohne Bilder.
+  bau:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+      - run: yarn install --frozen-lockfile --non-interactive
+      - run: yarn data
+        env:
+          TESTDATEN: tools/testdaten/katalog.json
+          STRICT: "1"
+          SITE: https://example.org
+      - run: npx astro build
+        env:
+          SITE: https://example.org

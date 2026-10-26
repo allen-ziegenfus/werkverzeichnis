@@ -37,9 +37,10 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
 ## Bauen und testen
 
 - `public/*.json` (Werke, Seiten, Einstellungen) ist nicht im Repo; `yarn data`
-  liest sie aus Firestore und braucht Zugangsdaten. Ohne sie läuft der Build
-  nicht durch. Nach Möglichkeit trotzdem `npx astro build` oder `astro dev`
-  prüfen und sagen, wenn es nicht ging.
+  liest sie aus Firestore und braucht Zugangsdaten. Ohne sie gehen
+  `TESTDATEN=tools/testdaten/katalog.json yarn data`, dann
+  `SITE=https://example.org npx astro build`; so prüft es auch jeder PR
+  (`.github/workflows/pruefen.yml`). Die Testdaten überschreiben `public/*.json`.
 - Firestore-Regeln: `node tools/rules_test.mjs` vor jeder Änderung an
   `firestore.rules`; `src/werkverzeichnis/permissions.js` muss zur Tabelle in
   den Regeln passen.
