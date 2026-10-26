@@ -53,6 +53,10 @@ const seiteDanach = d => d
   ? [{ function: "existsAfter", args: [{ exactValue: KONTAKT }], result: { value: true } },
      { function: "getAfter", args: [{ exactValue: KONTAKT }], result: { value: { data: d } } }]
   : [{ function: "existsAfter", args: [{ exactValue: KONTAKT }], result: { value: false } }];
+// Eintrag s1 mit genau dieser Fassung, für Fälle mit anderem Text.
+const verlaufMit = text => [{ function: "getAfter",
+  args: [{ exactValue: `${wurzel}/artists/kutscher/seitenverlauf/s1` }],
+  result: { value: { data: { seite: "kontakt", nachher: fassung({ ...seiteNeu, text }) } } } }];
 const eintrag = (vorher, nachher) => ({ seite: "kontakt", by: "admin@example.org", at: JETZT, vorher, nachher });
 
 function anmeldung(email, { bestaetigt = true, superAdmin = false } = {}) {
@@ -172,6 +176,8 @@ const faelle = [
   fall("Admin löscht eine Seite", "ALLOW", als(ADMIN), "delete", "artists/kutscher/seiten/kontakt", { vorhanden: seite }),
   fall("Seite braucht Header oder Footer", "DENY", als(ADMIN), "create", "artists/kutscher/seiten/neu",
     { daten: { ...seite, kategorie: "Seitenleiste", updatedAt: JETZT } }),
+  fall("Text zu lang für zwei Fassungen im Verlauf", "DENY", als(ADMIN), "update", "artists/kutscher/seiten/kontakt",
+    { daten: { ...seiteNeu, text: "x".repeat(100001) }, vorhanden: seite, mocks: verlaufMit("x".repeat(100001)) }),
   fall("Admin legt eine Seite mit Verlaufseintrag an", "ALLOW", als(ADMIN), "create", "artists/kutscher/seiten/kontakt",
     { daten: seiteNeu }),
   fall("Seite ohne Verlaufseintrag", "DENY", als(ADMIN), "update", "artists/kutscher/seiten/kontakt",

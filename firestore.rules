@@ -100,7 +100,9 @@ service cloud.firestore {
         && d.titel is string && d.titel.size() > 0 && d.titel.size() <= 100
         && d.kategorie in ["Header", "Footer"]
         && d.reihenfolge is int
-        && d.text is string && d.text.size() <= 200000
+        // Der Verlauf speichert zwei Fassungen in einem Dokument (höchstens 1 MiB):
+        // 2 × 100.000 Zeichen × bis zu 4 Byte bleiben darunter.
+        && d.text is string && d.text.size() <= 100000
         && d.updatedAt == request.time;
     }
 
