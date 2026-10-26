@@ -179,6 +179,10 @@ gcloud builds triggers run zentrale-main --region=europe-west3 --branch=main --p
 
 Von Hand geht es weiterhin mit `infra/zentrale/deploy.sh`.
 
+Die Zentrale zeigt je Website (Deployment `<seite>-gcp`) Stand, letzten Build
+und Veröffentlichungen und kann veröffentlichen. Die Rechte dafür im Projekt der
+Website gibt ihr `infra/gcp` (Konto `zentrale@`, Firestore und Builds).
+
 Zuletzt den Client bei IAP eintragen, in der Console und **beim Dienst**, nicht
 beim Projekt: IAP hat Einstellungen auf beiden Ebenen, und der Dienst bringt beim
 Anlegen eigene mit (Google-verwalteter Client), die die des Projekts überdecken.

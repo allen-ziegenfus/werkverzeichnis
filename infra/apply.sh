@@ -32,7 +32,7 @@ if [ -n "$seite" ]; then
   [ -f "$hier/sites/$seite/$schicht-imports.tf" ] && cp "$hier/sites/$seite/$schicht-imports.tf" "$arbeit/src/"
   cp "$hier/sites/$seite/$schicht.tfvars" "$arbeit/eingaben.tfvars"
 fi
-[ "$schicht" != gcp ] && echo "infra_projekt = \"$INFRA_PROJECT\"" >> "$arbeit/eingaben.tfvars"
+echo "infra_projekt = \"$INFRA_PROJECT\"" >> "$arbeit/eingaben.tfvars"
 
 # gcloud braucht ein Projekt für die API-Aufrufe, auch bei vollen Ressourcennamen.
 export CLOUDSDK_CORE_PROJECT=$INFRA_PROJECT
