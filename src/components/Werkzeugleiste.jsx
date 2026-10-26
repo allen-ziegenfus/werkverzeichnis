@@ -51,7 +51,7 @@ function Werkzeugleiste(kennungen) {
           {wer && <a className={link} href="/verwaltung/">Verwaltung →</a>}
           {wer && darf(wer, "lesen") && (
             <Stand kuenstlerId={KUENSTLER} ich={nutzer.email} erlaubt={darf(wer, "veroeffentlichen")}
-                   darfWerke={darf(wer, "werke.bearbeiten")} nachOben
+                   darfWerke={darf(wer, "werke.bearbeiten")} darfSeiten={darf(wer, "seiten.bearbeiten")} nachOben
                    className="order-last w-full sm:order-none sm:w-auto" />
           )}
           <span className="ml-auto text-gray-600">

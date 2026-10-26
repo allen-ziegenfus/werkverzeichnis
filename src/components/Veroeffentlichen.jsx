@@ -163,7 +163,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
  * unten, nach unten im Kopf. „Veröffentlichen“ klappt sie mit einem Feld für
  * eine Notiz auf; erst der Knopf dort legt die Anfrage an.
  */
-export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, nachOben = false, className = "" }) {
+export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten = false, nachOben = false, className = "" }) {
   const v = useVeroeffentlichung(kuenstlerId, ich);
   const { liste, offen: n, fehler, beschaeftigt, veroeffentlichen } = v;
   const letzte = liste?.[0];
@@ -202,7 +202,7 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, nachOben =
           + "bg-white text-black border border-gray-400 rounded shadow-lg text-sm "
           + (nachOben ? "bottom-full left-0 mb-2" : "top-full right-0 mt-2")}>
           {fragen && <Notiz {...v} fertig={() => setAuf(false)} />}
-          <Tafel {...v} darfWerke={darfWerke} />
+          <Tafel {...v} darfWerke={darfWerke} darfSeiten={darfSeiten} />
         </div>
       )}
     </span>
@@ -237,7 +237,7 @@ function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
 }
 
 /** Was seit der letzten Veröffentlichung geändert wurde, und die letzten Veröffentlichungen. */
-function Tafel({ liste, zuletzt, aenderungen, netto, fehler, darfWerke, zuruecksetzen }) {
+function Tafel({ liste, zuletzt, aenderungen, netto, fehler, darfWerke, darfSeiten, zuruecksetzen }) {
   const [laeuft, setLaeuft] = useState();   // Werk, das gerade zurückgesetzt wird
   const [hinweis, setHinweis] = useState();
   const von = s => [...s].join(", ");
@@ -257,14 +257,16 @@ function Tafel({ liste, zuletzt, aenderungen, netto, fehler, darfWerke, zuruecks
   const zeilen = netto && [
     ...netto.werke.map(w => ({ id: "w" + w.werk, t: w.t,
       text: <>
-        <a className="underline" href={`/verwaltung/werke/?werk=${encodeURIComponent(w.werk)}`}>Werk {w.werk}</a>
+        {darfWerke
+          ? <a className="underline" href={`/verwaltung/werke/?werk=${encodeURIComponent(w.werk)}`}>Werk {w.werk}</a>
+          : <>Werk {w.werk}</>}
         : {Object.keys(w.felder).join(", ")} · {von(w.von)}
         {darfWerke && <> · <button className="underline disabled:opacity-40" disabled={!!laeuft}
           onClick={() => zurueck(w)}>{laeuft === w.werk ? "setzt zurück…" : "Zurücksetzen"}</button></>}
       </> })),
     ...netto.seiten.map(s => ({ id: "s" + s.seite, t: s.t,
       text: <>
-        {s.nachher
+        {s.nachher && darfSeiten
           ? <a className="underline" href={`/verwaltung/seiten/?seite=${encodeURIComponent(s.seite)}`}>Seite „{s.nachher.titel}“</a>
           : <>Seite „{s.vorher?.titel ?? s.seite}“</>}
         {" "}{!s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
