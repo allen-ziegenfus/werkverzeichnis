@@ -104,7 +104,9 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
   const geladen = ["history", "seitenverlauf", "werkgruppen", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
   // Mehr als HOECHSTENS Einträge sind nicht alle gelesen; dann nur „über …“.
   const zuViele = geladen && Object.values(aenderungen).some(l => l.length > HOECHSTENS);
-  const n = geladen && netto(aenderungen.history, aenderungen.seitenverlauf);
+  // Unvollständig gelesen ergäbe netto() einen falschen veröffentlichten Stand,
+  // und Zurücksetzen schriebe ihn ins Werk.
+  const n = geladen && !zuViele && netto(aenderungen.history, aenderungen.seitenverlauf);
   const offen = !geladen ? undefined : zuViele ? HOECHSTENS + 1
     : n.werke.length + n.seiten.length + aenderungen.werkgruppen.length + aenderungen.einstellungen.length;
   // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
@@ -152,7 +154,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     }
   }
 
-  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, netto: n || undefined, offen, fehler,
+  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, netto: n || undefined, zuViele, offen, fehler,
     beschaeftigt, veroeffentlichen, zuruecksetzen };
 }
 
@@ -237,7 +239,7 @@ function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
 }
 
 /** Was seit der letzten Veröffentlichung geändert wurde, und die letzten Veröffentlichungen. */
-function Tafel({ liste, zuletzt, aenderungen, netto, fehler, darfWerke, darfSeiten, zuruecksetzen }) {
+function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke, darfSeiten, zuruecksetzen }) {
   const [laeuft, setLaeuft] = useState();   // Werk, das gerade zurückgesetzt wird
   const [hinweis, setHinweis] = useState();
   const von = s => [...s].join(", ");
@@ -268,7 +270,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, fehler, darfWerke, darfSeit
       text: <>
         {s.nachher && darfSeiten
           ? <a className="underline" href={`/verwaltung/seiten/?seite=${encodeURIComponent(s.seite)}`}>Seite „{s.nachher.titel}“</a>
-          : <>Seite „{s.vorher?.titel ?? s.seite}“</>}
+          : <>Seite „{s.nachher?.titel ?? s.vorher?.titel ?? s.seite}“</>}
         {" "}{!s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
           : Object.keys(SEITENFELDER).filter(k => s.vorher[k] !== s.nachher[k]).map(k => SEITENFELDER[k]).join(", ")}
         {" "}· {von(s.von)}
@@ -286,7 +288,8 @@ function Tafel({ liste, zuletzt, aenderungen, netto, fehler, darfWerke, darfSeit
         <h3 className="font-bold">
           {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)})` : "Noch nie veröffentlicht"}
         </h3>
-        {!zeilen ? <p>…</p> : !zeilen.length ? <p className="text-gray-600">Keine offenen Änderungen.</p> : (
+        {zuViele ? <p className="text-gray-600">Über {HOECHSTENS} Änderungen, zu viele für eine Übersicht hier.</p>
+          : !zeilen ? <p>…</p> : !zeilen.length ? <p className="text-gray-600">Keine offenen Änderungen.</p> : (
           <ul className="space-y-0.5">
             {zeilen.map(z => <li key={z.id}><span className="text-gray-600">{wann(z.t)}</span> · {z.text}</li>)}
           </ul>
