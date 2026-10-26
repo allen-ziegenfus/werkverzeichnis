@@ -74,7 +74,8 @@ add-site)
 zentrale)
   for rolle in \
     roles/serviceusage.serviceUsageAdmin roles/run.admin roles/iap.admin \
-    roles/iam.serviceAccountAdmin roles/iam.serviceAccountUser roles/resourcemanager.projectIamAdmin; do
+    roles/iam.serviceAccountAdmin roles/iam.serviceAccountUser roles/resourcemanager.projectIamAdmin \
+    roles/cloudbuild.builds.editor roles/cloudbuild.connectionAdmin; do
     wiederholen gcloud projects add-iam-policy-binding "$INFRA" --member="serviceAccount:$KONTO" \
       --role="$rolle" --condition=None >/dev/null
   done
