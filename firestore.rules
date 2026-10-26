@@ -114,7 +114,20 @@ service cloud.firestore {
       let e = getAfter(seitenverlauf(kuenstler, d.lastChange)).data;
       return !exists(seitenverlauf(kuenstler, d.lastChange))
         && e.seite == seite
-        && e.nachher == { "titel": d.titel, "kategorie": d.kategorie, "reihenfolge": d.reihenfolge, "text": d.text };
+        && e.nachher == fassung(d);
+    }
+
+    function fassung(d) {
+      return { "titel": d.titel, "kategorie": d.kategorie, "reihenfolge": d.reihenfolge, "text": d.text };
+    }
+
+    function passtZurSeite(kuenstler, eintrag, e) {
+      let seite = /databases/$(database)/documents/artists/$(kuenstler)/seiten/$(e.seite);
+      return (exists(seite) ? e.vorher == fassung(get(seite).data) : e.vorher == null)
+        && (e.nachher == null
+          ? exists(seite) && !existsAfter(seite)
+            && eintrag == "geloescht-" + get(seite).data.get("lastChange", e.seite)
+          : existsAfter(seite) && getAfter(seite).data.lastChange == eintrag);
     }
 
     // Beim Löschen kann die Anfrage nichts mitschicken; der Eintrag hat daher
@@ -145,13 +158,14 @@ service cloud.firestore {
     // gelöschte Seiten wieder her; Veröffentlichen zählt die Einträge.
     match /artists/{kuenstler}/seitenverlauf/{eintrag} {
       allow read: if darf(kuenstler, "lesen");
+      // Nur zusammen mit der Änderung, die er beschreibt, und `vorher` ist der
+      // tatsächliche Stand davor.
       allow create: if darf(kuenstler, "seiten.bearbeiten")
         && request.resource.data.keys().hasOnly(["seite", "by", "at", "vorher", "nachher"])
         && request.resource.data.seite is string
         && request.resource.data.by == emailAdresse()
         && request.resource.data.at == request.time
-        && (request.resource.data.vorher == null || request.resource.data.vorher is map)
-        && (request.resource.data.nachher == null || request.resource.data.nachher is map);
+        && passtZurSeite(kuenstler, eintrag, request.resource.data);
     }
 
     match /artists/{kuenstler}/works/{werk} {
