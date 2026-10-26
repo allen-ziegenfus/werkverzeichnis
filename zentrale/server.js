@@ -162,8 +162,8 @@ http.createServer(async (anfrage, antwort) => {
   // IAP setzt die Adresse als „accounts.google.com:name@gmail.com“.
   const email = String(anfrage.headers["x-goog-authenticated-user-email"] ?? "")
     .replace(/^accounts\.google\.com:/, "");
-  const pfad = new URL(anfrage.url, "http://x").pathname;
   try {
+    const pfad = new URL(anfrage.url, "http://x").pathname;
     let html;
     if (anfrage.method === "GET" && pfad === "/") html = await uebersicht(email);
     else if (anfrage.method === "GET" && pfad.startsWith("/lauf/")) html = await laufSeite(pfad.slice(6));
