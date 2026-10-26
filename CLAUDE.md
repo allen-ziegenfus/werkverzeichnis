@@ -50,8 +50,11 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
 - Regeln und Funktionen (`gcf/`) deployt nach dem Merge der Trigger
   `werkverzeichnis-backend-<branch>` (`cloudbuild-backend.yaml`), parallel zum
   Bau der Seite. Die Zentrale (`zentrale/`) deployt der Trigger `zentrale-main`
-  im Infra-Projekt (`cloudbuild-zentrale.yaml`). Von Hand (`node tools/rules_deploy.mjs`) und Terraform
-  (`infra/`) nur durch die Repo-Eigentümer:in, nicht ohne ausdrückliche Bitte.
+  im Infra-Projekt (`cloudbuild-zentrale.yaml`). Terraform (`infra/`): Jeder PR
+  bekommt die Vorschau als Check (`terraform-vorschau`), der Merge wendet an
+  (`terraform-anwenden`); Pläne mit Löschungen nicht. Von Hand
+  (`node tools/rules_deploy.mjs`, `infra/apply.sh`) nur durch die
+  Repo-Eigentümer:in, nicht ohne ausdrückliche Bitte.
   Lehnen die alten Regeln neuen Code ab, die Regeln vor dem Merge von Hand
   deployen und das im PR sagen.
 - Keine Zugangsdaten, Tokens oder Schlüssel in Repo, Issues, PRs oder Logs.
