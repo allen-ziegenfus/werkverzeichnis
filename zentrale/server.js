@@ -98,13 +98,14 @@ function fehlerText(t) {
   return `<span class="fehler">nicht lesbar</span> <span class="klein">(${maskieren(grund)})</span>`;
 }
 const LAEUFT = ["angefordert", "wartet", "läuft"];
+const BUILD_LAEUFT = ["PENDING", "QUEUED", "WORKING"];
 
 function websiteKarte(w) {
   const k = w.kuenstlerDok;
   const titel = k?.titel ?? w.seite;
   const b = w.build, v = w.veroeffentlichung;
   const build = !b ? "noch keiner" : b.fehler ? fehlerText(b.fehler)
-    : `${STATUS[b.status] === "fertig" || ["QUEUED", "WORKING"].includes(b.status) ? STATUS[b.status]
+    : `${b.status === "SUCCESS" || BUILD_LAEUFT.includes(b.status) ? STATUS[b.status]
       : `<span class="fehler">${STATUS[b.status] ?? maskieren(b.status)}</span>`}
       · ${zeit(b.begonnen)}${b.commit ? ` · Commit ${maskieren(b.commit)}` : ""} · <a href="${maskieren(b.log)}">Log</a>`;
   const veroeffentlichung = !v ? "noch keine" : v.fehler ? fehlerText(v.fehler)
@@ -114,7 +115,8 @@ function websiteKarte(w) {
   const schicht = d => d.name.endsWith("-gcp") ? "Google Cloud" : d.name.endsWith("-cloudflare") ? "Cloudflare" : d.name;
   return `<section class="karte">
   <h2>${maskieren(titel)}</h2>
-  <p class="klein">${maskieren(w.seite)} · Projekt ${maskieren(w.projekt)}${k === null ? ` · <span class="fehler">kein Künstler:in-Dokument</span>` : ""}</p>
+  <p class="klein">${maskieren(w.seite)} · Projekt ${maskieren(w.projekt)}${k === null ? ` · <span class="fehler">kein Künstler:in-Dokument</span>`
+    : k?.fehler ? ` · Künstler:in-Dokument ${fehlerText(k.fehler)}` : ""}</p>
   ${w.adresse ? `<p><a href="${maskieren(w.adresse)}">Website</a> · <a href="${maskieren(w.adresse.replace(/\/$/, ""))}/verwaltung/">Verwaltung</a></p>` : ""}
   <table>
     <tr><th>Letzter Build</th><td>${build}</td></tr>
@@ -136,7 +138,7 @@ async function uebersicht(email) {
   const ws = await Promise.all((await websites(ds)).map(stand));
   const zentrale = ds.filter(d => d.name === "zentrale");
   const laeuft = ls.some(l => l.laeuft) || ws.some(w => LAEUFT.includes(w.veroeffentlichung?.status)
-    || ["QUEUED", "WORKING"].includes(w.build?.status));
+    || BUILD_LAEUFT.includes(w.build?.status));
   return seite("Übersicht", `
 <p class="klein">Angemeldet als ${maskieren(email || "unbekannt")}.</p>
 ${ws.map(websiteKarte).join("") || "<p>Noch keine Website.</p>"}

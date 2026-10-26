@@ -68,9 +68,11 @@ async function letzteVeroeffentlichung(w) {
 
 /** Der letzte Build der Seite (Push oder Veröffentlichen). */
 async function letzterBuild(w) {
+  // Nach dem Namen filtern; trigger_id bräuchte zusätzlich das Recht, Trigger zu lesen.
+  const filter = encodeURIComponent(`substitutions.TRIGGER_NAME="${w.trigger}"`);
   const { builds = [] } = await api(
-    `https://cloudbuild.googleapis.com/v1/projects/${w.projekt}/locations/${REGION}/builds?pageSize=25`);
-  const b = builds.find(b => b.substitutions?.TRIGGER_NAME === w.trigger);
+    `https://cloudbuild.googleapis.com/v1/projects/${w.projekt}/locations/${REGION}/builds?pageSize=1&filter=${filter}`);
+  const b = builds[0];
   return b && {
     status: b.status, begonnen: b.createTime, beendet: b.finishTime, log: b.logUrl,
     commit: (b.substitutions?.SHORT_SHA ?? b.substitutions?.COMMIT_SHA ?? "").slice(0, 7),
