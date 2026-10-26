@@ -1,0 +1,50 @@
+{
+  "kuenstler": {
+    "titel": "Erika Beispiel",
+    "websiteTitel": "Werkverzeichnis von Erika Beispiel (Testdaten)",
+    "titelZeile1": "Werkverzeichnis von",
+    "titelZeile2": "Erika Beispiel (Testdaten)",
+    "copyright": "Erika Beispiel"
+  },
+  "werkgruppen": [
+    { "slug": "objekte", "titel": "Objekte", "reihenfolge": 1, "cover": "artists/test/objekte.jpg" },
+    { "slug": "filme-und-video", "titel": "Film- und Videoarbeiten", "kurztitel": "Filme + Video", "reihenfolge": 2,
+      "cover": "artists/test/film.jpg" }
+  ],
+  "werke": [
+    { "slug": "ob1", "werkgruppe": "objekte", "InvNr": "OB1", "Titel": "Kiste mit Deckel", "Jahr": "1970",
+      "Material": "Holz, bemalt", "Maße": "20 x 30 x 10 cm", "Beschreibung": "Ein Werk mit einem Bild.",
+      "Zustand": "gut", "Standort": "Atelier", "images": ["artists/test/ob1.jpg"] },
+    { "slug": "ob2-a-b", "werkgruppe": "objekte", "InvNr": "OB2 A/B", "Titel": "Zwei Teile", "Jahr": "1972-1974",
+      "Beschreibung": "Ein Werk mit zwei Bildern und einer Jahresspanne.",
+      "images": ["artists/test/ob2a.jpg", "artists/test/ob2b.jpg"] },
+    { "slug": "ob3", "werkgruppe": "objekte", "InvNr": "OB3", "Titel": "Ohne Bild", "Jahr": "1980, 1985",
+      "Beschreibung": "-" },
+    { "slug": "fivi1", "werkgruppe": "filme-und-video", "InvNr": "FiVi1", "Titel": "Ein Film", "Jahr": "1990",
+      "Technik": "16 mm, s/w, 12 min", "images": ["artists/test/fivi1.mp4"] }
+  ],
+  "seiten": [
+    { "slug": "einfuhrung", "titel": "Einführung", "kategorie": "Header", "reihenfolge": 1,
+      "text": "## Zum Werkverzeichnis\n\nTestdaten mit **Objekten** und [Filmen](/filme-und-video).\n\n- Objekte\n- Filme\n" },
+    { "slug": "impressum", "titel": "Impressum", "kategorie": "Footer", "reihenfolge": 1,
+      "text": "Erika Beispiel, Musterstraße 1, 12345 Musterstadt\n" }
+  ],
+  "dateien": {
+    "artists/test/objekte.jpg": "00000000000000000000000000000001",
+    "artists/test/film.jpg": "00000000000000000000000000000002",
+    "artists/test/ob1.jpg": "00000000000000000000000000000001",
+    "artists/test/ob2a.jpg": "00000000000000000000000000000003",
+    "artists/test/ob2b.jpg": "00000000000000000000000000000004",
+    "artists/test/fivi1.mp4": "00000000000000000000000000000005"
+  },
+  "medien": {
+    "00000000000000000000000000000001": { "art": "bild", "breite": 1200, "hoehe": 800, "breiten": [400, 800, 1200],
+      "formate": ["avif", "webp"] },
+    "00000000000000000000000000000002": { "art": "bild", "breite": 800, "hoehe": 600, "breiten": [400, 800],
+      "formate": ["webp"] },
+    "00000000000000000000000000000003": { "art": "bild", "breite": 500, "hoehe": 700, "breiten": [400, 500],
+      "formate": ["avif", "webp"] },
+    "00000000000000000000000000000004": { "art": "fehler", "fehler": "unlesbar (Testdaten)" },
+    "00000000000000000000000000000005": { "art": "video", "formate": ["mp4"] }
+  }
+}

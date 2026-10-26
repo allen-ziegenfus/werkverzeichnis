@@ -7,11 +7,16 @@
  * Firebase-Bucket des Projekts). Die Bildfunktion hat deren Webversionen schon
  * erzeugt, ausgeliefert unter BILDER_URL; der Build verlinkt sie nur, über die
  * MD5 des Originals, die die Bucket-Liste liefert, ohne etwas herunterzuladen.
+ *
+ *   TESTDATEN=tools/testdaten/katalog.json yarn data
+ *
+ * liest stattdessen einen Katalog aus einer Datei, ohne Zugangsdaten (Prüfung
+ * bei jedem PR, #68).
  */
 import * as fs from "fs";
 import { marked } from "marked";
 import { Storage } from "@google-cloud/storage";
-import { firestoreKatalog, WERK_FELDER, type Medium } from "./catalog.js";
+import { firestoreKatalog, WERK_FELDER, type Katalog, type Medium } from "./catalog.js";
 
 const PUBLIC = "./public";
 
@@ -23,9 +28,10 @@ function pflicht(name: string): string {
   return v;
 }
 
-const PROJEKT = pflicht("FIRESTORE_PROJECT");
+const TESTDATEN = env.TESTDATEN;
+const PROJEKT = TESTDATEN ? "test" : pflicht("FIRESTORE_PROJECT");
 const DATENBANK = env.FIRESTORE_DATABASE ?? "werkverzeichnis";
-const KUENSTLER = pflicht("ARTIST_ID");
+const KUENSTLER = TESTDATEN ? "test" : pflicht("ARTIST_ID");
 const BUCKET = env.BUCKET ?? `${PROJEKT}.firebasestorage.app`;
 const BILDER_URL = env.BILDER_URL ?? "/bilder";
 
@@ -85,11 +91,24 @@ async function fingerabdruecke(): Promise<Map<string, string>> {
   return new Map(dateien.map(d => [d.name, Buffer.from(d.metadata.md5Hash!, "base64").toString("hex")]));
 }
 
+/**
+ * Katalog und Bucket-Liste aus einer Datei: der Katalog wie aus Firestore, dazu
+ * `dateien` (Objektpfad -> MD5) statt der Bucket-Liste; `medien` als Objekt.
+ */
+function testdaten(datei: string): [Katalog, Map<string, string>] {
+  const d = JSON.parse(fs.readFileSync(datei, "utf8"));
+  return [
+    { ...d, medien: new Map(Object.entries(d.medien)), probleme: [] },
+    new Map(Object.entries(d.dateien)),
+  ];
+}
+
 /** Validierung ist der Preis einer schemalosen Quelle. Laut scheitern, nie eine Lücke zeigen. */
 const probleme: string[] = [];
 
 async function bauen() {
-  const [katalog, md5s] = await Promise.all([firestoreKatalog(PROJEKT, DATENBANK, KUENSTLER), fingerabdruecke()]);
+  const [katalog, md5s] = TESTDATEN ? testdaten(TESTDATEN)
+    : await Promise.all([firestoreKatalog(PROJEKT, DATENBANK, KUENSTLER), fingerabdruecke()]);
   probleme.push(...katalog.probleme);
 
   /**
