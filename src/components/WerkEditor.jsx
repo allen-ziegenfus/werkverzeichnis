@@ -227,6 +227,7 @@ function WerkEditor({ nutzer }) {
                       {" "}· ↶ macht {ursprung ? `die Änderung vom ${ursprung.at?.toDate().toLocaleString("de-DE")}` : "eine Änderung"} rückgängig
                     </span>
                   )}
+                  {v.zurueckgesetzt && <span className="text-gray-600"> · ↶ auf den veröffentlichten Stand zurückgesetzt</span>}
                   {verlauf.some(x => x.rueckgaengig === v.id) && <span className="text-gray-600"> · rückgängig gemacht</span>}
                   {" "}
                   <button className="underline disabled:no-underline disabled:opacity-40"
