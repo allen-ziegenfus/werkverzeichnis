@@ -78,3 +78,25 @@ resource "google_cloudbuild_trigger" "terraform_anwenden" {
 
   depends_on = [google_project_iam_member.terraform, google_service_account_iam_member.terraform_als_infra_manager]
 }
+
+# --- Aus der Zentrale (#60) -----------------------------------------------------
+# Die Zentrale startet terraform-anwenden für ein einzelnes Deployment (als
+# terraform-ci@, wie beim Merge). Den Plan liest sie aus dem Ergebnis des Builds
+# (plan.py); selbst ändert sie nichts an Deployments.
+
+resource "google_project_iam_member" "zentrale_terraform" {
+  for_each = toset([
+    "roles/cloudbuild.builds.editor", # den Trigger starten, Builds lesen
+    "roles/config.viewer",            # Stand der Deployments
+  ])
+  project = var.infra_projekt
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.zentrale.email}"
+}
+
+# Einen Trigger starten darf nur, wer als dessen Konto handeln darf.
+resource "google_service_account_iam_member" "zentrale_als_terraform" {
+  service_account_id = google_service_account.terraform.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.zentrale.email}"
+}

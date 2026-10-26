@@ -79,6 +79,11 @@ ersetzt, macht den Check rot und wird nicht automatisch angewendet; das bleibt
 Handarbeit. Bei PRs von außen startet die Vorschau erst nach einem Kommentar
 `/gcbrun` der Repo-Eigentümer:in.
 
+Ohne Skript geht es in der Zentrale (§6): je Deployment *Vorschau* (Code von
+`main`), dann den Plan ansehen und *Anwenden*; Löschungen sind rot und brauchen
+eine eigene Bestätigung. Das startet denselben Trigger `terraform-anwenden` für
+nur dieses Deployment; er wendet nur an, wenn der Plan noch der bestätigte ist.
+
 Von Hand, erst die Vorschau; sie zeigt, was angelegt, geändert und gelöscht
 würde, der ganze Plan steht im Cloud-Build-Log der Vorschau:
 

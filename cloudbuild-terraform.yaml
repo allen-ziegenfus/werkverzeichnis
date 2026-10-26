@@ -3,17 +3,27 @@
 # das Anwenden (terraform-anwenden). Der Plan steht im Log dieses Builds; der
 # Check in GitHub ist rot, wenn eine Vorschau scheitert oder etwas gelöscht
 # würde. Läuft im Infra-Projekt als terraform-ci@.
+#
+# Die Zentrale (#60) startet terraform-anwenden auch von Hand für ein einzelnes
+# Deployment (_ZIEL), mit _BEFEHL=preview oder mit dem Fingerabdruck des
+# bestätigten Plans (_ERWARTET, _LOESCHEN; siehe infra/alle.sh). _WER ist, wer
+# es in der Zentrale ausgelöst hat.
 options:
   logging: CLOUD_LOGGING_ONLY
-  substitution_option: MUST_MATCH
+  # Bei Push und PR fehlen die Variablen der Zentrale; leer heißt alle.
+  substitution_option: ALLOW_LOOSE
 
 steps:
   - id: terraform
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
-    args: [infra/alle.sh, '${_BEFEHL}']
+    args: [infra/alle.sh, '${_BEFEHL}', '${_ZIEL}']
     env:
       - INFRA_PROJECT=$PROJECT_ID
       - INFRA_LOCATION=$LOCATION
+      - VORSCHAU=${_VORSCHAU}
+      - ERWARTET=${_ERWARTET}
+      - LOESCHEN=${_LOESCHEN}
+      - WER=${_WER}
 
 timeout: 3600s

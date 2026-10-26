@@ -52,7 +52,8 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
   Bau der Seite. Die Zentrale (`zentrale/`) deployt der Trigger `zentrale-main`
   im Infra-Projekt (`cloudbuild-zentrale.yaml`). Terraform (`infra/`): Jeder PR
   bekommt die Vorschau als Check (`terraform-vorschau`), der Merge wendet an
-  (`terraform-anwenden`); Pläne mit Löschungen nicht. Von Hand
+  (`terraform-anwenden`); Pläne mit Löschungen nicht. Die Zentrale startet
+  denselben Trigger je Deployment, nach Bestätigung des Plans. Von Hand
   (`node tools/rules_deploy.mjs`, `infra/apply.sh`) nur durch die
   Repo-Eigentümer:in, nicht ohne ausdrückliche Bitte.
   Lehnen die alten Regeln neuen Code ab, die Regeln vor dem Merge von Hand
