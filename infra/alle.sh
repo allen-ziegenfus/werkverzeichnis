@@ -4,13 +4,18 @@
 # Build (cloudbuild-terraform.yaml, #58): Vorschau bei jedem PR, Anwenden nach
 # dem Merge.
 #
-#   INFRA_PROJECT=<infra-projekt> infra/alle.sh preview|apply
+#   INFRA_PROJECT=<infra-projekt> infra/alle.sh preview|apply [<deployment>]
 #
 # Anwenden zeigt zuerst die Vorschau und lässt ein Deployment aus, dessen Plan
 # etwas löscht oder ersetzt; das bleibt Handarbeit (apply.sh).
+#
+# Mit <deployment> (z. B. kutscher-gcp oder zentrale) nur dieses; so startet es
+# die Zentrale (#60). Dann wendet es nur an, wenn der Plan den Fingerabdruck
+# ERWARTET hat (der bestätigte Plan, plan.py), und löscht nur mit LOESCHEN=ja.
 set -uo pipefail
 
 befehl=${1:?preview or apply}
+nur=${2:-}
 hier=$(cd "$(dirname "$0")" && pwd)
 
 ziele=()
@@ -22,14 +27,36 @@ for seite in "$hier"/sites/*/; do
 done
 ziele+=("zentrale")
 
+if [ -n "$nur" ]; then
+  gefunden=""
+  for ziel in "${ziele[@]}"; do
+    read -r schicht seite <<<"$ziel"
+    [ "${seite:+$seite-}$schicht" = "$nur" ] && gefunden=$ziel
+  done
+  [ -n "$gefunden" ] || { echo "!!! Kein Deployment $nur."; exit 1; }
+  if [ "$befehl" = apply ] && [ -z "${ERWARTET:-}" ]; then
+    echo "!!! Einzeln anwenden nur mit ERWARTET (Fingerabdruck des bestätigten Plans)."; exit 1
+  fi
+  ziele=("$gefunden")
+else
+  # Feste Namen, Bestätigungen und der Plan fürs Build-Ergebnis (plan.py) nur
+  # für ein einzelnes Deployment.
+  unset VORSCHAU ERWARTET LOESCHEN BUILDER_OUTPUT
+fi
+
 fehler=0
 for ziel in "${ziele[@]}"; do
   echo; echo "=== $ziel ==="
   # shellcheck disable=SC2086 # Schicht und Seite als zwei Argumente
   "$hier/apply.sh" preview $ziel
   ergebnis=$?
-  if [ $ergebnis -eq 3 ]; then
+  if [ $ergebnis -eq 3 ] && [ -n "$nur" ] && [ "${LOESCHEN:-}" = ja ]; then
+    echo "Löschen bestätigt."
+  elif [ $ergebnis -eq 3 ]; then
     echo "!!! $ziel löscht oder ersetzt etwas; nicht automatisch anwenden."
+    fehler=1; continue
+  elif [ $ergebnis -eq 4 ]; then
+    echo "!!! Der Plan für $ziel hat sich seit der Bestätigung geändert; nicht angewendet."
     fehler=1; continue
   elif [ $ergebnis -ne 0 ]; then
     echo "!!! Vorschau für $ziel gescheitert."

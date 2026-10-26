@@ -43,6 +43,7 @@ deployt mit `tools/rules_deploy.mjs`, siehe unten); Super-Admins setzt `tools/su
 Cloud Build (`cloudbuild.yaml`) baut eine Seite und deployt sie auf Cloudflare Pages:
 bei einem Push auf den Branch der Seite und wenn jemand auf Veröffentlichen drückt.
 Die Infrastruktur samt Trigger ist Terraform in `infra/` (`infra/BOOTSTRAP.md`); PRs
-zeigen die Vorschau, der Merge wendet sie an (`cloudbuild-terraform.yaml`). Firestore-Regeln und
+zeigen die Vorschau, der Merge wendet sie an (`cloudbuild-terraform.yaml`), einzeln
+auch aus der Zentrale. Firestore-Regeln und
 Funktionen (`gcf/`) deployt ein zweiter Trigger mit `cloudbuild-backend.yaml`, nur wenn
 sich auf dem Branch etwas daran ändert.

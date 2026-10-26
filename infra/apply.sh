@@ -9,7 +9,8 @@
 # nur zentrale. sites/<seite>/<schicht>.tfvars sind die
 # Eingaben; sites/<seite>/<schicht>-imports.tf kommt, falls vorhanden, in die
 # Kopie der Schicht für diese Seite (einmalige Importe dessen, was es vor
-# Terraform schon gab).
+# Terraform schon gab). VORSCHAU gibt der Vorschau einen festen Namen (die
+# Zentrale liest sie danach, #60).
 set -euo pipefail
 
 befehl=${1:?preview or apply}
@@ -45,7 +46,7 @@ argumente=(
 
 case $befehl in
 preview)
-  vorschau=$eltern/previews/$name-$(date +%Y%m%d-%H%M%S)
+  vorschau=$eltern/previews/${VORSCHAU:-$name-$(date +%Y%m%d-%H%M%S)}
   if gcloud infra-manager deployments describe "$deployment" >/dev/null 2>&1; then
     argumente+=(--deployment="$deployment")
   fi
