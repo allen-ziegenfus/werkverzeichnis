@@ -1,10 +1,12 @@
 import http from "node:http";
 import { anwenden, deployments, holeLauf, laeufe, vorschau } from "./terraform.js";
+import { stand, veroeffentlichen, websites } from "./websites.js";
 
 /**
  * Die Zentrale (#27): Super-Admin-Aufgaben für alle Websites. Läuft in Cloud
  * Run hinter IAP; wer hier ankommt, hat IAP schon durchgelassen
- * (infra/zentrale). Bisher: Terraform je Deployment (#60).
+ * (infra/zentrale). Bisher: Übersicht der Websites mit Veröffentlichen (#76),
+ * Terraform je Deployment (#60).
  */
 
 const maskieren = s => String(s ?? "").replace(/[&<>"']/g, z => `&#${z.charCodeAt(0)};`);
@@ -43,9 +45,15 @@ ${neuLaden ? '<meta http-equiv="refresh" content="5">' : ""}
   .fehler { color: #a00 }
   .loeschen { background: #fde8e8; color: #900; font-weight: bold }
   .warnung { border: 2px solid #c00; background: #fff4f4; padding: .75rem 1rem; margin: 1rem 0 }
-  button { font: inherit; padding: .3rem .8rem; cursor: pointer }
+  button { font: inherit; padding: .3rem .8rem; cursor: pointer; white-space: nowrap; overflow-wrap: normal }
   code { font-size: .85rem; word-break: break-all }
   form { display: inline }
+  .karte { border: 1px solid #ccc; border-radius: 6px; padding: 0 1rem .5rem; margin: 1.5rem 0 }
+  .karte h2 { margin-bottom: 0 }
+  .karte th { width: 11rem }
+  .karte td { overflow-wrap: anywhere }
+  summary { cursor: pointer; color: #444; margin: .5rem 0 }
+  @media (max-width: 30rem) { .karte th { width: auto } }
   @media (max-width: 30rem) { .breit { display: none } }
 </style>
 <body>
@@ -55,39 +63,92 @@ ${inhalt}
 </html>`;
 }
 
+// kutscher-gcp → „kutscher · Google Cloud“
+function anzeigeName(deployment) {
+  if (!deployment) return "alle";
+  if (deployment === "zentrale") return "Zentrale";
+  const m = deployment.match(/^(.+)-(gcp|cloudflare)$/);
+  return m ? `${m[1]} · ${m[2] === "gcp" ? "Google Cloud" : "Cloudflare"}` : deployment;
+}
+
 function laufZeile(l) {
   return `<tr>
     <td><a href="/lauf/${l.id}">${l.befehl === "vorschau" ? "Vorschau" : "Anwenden"}</a></td>
-    <td>${maskieren(l.ziel || "alle")}</td>
+    <td>${maskieren(anzeigeName(l.ziel))}</td>
     <td>${ergebnis(l)}</td>
-    <td class="klein">${zeit(l.begonnen)}<br>${maskieren(l.wer || "Merge")}</td>
+    <td class="klein">${zeit(l.begonnen)}<span class="breit"><br>${maskieren(l.wer || "Merge")}</span></td>
   </tr>`;
 }
 
-async function uebersicht(email) {
-  const [ds, ls] = await Promise.all([deployments(), laeufe()]);
-  const zeilen = ds.map(d => `<tr>
-    <td>${maskieren(d.name)}</td>
-    <td class="${d.zustand === "ACTIVE" ? "" : "fehler"}">${maskieren(d.zustand)}${d.gesperrt ? " (gesperrt)" : ""}
+function deploymentZeile(d, name) {
+  return `<tr>
+    <td>${maskieren(name)}</td>
+    <td>${d.zustand === "ACTIVE" ? "in Ordnung" : `<span class="fehler">${maskieren(d.zustand)}</span>`}${d.gesperrt ? " (gesperrt)" : ""}
       ${d.fehler ? `<br><span class="klein">${maskieren(d.fehler)}</span>` : ""}</td>
     <td class="klein breit">${zeit(d.geaendert)}</td>
     <td><form method="post" action="/vorschau"><input type="hidden" name="ziel" value="${maskieren(d.name)}">
       <button>Vorschau</button></form></td>
-  </tr>`).join("");
+  </tr>`;
+}
+
+// Fehler aus gcp.js beginnen mit dem HTTP-Status; 403 heißt meist, dass
+// zentrale@ im Projekt der Website (noch) keine Rechte hat (infra/gcp).
+function fehlerText(t) {
+  const grund = t.startsWith("403") ? "keine Berechtigung" : t.startsWith("404") ? "nicht gefunden" : t.slice(0, 60);
+  return `<span class="fehler">nicht lesbar</span> <span class="klein">(${maskieren(grund)})</span>`;
+}
+const LAEUFT = ["angefordert", "wartet", "läuft"];
+
+function websiteKarte(w) {
+  const k = w.kuenstlerDok;
+  const titel = k?.titel ?? w.seite;
+  const b = w.build, v = w.veroeffentlichung;
+  const build = !b ? "noch keiner" : b.fehler ? fehlerText(b.fehler)
+    : `${STATUS[b.status] === "fertig" || ["QUEUED", "WORKING"].includes(b.status) ? STATUS[b.status]
+      : `<span class="fehler">${STATUS[b.status] ?? maskieren(b.status)}</span>`}
+      · ${zeit(b.begonnen)}${b.commit ? ` · Commit ${maskieren(b.commit)}` : ""} · <a href="${maskieren(b.log)}">Log</a>`;
+  const veroeffentlichung = !v ? "noch keine" : v.fehler ? fehlerText(v.fehler)
+    : `${v.status === "fehler" ? `<span class="fehler">fehler</span>` : maskieren(v.status)}
+      · ${zeit(v.angefordert)} · ${maskieren(v.von)}${v.notiz ? ` · „${maskieren(v.notiz)}“` : ""}
+      ${v.meldung ? `<br><span class="klein fehler">${maskieren(v.meldung)}</span>` : ""}`;
+  const schicht = d => d.name.endsWith("-gcp") ? "Google Cloud" : d.name.endsWith("-cloudflare") ? "Cloudflare" : d.name;
+  return `<section class="karte">
+  <h2>${maskieren(titel)}</h2>
+  <p class="klein">${maskieren(w.seite)} · Projekt ${maskieren(w.projekt)}${k === null ? ` · <span class="fehler">kein Künstler:in-Dokument</span>` : ""}</p>
+  ${w.adresse ? `<p><a href="${maskieren(w.adresse)}">Website</a> · <a href="${maskieren(w.adresse.replace(/\/$/, ""))}/verwaltung/">Verwaltung</a></p>` : ""}
+  <table>
+    <tr><th>Letzter Build</th><td>${build}</td></tr>
+    <tr><th>Letzte Veröffentlichung</th><td>${veroeffentlichung}</td></tr>
+  </table>
+  <form method="post" action="/veroeffentlichen" onsubmit="return confirm(${maskieren(JSON.stringify(`${titel} jetzt veröffentlichen?`))})">
+    <input type="hidden" name="seite" value="${maskieren(w.seite)}">
+    <p><button>Veröffentlichen</button></p>
+  </form>
+  <details>
+    <summary>Infrastruktur (Terraform)</summary>
+    <table>${w.deployments.map(d => deploymentZeile(d, schicht(d))).join("")}</table>
+  </details>
+</section>`;
+}
+
+async function uebersicht(email) {
+  const [ds, ls] = await Promise.all([deployments(), laeufe(10)]);
+  const ws = await Promise.all((await websites(ds)).map(stand));
+  const zentrale = ds.filter(d => d.name === "zentrale");
+  const laeuft = ls.some(l => l.laeuft) || ws.some(w => LAEUFT.includes(w.veroeffentlichung?.status)
+    || ["QUEUED", "WORKING"].includes(w.build?.status));
   return seite("Übersicht", `
 <p class="klein">Angemeldet als ${maskieren(email || "unbekannt")}.</p>
-<h2>Terraform</h2>
-<p>Die Vorschau zeigt, was Terraform am Deployment ändern würde, mit dem Code von <code>main</code>.
-Angewendet wird erst nach einer Bestätigung.</p>
-<table>
-  <tr><th>Deployment</th><th>Zustand</th><th class="breit">zuletzt geändert</th><th></th></tr>
-  ${zeilen}
-</table>
-<h2>Letzte Läufe</h2>
+${ws.map(websiteKarte).join("") || "<p>Noch keine Website.</p>"}
+<h2>Zentrale</h2>
+<p class="klein">Die Vorschau zeigt, was Terraform ändern würde, mit dem Code von <code>main</code>;
+angewendet wird erst nach einer Bestätigung.</p>
+<table>${zentrale.map(d => deploymentZeile(d, "Zentrale")).join("")}</table>
+<h3>Letzte Terraform-Läufe</h3>
 <table>
   <tr><th>Was</th><th>Deployment</th><th>Ergebnis</th><th>Wann, wer</th></tr>
   ${ls.map(laufZeile).join("")}
-</table>`, { neuLaden: ls.some(l => l.laeuft) });
+</table>`, { neuLaden: laeuft });
 }
 
 function planAnzeigen(l) {
@@ -113,7 +174,7 @@ function bestaetigen(l) {
     <p><strong>Dieser Plan löscht oder ersetzt ${l.plan.zaehler.delete} Ressource(n).</strong>
     Gelöschte Daten (Datenbank, Bilder, Secrets) sind dann weg.</p>
     <label><input type="checkbox" name="loeschen" value="ja" required>
-      Ja, ich will das in <strong>${maskieren(l.ziel)}</strong> löschen.</label>
+      Ja, ich will das in <strong>${maskieren(anzeigeName(l.ziel))}</strong> löschen.</label>
   </div>` : ""}
   <button>Anwenden</button>
 </form>
@@ -123,7 +184,7 @@ function bestaetigen(l) {
 async function laufSeite(id) {
   const l = await holeLauf(id);
   if (!l) return null;
-  const titel = `${l.befehl === "vorschau" ? "Vorschau" : "Anwenden"}: ${l.ziel || "alle"}`;
+  const titel = `${l.befehl === "vorschau" ? "Vorschau" : "Anwenden"}: ${anzeigeName(l.ziel)}`;
   let inhalt = `<h2>${maskieren(titel)}</h2>
 <p><strong>${ergebnis(l)}</strong>
   <span class="klein">· begonnen ${zeit(l.begonnen)}${l.beendet ? `, beendet ${zeit(l.beendet)}` : ""}
@@ -167,6 +228,11 @@ http.createServer(async (anfrage, antwort) => {
     let html;
     if (anfrage.method === "GET" && pfad === "/") html = await uebersicht(email);
     else if (anfrage.method === "GET" && pfad.startsWith("/lauf/")) html = await laufSeite(pfad.slice(6));
+    else if (anfrage.method === "POST" && pfad === "/veroeffentlichen") {
+      if (!vonHier(anfrage)) throw new Error("Formular nicht von der Zentrale");
+      await veroeffentlichen((await formular(anfrage)).get("seite") ?? "", email);
+      return weiter(antwort, "/");
+    }
     else if (anfrage.method === "POST" && (pfad === "/vorschau" || pfad === "/anwenden")) {
       if (!vonHier(anfrage)) throw new Error("Formular nicht von der Zentrale");
       const f = await formular(anfrage);

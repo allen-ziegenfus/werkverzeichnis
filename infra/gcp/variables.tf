@@ -3,6 +3,11 @@ variable "projekt_id" {
   type        = string
 }
 
+variable "infra_projekt" {
+  description = "Das Infra-Projekt (setzt apply.sh); dort läuft die Zentrale."
+  type        = string
+}
+
 variable "region" {
   type    = string
   default = "europe-west3"

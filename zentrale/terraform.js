@@ -23,6 +23,9 @@ export async function deployments() {
     gesperrt: d.lockState && d.lockState !== "UNLOCKED",
     geaendert: d.updateTime,
     fehler: d.errorCode && d.errorCode !== "ERROR_CODE_UNSPECIFIED" ? d.errorCode : "",
+    // Die Eingaben aus sites/<seite>/<schicht>.tfvars, z. B. projekt_id.
+    eingaben: Object.fromEntries(Object.entries(d.terraformBlueprint?.inputValues ?? {})
+      .map(([k, v]) => [k, v.inputValue])),
   })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
