@@ -45,6 +45,7 @@ export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
         </nav>
         {nutzer && wer && darf(wer, "lesen") && (
           <Stand kuenstlerId={KUENSTLER} ich={nutzer.email} erlaubt={darf(wer, "veroeffentlichen")}
+                 darfWerke={darf(wer, "werke.bearbeiten")} darfSeiten={darf(wer, "seiten.bearbeiten")}
                  className="ml-auto pb-1.5" />
         )}
       </div>

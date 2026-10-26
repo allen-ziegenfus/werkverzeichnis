@@ -112,6 +112,20 @@ export const veroeffentlichen = onDocumentCreated({
   if (meine) await starten(kuenstlerRef, [ref]);
 });
 
+/**
+ * Wann der Build die Daten gelesen hat: build_data.ts meldet es als Ergebnis
+ * seines Schritts. Veröffentlichen zählt Änderungen ab diesem Zeitpunkt (#67).
+ */
+function lesezeit(build) {
+  for (const ausgabe of build.results?.buildStepOutputs ?? []) {
+    try {
+      const { gelesen } = JSON.parse(Buffer.from(ausgabe, "base64").toString());
+      if (gelesen) return Timestamp.fromDate(new Date(gelesen));
+    } catch { /* ein anderer Schritt oder leer */ }
+  }
+  return null;
+}
+
 export const buildStatus = onMessagePublished({
   topic: "cloud-builds",
   region: REGION,
@@ -122,10 +136,12 @@ export const buildStatus = onMessagePublished({
   if (!status) return;                       // wartet noch oder läuft
   const anfragen = await db().collectionGroup("veroeffentlichungen").where("buildId", "==", build.id).get();
   if (anfragen.empty) return;                // ein Build nach Push, keine Veröffentlichung
+  const gelesen = lesezeit(build);
   const stapel = db().batch();
   for (const d of anfragen.docs) {
     stapel.update(d.ref, { status, buildStatus: build.status,
-      fertig: build.finishTime ? Timestamp.fromDate(new Date(build.finishTime)) : FieldValue.serverTimestamp() });
+      fertig: build.finishTime ? Timestamp.fromDate(new Date(build.finishTime)) : FieldValue.serverTimestamp(),
+      ...(gelesen && { gelesen }) });
   }
   await stapel.commit();
 

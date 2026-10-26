@@ -67,6 +67,8 @@ export interface Katalog {
   medien: Map<string, Medium>;
   /** Beim Lesen gefundene Datenprobleme; der Build meldet sie. */
   probleme: string[];
+  /** Der Zeitpunkt, zu dem alles gelesen wurde (ISO), wenn aus Firestore. */
+  gelesen?: string;
 }
 
 /** Eine leere Zeichenkette gilt als nicht vorhanden. */
@@ -77,13 +79,18 @@ const wert = (v: string | undefined) => (v && v.trim() !== "" ? v : undefined);
  * nicht gelten (das Build-Servicekonto darf nur lesen).
  */
 export async function firestoreKatalog(projekt: string, datenbank: string, kuenstlerId: string): Promise<Katalog> {
-  const { Firestore } = await import("@google-cloud/firestore");
-  const kuenstlerRef = new Firestore({ projectId: projekt, databaseId: datenbank })
-    .collection("artists").doc(kuenstlerId);
+  const { Firestore, Timestamp } = await import("@google-cloud/firestore");
+  const db = new Firestore({ projectId: projekt, databaseId: datenbank });
+  const kuenstlerRef = db.collection("artists").doc(kuenstlerId);
   const probleme: string[] = [];
 
-  const [k, wg, ws, ss, ms] = await Promise.all([kuenstlerRef.get(),
-    ...["werkgruppen", "works", "seiten", "medien"].map(c => kuenstlerRef.collection(c).get())]);
+  // Alles zum selben Zeitpunkt lesen (eine Sekunde zurück, damit er sicher nicht
+  // in der Zukunft des Servers liegt). Veröffentlichen vergleicht Änderungen mit
+  // ihm, nicht mit dem Start des Builds (#67).
+  const gelesen = Timestamp.fromMillis(Date.now() - 1000);
+  const [k, wg, ws, ss, ms] = await db.runTransaction(t => Promise.all([t.get(kuenstlerRef),
+    ...["werkgruppen", "works", "seiten", "medien"].map(c => t.get(kuenstlerRef.collection(c)))]),
+    { readOnly: true, readTime: gelesen });
   if (!k.exists) throw new Error(`artist "${kuenstlerId}" not in Firestore`);
   const { titel, websiteTitel, titelZeile1, titelZeile2, copyright } = k.data()!;
   const kuenstler = { titel, websiteTitel, titelZeile1, titelZeile2, copyright };
@@ -119,5 +126,5 @@ export async function firestoreKatalog(projekt: string, datenbank: string, kuens
     return { slug: d.id, titel: s.titel, kategorie: s.kategorie, reihenfolge: s.reihenfolge, text: s.text };
   }).sort((a, b) => a.reihenfolge - b.reihenfolge);
 
-  return { kuenstler, werkgruppen, werke, seiten, medien, probleme };
+  return { kuenstler, werkgruppen, werke, seiten, medien, probleme, gelesen: gelesen.toDate().toISOString() };
 }

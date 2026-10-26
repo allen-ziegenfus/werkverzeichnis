@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  addDoc, collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, where,
+  addDoc, collection, deleteField, doc, limit, onSnapshot, orderBy, query, runTransaction,
+  serverTimestamp, where,
 } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
 
@@ -20,6 +21,45 @@ export const HOECHSTENS = 100;
 export const NOTIZ_LAENGE = 500;   // wie in firestore.rules
 export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
+const zeit = t => t?.toMillis() ?? Infinity;   // noch ohne Serverzeit: gerade eben
+const SEITENFELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
+
+/**
+ * Was netto seit der letzten Veröffentlichung geändert ist (#67): je Werk der
+ * Stand vor dem ersten Eintrag gegen den nach dem letzten, je Feld. Felder, die
+ * wieder beim veröffentlichten Wert sind, zählen nicht; ein Werk ohne solche
+ * Felder fällt heraus. Ebenso Seiten, über ihre ganzen Fassungen.
+ */
+export function netto(history, seitenverlauf) {
+  const werke = new Map();
+  for (const h of [...history].sort((a, b) => zeit(a.at) - zeit(b.at))) {
+    const w = werke.get(h.work) ?? { werk: h.work, felder: {}, von: new Set() };
+    for (const [f, c] of Object.entries(h.changes ?? {})) {
+      w.felder[f] = { from: f in w.felder ? w.felder[f].from : c.from ?? null, to: c.to ?? null };
+    }
+    w.von.add(h.by);
+    w.t = h.at;
+    werke.set(h.work, w);
+  }
+  for (const w of werke.values()) {
+    for (const [f, c] of Object.entries(w.felder)) if (c.from === c.to) delete w.felder[f];
+  }
+
+  const seiten = new Map();
+  for (const e of [...seitenverlauf].sort((a, b) => zeit(a.at) - zeit(b.at))) {
+    const s = seiten.get(e.seite) ?? { seite: e.seite, vorher: e.vorher, von: new Set() };
+    s.nachher = e.nachher;
+    s.von.add(e.by);
+    s.t = e.at;
+    seiten.set(e.seite, s);
+  }
+  const gleich = (a, b) => (!a && !b) || (a && b && Object.keys(SEITENFELDER).every(k => a[k] === b[k]));
+
+  return {
+    werke: [...werke.values()].filter(w => Object.keys(w.felder).length),
+    seiten: [...seiten.values()].filter(s => !gleich(s.vorher, s.nachher)),
+  };
+}
 
 /** Der Stand der Veröffentlichung, live; geteilt von Verwaltung und Werkzeugleiste. */
 export function useVeroeffentlichung(kuenstlerId, ich) {
@@ -33,10 +73,12 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     snap => setListe(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
     e => setFehler(e.message)), [kuenstlerId]);
 
-  // Wann der letzte erfolgreiche Build gestartet ist; eigens abgefragt, denn er
-  // kann älter sein als die fünf gelisteten Anfragen.
+  // Welchen Stand der letzte erfolgreiche Build gelesen hat; eigens abgefragt,
+  // denn er kann älter sein als die fünf gelisteten Anfragen. `gelesen` meldet
+  // der Build selbst (#67); ältere Anfragen haben nur `gestartet`, das etwas zu
+  // früh liegt: Was kurz danach gespeichert wurde, ist schon online.
   useEffect(() => onSnapshot(query(sammlung, where("status", "==", "fertig"), orderBy("gestartet", "desc"), limit(1)),
-    snap => setZuletzt(snap.docs[0]?.get("gestartet") ?? null),
+    snap => setZuletzt(snap.docs[0]?.get("gelesen") ?? snap.docs[0]?.get("gestartet") ?? null),
     e => setFehler(e.message)), [kuenstlerId]);
 
   // Änderungen seitdem, live, damit das Speichern einer Seite sie aktualisiert;
@@ -62,7 +104,13 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
   }, [kuenstlerId, zuletzt]);
 
   const geladen = ["history", "seitenverlauf", "werkgruppen", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
-  const offen = geladen ? Object.values(aenderungen).reduce((n, l) => n + l.length, 0) : undefined;
+  // Mehr als HOECHSTENS Einträge sind nicht alle gelesen; dann nur „über …“.
+  const zuViele = geladen && Object.values(aenderungen).some(l => l.length > HOECHSTENS);
+  // Unvollständig gelesen ergäbe netto() einen falschen veröffentlichten Stand,
+  // und Zurücksetzen schriebe ihn ins Werk.
+  const n = geladen && !zuViele && netto(aenderungen.history, aenderungen.seitenverlauf);
+  const offen = !geladen ? undefined : zuViele ? HOECHSTENS + 1
+    : n.werke.length + n.seiten.length + aenderungen.werkgruppen.length + aenderungen.einstellungen.length;
   // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
   const beschaeftigt = liste?.some(v => ["angefordert", "wartet", "läuft"].includes(v.status));
 
@@ -80,7 +128,36 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     }
   }
 
-  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, offen, fehler, beschaeftigt, veroeffentlichen };
+  /**
+   * Setzt die netto geänderten Felder eines Werks auf den veröffentlichten Stand
+   * zurück, als neue Änderung mit Verlaufseintrag. Felder, deren Wert sich
+   * inzwischen noch einmal geändert hat, bleiben.
+   */
+  async function zuruecksetzen(w) {
+    setFehler(undefined);
+    const ref = doc(db, "artists", kuenstlerId, "works", w.werk);
+    const eintrag = doc(collection(db, "artists", kuenstlerId, "history"));
+    try {
+      return await runTransaction(db, async tx => {
+        const daten = (await tx.get(ref)).data() ?? {};
+        const zurueck = Object.entries(w.felder).filter(([f, c]) => (daten[f] ?? null) === c.to);
+        if (!zurueck.length) return [];
+        tx.set(eintrag, { work: w.werk, by: ich, at: serverTimestamp(), zurueckgesetzt: true,
+          changes: Object.fromEntries(zurueck.map(([f, c]) => [f, { from: c.to, to: c.from }])) });
+        tx.update(ref, {
+          ...Object.fromEntries(zurueck.map(([f, c]) => [f, c.from ?? deleteField()])),
+          updatedAt: serverTimestamp(),
+          lastChange: eintrag.id,
+        });
+        return zurueck.map(([f]) => f);
+      });
+    } catch (e) {
+      setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+    }
+  }
+
+  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, netto: n || undefined, zuViele, offen, fehler,
+    beschaeftigt, veroeffentlichen, zuruecksetzen };
 }
 
 /**
@@ -90,7 +167,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
  * unten, nach unten im Kopf. „Veröffentlichen“ klappt sie mit einem Feld für
  * eine Notiz auf; erst der Knopf dort legt die Anfrage an.
  */
-export function Stand({ kuenstlerId, ich, erlaubt, nachOben = false, className = "" }) {
+export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten = false, nachOben = false, className = "" }) {
   const v = useVeroeffentlichung(kuenstlerId, ich);
   const { liste, offen: n, fehler, beschaeftigt, veroeffentlichen } = v;
   const letzte = liste?.[0];
@@ -129,7 +206,7 @@ export function Stand({ kuenstlerId, ich, erlaubt, nachOben = false, className =
           + "bg-white text-black border border-gray-400 rounded shadow-lg text-sm "
           + (nachOben ? "bottom-full left-0 mb-2" : "top-full right-0 mt-2")}>
           {fragen && <Notiz {...v} fertig={() => setAuf(false)} />}
-          <Tafel {...v} />
+          <Tafel {...v} darfWerke={darfWerke} darfSeiten={darfSeiten} />
         </div>
       )}
     </span>
@@ -164,12 +241,42 @@ function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
 }
 
 /** Was seit der letzten Veröffentlichung geändert wurde, und die letzten Veröffentlichungen. */
-function Tafel({ liste, zuletzt, aenderungen, fehler }) {
-  const zeilen = aenderungen && [
-    ...aenderungen.history.slice(0, HOECHSTENS).map(h => ({ id: "h" + h.id, t: h.at,
-      text: <>Werk {h.work}: {Object.keys(h.changes ?? {}).join(", ") || "—"} · {h.by}</> })),
-    ...aenderungen.seitenverlauf.slice(0, HOECHSTENS).map(s => ({ id: "s" + s.id, t: s.at,
-      text: <>Seite „{s.nachher?.titel ?? s.vorher?.titel ?? s.seite}“ {!s.vorher ? "angelegt" : !s.nachher ? "gelöscht" : "geändert"} · {s.by}</> })),
+function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke, darfSeiten, zuruecksetzen }) {
+  const [laeuft, setLaeuft] = useState();   // Werk, das gerade zurückgesetzt wird
+  const [hinweis, setHinweis] = useState();
+  const von = s => [...s].join(", ");
+
+  async function zurueck(w) {
+    const text = ["Auf den veröffentlichten Stand zurücksetzen?", "",
+      ...Object.entries(w.felder).map(([f, c]) => `  ${f}: „${c.to ?? "∅"}“ → „${c.from ?? "∅"}“`)].join("\n");
+    if (!window.confirm(text)) return;
+    setLaeuft(w.werk); setHinweis(undefined);
+    const felder = await zuruecksetzen(w);
+    setLaeuft(undefined);
+    if (felder) setHinweis(felder.length
+      ? `Werk ${w.werk} zurückgesetzt (${felder.join(", ")}).`
+      : `Werk ${w.werk}: inzwischen erneut geändert, nichts zurückgesetzt.`);
+  }
+
+  const zeilen = netto && [
+    ...netto.werke.map(w => ({ id: "w" + w.werk, t: w.t,
+      text: <>
+        {darfWerke
+          ? <a className="underline" href={`/verwaltung/werke/?werk=${encodeURIComponent(w.werk)}`}>Werk {w.werk}</a>
+          : <>Werk {w.werk}</>}
+        : {Object.keys(w.felder).join(", ")} · {von(w.von)}
+        {darfWerke && <> · <button className="underline disabled:opacity-40" disabled={!!laeuft}
+          onClick={() => zurueck(w)}>{laeuft === w.werk ? "setzt zurück…" : "Zurücksetzen"}</button></>}
+      </> })),
+    ...netto.seiten.map(s => ({ id: "s" + s.seite, t: s.t,
+      text: <>
+        {s.nachher && darfSeiten
+          ? <a className="underline" href={`/verwaltung/seiten/?seite=${encodeURIComponent(s.seite)}`}>Seite „{s.nachher.titel}“</a>
+          : <>Seite „{s.nachher?.titel ?? s.vorher?.titel ?? s.seite}“</>}
+        {" "}{!s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
+          : Object.keys(SEITENFELDER).filter(k => s.vorher[k] !== s.nachher[k]).map(k => SEITENFELDER[k]).join(", ")}
+        {" "}· {von(s.von)}
+      </> })),
     ...aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => ({ id: "g" + g.id, t: g.updatedAt,
       text: <>Werkgruppe „{g.titel || g.id}“</> })),
     ...aenderungen.einstellungen.map(e => ({ id: "e", t: e.updatedAt, text: <>Einstellungen oder Personen</> })),
@@ -178,11 +285,13 @@ function Tafel({ liste, zuletzt, aenderungen, fehler }) {
   return (
     <div className="space-y-3">
       {fehler && <p className="text-red-700">{fehler}</p>}
+      {hinweis && <p className="text-green-700">{hinweis}</p>}
       <div>
         <h3 className="font-bold">
           {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)})` : "Noch nie veröffentlicht"}
         </h3>
-        {!zeilen ? <p>…</p> : !zeilen.length ? <p className="text-gray-600">Keine offenen Änderungen.</p> : (
+        {zuViele ? <p className="text-gray-600">Über {HOECHSTENS} Änderungen, zu viele für eine Übersicht hier.</p>
+          : !zeilen ? <p>…</p> : !zeilen.length ? <p className="text-gray-600">Keine offenen Änderungen.</p> : (
           <ul className="space-y-0.5">
             {zeilen.map(z => <li key={z.id}><span className="text-gray-600">{wann(z.t)}</span> · {z.text}</li>)}
           </ul>
