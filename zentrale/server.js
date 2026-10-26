@@ -18,6 +18,15 @@ const STATUS = {
 
 const AKTIONEN = { create: "anlegen", update: "ändern", delete: "löschen", "delete+create": "ersetzen", "create+delete": "ersetzen" };
 
+// Eine Vorschau, deren Plan etwas löscht, endet als FAILURE (alle.sh macht den
+// PR-Check rot); hier ist das ein Ergebnis, kein Fehler.
+function ergebnis(l) {
+  if (l.befehl === "vorschau" && !l.laeuft && l.plan?.zaehler.delete > 0)
+    return `<span class="fehler">löscht etwas</span>`;
+  const text = STATUS[l.status] ?? maskieren(l.status);
+  return l.erfolg || l.laeuft ? text : `<span class="fehler">${text}</span>`;
+}
+
 function seite(titel, inhalt, { neuLaden = false } = {}) {
   return `<!doctype html>
 <html lang="de">
@@ -50,7 +59,7 @@ function laufZeile(l) {
   return `<tr>
     <td><a href="/lauf/${l.id}">${l.befehl === "vorschau" ? "Vorschau" : "Anwenden"}</a></td>
     <td>${maskieren(l.ziel || "alle")}</td>
-    <td class="${l.erfolg || l.laeuft ? "" : "fehler"}">${STATUS[l.status] ?? maskieren(l.status)}</td>
+    <td>${ergebnis(l)}</td>
     <td class="klein">${zeit(l.begonnen)}<br>${maskieren(l.wer || "Merge")}</td>
   </tr>`;
 }
@@ -116,7 +125,7 @@ async function laufSeite(id) {
   if (!l) return null;
   const titel = `${l.befehl === "vorschau" ? "Vorschau" : "Anwenden"}: ${l.ziel || "alle"}`;
   let inhalt = `<h2>${maskieren(titel)}</h2>
-<p class="${l.erfolg || l.laeuft ? "" : "fehler"}"><strong>${STATUS[l.status] ?? maskieren(l.status)}</strong>
+<p><strong>${ergebnis(l)}</strong>
   <span class="klein">· begonnen ${zeit(l.begonnen)}${l.beendet ? `, beendet ${zeit(l.beendet)}` : ""}
   · ${maskieren(l.wer || "Merge")}${l.commit ? ` · Commit ${maskieren(l.commit)}` : ""}
   · <a href="${maskieren(l.log)}">Log</a></span></p>`;
