@@ -56,11 +56,12 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
       setAenderungen(a => ({ ...a, einstellungen:
         t && (!zuletzt || t.toMillis() > zuletzt.toMillis()) ? [{ id: "einstellungen", updatedAt: t }] : [] }));
     }, e => setFehler(e.message));
-    const beenden = [seit("history", "at"), seit("seiten", "updatedAt"), seit("werkgruppen", "updatedAt"), einstellungen];
+    // Seiten über ihren Verlauf (#41), damit auch gelöschte zählen (#2).
+    const beenden = [seit("history", "at"), seit("seitenverlauf", "at"), seit("werkgruppen", "updatedAt"), einstellungen];
     return () => beenden.forEach(f => f());
   }, [kuenstlerId, zuletzt]);
 
-  const geladen = ["history", "seiten", "werkgruppen", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
+  const geladen = ["history", "seitenverlauf", "werkgruppen", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
   const offen = geladen ? Object.values(aenderungen).reduce((n, l) => n + l.length, 0) : undefined;
   // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
   const beschaeftigt = liste?.some(v => ["angefordert", "wartet", "läuft"].includes(v.status));
@@ -167,8 +168,8 @@ function Tafel({ liste, zuletzt, aenderungen, fehler }) {
   const zeilen = aenderungen && [
     ...aenderungen.history.slice(0, HOECHSTENS).map(h => ({ id: "h" + h.id, t: h.at,
       text: <>Werk {h.work}: {Object.keys(h.changes ?? {}).join(", ") || "—"} · {h.by}</> })),
-    ...aenderungen.seiten.slice(0, HOECHSTENS).map(s => ({ id: "s" + s.id, t: s.updatedAt,
-      text: <>Seite „{s.titel || s.id}“</> })),
+    ...aenderungen.seitenverlauf.slice(0, HOECHSTENS).map(s => ({ id: "s" + s.id, t: s.at,
+      text: <>Seite „{s.nachher?.titel ?? s.vorher?.titel ?? s.seite}“ {!s.vorher ? "angelegt" : !s.nachher ? "gelöscht" : "geändert"} · {s.by}</> })),
     ...aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => ({ id: "g" + g.id, t: g.updatedAt,
       text: <>Werkgruppe „{g.titel || g.id}“</> })),
     ...aenderungen.einstellungen.map(e => ({ id: "e", t: e.updatedAt, text: <>Einstellungen oder Personen</> })),

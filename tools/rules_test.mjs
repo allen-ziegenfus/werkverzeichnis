@@ -38,7 +38,26 @@ const kutscher = {
 };
 const werk = { InvNr: "OB1", werkgruppe: "objekte", Titel: "Ding", updatedAt: FRUEHER };
 const gruppe = { titel: "Fotografie", kurztitel: null, reihenfolge: 13, updatedAt: JETZT };
-const seite = { titel: "Kontakt", kategorie: "Footer", reihenfolge: 1, text: "**Hallo**\n", updatedAt: FRUEHER };
+const seite = { titel: "Kontakt", kategorie: "Footer", reihenfolge: 1, text: "**Hallo**\n", updatedAt: FRUEHER, lastChange: "s0" };
+const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
+// Die gespeicherte Seite; ihr Verlaufseintrag s1 enthält genau diese Fassung.
+const seiteNeu = { ...seite, text: "Neu\n", updatedAt: JETZT, lastChange: "s1" };
+
+// Die Seite kontakt vor und nach der Anfrage, für Verlaufseinträge.
+const KONTAKT = `${wurzel}/artists/kutscher/seiten/kontakt`;
+const seiteDavor = d => d
+  ? [{ function: "exists", args: [{ exactValue: KONTAKT }], result: { value: true } },
+     { function: "get", args: [{ exactValue: KONTAKT }], result: { value: { data: d } } }]
+  : [{ function: "exists", args: [{ exactValue: KONTAKT }], result: { value: false } }];
+const seiteDanach = d => d
+  ? [{ function: "existsAfter", args: [{ exactValue: KONTAKT }], result: { value: true } },
+     { function: "getAfter", args: [{ exactValue: KONTAKT }], result: { value: { data: d } } }]
+  : [{ function: "existsAfter", args: [{ exactValue: KONTAKT }], result: { value: false } }];
+// Eintrag s1 mit genau dieser Fassung, für Fälle mit anderem Text.
+const verlaufMit = text => [{ function: "getAfter",
+  args: [{ exactValue: `${wurzel}/artists/kutscher/seitenverlauf/s1` }],
+  result: { value: { data: { seite: "kontakt", nachher: fassung({ ...seiteNeu, text }) } } } }];
+const eintrag = (vorher, nachher) => ({ seite: "kontakt", by: "admin@example.org", at: JETZT, vorher, nachher });
 
 function anmeldung(email, { bestaetigt = true, superAdmin = false } = {}) {
   if (!email) return null;
@@ -46,16 +65,21 @@ function anmeldung(email, { bestaetigt = true, superAdmin = false } = {}) {
 }
 const als = wer => wer === SUPER ? anmeldung(SUPER, { superAdmin: true }) : anmeldung(wer);
 
-// Jeder Fall sieht dieselbe Welt: eine Künstlerin, ein Werk, ein neuer Verlaufseintrag.
+// Jeder Fall sieht dieselbe Welt: eine Künstlerin, ein Werk, neue Verlaufseinträge
+// für Werk und Seite und der Löscheintrag der Seite.
 const welt = [
   { function: "get", args: [{ exactValue: `${wurzel}/artists/kutscher` }], result: { value: { data: kutscher } } },
   { function: "get", args: [{ anyValue: {} }], result: { value: null } },
   { function: "getAfter", args: [{ exactValue: `${wurzel}/artists/kutscher/history/h1` }],
     result: { value: { data: { work: "ob1" } } } },
+  { function: "getAfter", args: [{ exactValue: `${wurzel}/artists/kutscher/seitenverlauf/s1` }],
+    result: { value: { data: { seite: "kontakt", nachher: fassung(seiteNeu) } } } },
+  { function: "getAfter", args: [{ exactValue: `${wurzel}/artists/kutscher/seitenverlauf/geloescht-s0` }],
+    result: { value: { data: { seite: "kontakt", nachher: null } } } },
   { function: "exists", args: [{ anyValue: {} }], result: { value: false } },
 ];
 
-function fall(name, erwartung, auth, methode, pfad, { daten, vorhanden } = {}) {
+function fall(name, erwartung, auth, methode, pfad, { daten, vorhanden, mocks = [] } = {}) {
   return {
     name,
     expectation: erwartung,
@@ -64,7 +88,7 @@ function fall(name, erwartung, auth, methode, pfad, { daten, vorhanden } = {}) {
       ...(daten && { resource: { data: daten } }),
     },
     ...(vorhanden && { resource: { data: vorhanden } }),
-    functionMocks: welt,
+    functionMocks: [...mocks, ...welt],
   };
 }
 
@@ -77,7 +101,7 @@ const proben = {
   "werkgruppen.bearbeiten": wer => fall(`${wer} werkgruppen.bearbeiten`, null, als(wer), "create",
     "artists/kutscher/werkgruppen/fotografie", { daten: gruppe }),
   "seiten.bearbeiten": wer => fall(`${wer} seiten.bearbeiten`, null, als(wer), "update", "artists/kutscher/seiten/kontakt",
-    { daten: { ...seite, text: "Neu\n", updatedAt: JETZT }, vorhanden: seite }),
+    { daten: seiteNeu, vorhanden: seite }),
   "einstellungen.bearbeiten": wer => fall(`${wer} einstellungen.bearbeiten`, null, als(wer), "update", "artists/kutscher",
     { daten: { ...kutscher, titel: "Neu", updatedAt: JETZT }, vorhanden: kutscher }),
   "rollen.verwalten": wer => fall(`${wer} rollen.verwalten`, null, als(wer), "update", "artists/kutscher",
@@ -152,6 +176,47 @@ const faelle = [
   fall("Admin löscht eine Seite", "ALLOW", als(ADMIN), "delete", "artists/kutscher/seiten/kontakt", { vorhanden: seite }),
   fall("Seite braucht Header oder Footer", "DENY", als(ADMIN), "create", "artists/kutscher/seiten/neu",
     { daten: { ...seite, kategorie: "Seitenleiste", updatedAt: JETZT } }),
+  fall("Text zu lang für zwei Fassungen im Verlauf", "DENY", als(ADMIN), "update", "artists/kutscher/seiten/kontakt",
+    { daten: { ...seiteNeu, text: "x".repeat(100001) }, vorhanden: seite, mocks: verlaufMit("x".repeat(100001)) }),
+  fall("Admin legt eine Seite mit Verlaufseintrag an", "ALLOW", als(ADMIN), "create", "artists/kutscher/seiten/kontakt",
+    { daten: seiteNeu }),
+  fall("Seite ohne Verlaufseintrag", "DENY", als(ADMIN), "update", "artists/kutscher/seiten/kontakt",
+    { daten: { ...seiteNeu, lastChange: "s9" }, vorhanden: seite }),
+  fall("Seite ohne lastChange", "DENY", als(ADMIN), "update", "artists/kutscher/seiten/kontakt",
+    { daten: { ...seite, text: "Neu\n", updatedAt: JETZT, lastChange: undefined }, vorhanden: seite }),
+  fall("Verlaufseintrag mit anderer Fassung als gespeichert", "DENY", als(ADMIN), "update", "artists/kutscher/seiten/kontakt",
+    { daten: { ...seiteNeu, text: "Anders\n" }, vorhanden: seite }),
+  fall("Verlaufseintrag einer anderen Seite", "DENY", als(ADMIN), "create", "artists/kutscher/seiten/impressum",
+    { daten: seiteNeu }),
+  fall("Löschen ohne Löscheintrag", "DENY", als(ADMIN), "delete", "artists/kutscher/seiten/kontakt",
+    { vorhanden: { ...seite, lastChange: "s5" } }),
+  fall("Löschen einer Seite von vor dem Verlauf braucht geloescht-<seite>", "DENY", als(ADMIN), "delete",
+    "artists/kutscher/seiten/kontakt", { vorhanden: { ...seite, lastChange: undefined } }),
+  fall("Seitenverlauf beim Speichern", "ALLOW", als(ADMIN), "create", "artists/kutscher/seitenverlauf/s1",
+    { daten: eintrag(fassung(seite), fassung(seiteNeu)), mocks: [...seiteDavor(seite), ...seiteDanach(seiteNeu)] }),
+  fall("Seitenverlauf beim Anlegen", "ALLOW", als(ADMIN), "create", "artists/kutscher/seitenverlauf/s1",
+    { daten: eintrag(null, fassung(seiteNeu)), mocks: [...seiteDavor(null), ...seiteDanach(seiteNeu)] }),
+  fall("Seitenverlauf beim Löschen", "ALLOW", als(ADMIN), "create", "artists/kutscher/seitenverlauf/geloescht-s0",
+    { daten: eintrag(fassung(seite), null), mocks: [...seiteDavor(seite), ...seiteDanach(null)] }),
+  fall("Seitenverlauf ohne Änderung der Seite", "DENY", als(ADMIN), "create", "artists/kutscher/seitenverlauf/s1",
+    { daten: eintrag(fassung(seite), fassung(seiteNeu)), mocks: [...seiteDavor(seite), ...seiteDanach(seite)] }),
+  fall("Löscheintrag ohne Löschen", "DENY", als(ADMIN), "create", "artists/kutscher/seitenverlauf/geloescht-s0",
+    { daten: eintrag(fassung(seite), null), mocks: [...seiteDavor(seite), ...seiteDanach(seite)] }),
+  fall("Löscheintrag mit falscher Kennung", "DENY", als(ADMIN), "create", "artists/kutscher/seitenverlauf/geloescht-x",
+    { daten: eintrag(fassung(seite), null), mocks: [...seiteDavor(seite), ...seiteDanach(null)] }),
+  fall("Seitenverlauf mit vorher null bei vorhandener Seite", "DENY", als(ADMIN), "create", "artists/kutscher/seitenverlauf/s1",
+    { daten: eintrag(null, fassung(seiteNeu)), mocks: [...seiteDavor(seite), ...seiteDanach(seiteNeu)] }),
+  fall("Seitenverlauf mit falschem vorher", "DENY", als(ADMIN), "create", "artists/kutscher/seitenverlauf/geloescht-s0",
+    { daten: eintrag({ ...fassung(seite), text: "erfunden" }, null), mocks: [...seiteDavor(seite), ...seiteDanach(null)] }),
+  fall("Seitenverlauf im Namen einer anderen", "DENY", als(ADMIN), "create", "artists/kutscher/seitenverlauf/s1",
+    { daten: { ...eintrag(null, fassung(seiteNeu)), by: EDITOR }, mocks: [...seiteDavor(null), ...seiteDanach(seiteNeu)] }),
+  fall("Seitenverlauf mit fremdem Feld", "DENY", als(ADMIN), "create", "artists/kutscher/seitenverlauf/s1",
+    { daten: { ...eintrag(null, fassung(seiteNeu)), extra: 1 }, mocks: [...seiteDavor(null), ...seiteDanach(seiteNeu)] }),
+  fall("niemand ändert den Seitenverlauf", "DENY", als(SUPER), "update", "artists/kutscher/seitenverlauf/s1",
+    { daten: { seite: "kontakt", by: SUPER, at: JETZT, vorher: null, nachher: null },
+      vorhanden: { seite: "kontakt", by: EDITOR, at: FRUEHER, vorher: null, nachher: null } }),
+  fall("niemand löscht den Seitenverlauf", "DENY", als(SUPER), "delete", "artists/kutscher/seitenverlauf/s1",
+    { vorhanden: { seite: "kontakt", by: EDITOR, at: FRUEHER, vorher: null, nachher: null } }),
   fall("Inv. Nr. bleibt", "DENY", als(EDITOR), "update", "artists/kutscher/works/ob1",
     { daten: { ...werk, InvNr: "OB2", updatedAt: JETZT, lastChange: "h1" }, vorhanden: werk }),
   fall("Änderung ohne Verlaufseintrag", "DENY", als(EDITOR), "update", "artists/kutscher/works/ob1",

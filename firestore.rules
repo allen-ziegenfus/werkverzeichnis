@@ -96,12 +96,50 @@ service cloud.firestore {
     }
 
     function gueltigeSeite(d) {
-      return d.keys().hasOnly(["titel", "kategorie", "reihenfolge", "text", "updatedAt"])
+      return d.keys().hasOnly(["titel", "kategorie", "reihenfolge", "text", "updatedAt", "lastChange"])
         && d.titel is string && d.titel.size() > 0 && d.titel.size() <= 100
         && d.kategorie in ["Header", "Footer"]
         && d.reihenfolge is int
-        && d.text is string && d.text.size() <= 200000
+        // Der Verlauf speichert zwei Fassungen in einem Dokument (höchstens 1 MiB):
+        // 2 × 100.000 Zeichen × bis zu 4 Byte bleiben darunter.
+        && d.text is string && d.text.size() <= 100000
         && d.updatedAt == request.time;
+    }
+
+    function seitenverlauf(kuenstler, eintrag) {
+      return /databases/$(database)/documents/artists/$(kuenstler)/seitenverlauf/$(eintrag);
+    }
+
+    // Derselbe Schreibvorgang legt den Verlaufseintrag an, auf den `lastChange`
+    // zeigt, mit genau der neuen Fassung (#41).
+    function mitVerlauf(kuenstler, seite, d) {
+      let e = getAfter(seitenverlauf(kuenstler, d.lastChange)).data;
+      return !exists(seitenverlauf(kuenstler, d.lastChange))
+        && e.seite == seite
+        && e.nachher == fassung(d);
+    }
+
+    function fassung(d) {
+      return { "titel": d.titel, "kategorie": d.kategorie, "reihenfolge": d.reihenfolge, "text": d.text };
+    }
+
+    function passtZurSeite(kuenstler, eintrag, e) {
+      let seite = /databases/$(database)/documents/artists/$(kuenstler)/seiten/$(e.seite);
+      return (exists(seite) ? e.vorher == fassung(get(seite).data) : e.vorher == null)
+        && (e.nachher == null
+          ? exists(seite) && !existsAfter(seite)
+            && eintrag == "geloescht-" + get(seite).data.get("lastChange", e.seite)
+          : existsAfter(seite) && getAfter(seite).data.lastChange == eintrag);
+    }
+
+    // Beim Löschen kann die Anfrage nichts mitschicken; der Eintrag hat daher
+    // eine feste Kennung aus dem letzten Eintrag der Seite (bei Seiten von vor
+    // dem Verlauf aus ihrer Kennung).
+    function mitLoeschEintrag(kuenstler, seite) {
+      let id = "geloescht-" + resource.data.get("lastChange", seite);
+      return !exists(seitenverlauf(kuenstler, id))
+        && getAfter(seitenverlauf(kuenstler, id)).data.seite == seite
+        && getAfter(seitenverlauf(kuenstler, id)).data.nachher == null;
     }
 
     // Inhaltsseiten (Einführung, Impressum, …): Markdown, bearbeitet in der Verwaltungsseite.
@@ -109,9 +147,27 @@ service cloud.firestore {
       allow read: if darf(kuenstler, "lesen");
       allow create: if darf(kuenstler, "seiten.bearbeiten")
         && seite.matches("^[a-z0-9][a-z0-9-]{0,59}$")
-        && gueltigeSeite(request.resource.data);
-      allow update: if darf(kuenstler, "seiten.bearbeiten") && gueltigeSeite(request.resource.data);
-      allow delete: if darf(kuenstler, "seiten.bearbeiten");
+        && gueltigeSeite(request.resource.data)
+        && mitVerlauf(kuenstler, seite, request.resource.data);
+      allow update: if darf(kuenstler, "seiten.bearbeiten")
+        && gueltigeSeite(request.resource.data)
+        && mitVerlauf(kuenstler, seite, request.resource.data);
+      allow delete: if darf(kuenstler, "seiten.bearbeiten") && mitLoeschEintrag(kuenstler, seite);
+    }
+
+    // Jede Fassung einer Seite, nur anfügen: vorher und nachher ganz (null beim
+    // Anlegen bzw. Löschen). Daraus stellt die Verwaltung frühere Fassungen und
+    // gelöschte Seiten wieder her; Veröffentlichen zählt die Einträge.
+    match /artists/{kuenstler}/seitenverlauf/{eintrag} {
+      allow read: if darf(kuenstler, "lesen");
+      // Nur zusammen mit der Änderung, die er beschreibt, und `vorher` ist der
+      // tatsächliche Stand davor.
+      allow create: if darf(kuenstler, "seiten.bearbeiten")
+        && request.resource.data.keys().hasOnly(["seite", "by", "at", "vorher", "nachher"])
+        && request.resource.data.seite is string
+        && request.resource.data.by == emailAdresse()
+        && request.resource.data.at == request.time
+        && passtZurSeite(kuenstler, eintrag, request.resource.data);
     }
 
     match /artists/{kuenstler}/works/{werk} {
