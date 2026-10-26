@@ -216,6 +216,12 @@ async function bauen() {
   fs.writeFileSync(`${PUBLIC}/pages.json`, JSON.stringify(seiten));
   fs.writeFileSync(`${PUBLIC}/robots.txt`,
     `User-agent: *\nAllow: /\n\nSitemap: ${env.SITE}/sitemap-index.xml\n`);
+
+  // In Cloud Build: der Lesezeitpunkt als Ergebnis des Schritts
+  // (results.buildStepOutputs); buildStatus trägt ihn in die Veröffentlichung ein.
+  if (env.BUILDER_OUTPUT && katalog.gelesen) {
+    fs.writeFileSync(`${env.BUILDER_OUTPUT}/output`, JSON.stringify({ gelesen: katalog.gelesen }));
+  }
 }
 
 await bauen();

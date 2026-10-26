@@ -73,10 +73,12 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     snap => setListe(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
     e => setFehler(e.message)), [kuenstlerId]);
 
-  // Wann der letzte erfolgreiche Build gestartet ist; eigens abgefragt, denn er
-  // kann älter sein als die fünf gelisteten Anfragen.
+  // Welchen Stand der letzte erfolgreiche Build gelesen hat; eigens abgefragt,
+  // denn er kann älter sein als die fünf gelisteten Anfragen. `gelesen` meldet
+  // der Build selbst (#67); ältere Anfragen haben nur `gestartet`, das etwas zu
+  // früh liegt: Was kurz danach gespeichert wurde, ist schon online.
   useEffect(() => onSnapshot(query(sammlung, where("status", "==", "fertig"), orderBy("gestartet", "desc"), limit(1)),
-    snap => setZuletzt(snap.docs[0]?.get("gestartet") ?? null),
+    snap => setZuletzt(snap.docs[0]?.get("gelesen") ?? snap.docs[0]?.get("gestartet") ?? null),
     e => setFehler(e.message)), [kuenstlerId]);
 
   // Änderungen seitdem, live, damit das Speichern einer Seite sie aktualisiert;
