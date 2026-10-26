@@ -68,9 +68,14 @@ resource "google_cloud_run_v2_service" "zentrale" {
     }
   }
 
-  # Das Image setzt der Trigger (oder deploy.sh).
+  # Das Image setzt der Trigger (oder deploy.sh); gcloud run deploy --source
+  # trägt dabei auch build_config ein. launch_stage meldet die API nach dem
+  # Anlegen als GA.
   lifecycle {
-    ignore_changes = [template[0].containers[0].image, client, client_version, template[0].labels]
+    ignore_changes = [
+      template[0].containers[0].image, client, client_version, template[0].labels,
+      build_config, launch_stage,
+    ]
   }
 
   depends_on = [google_project_service.api]
