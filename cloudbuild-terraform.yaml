@@ -1,0 +1,19 @@
+# Terraform über Infrastructure Manager (#58): bei jedem PR, der infra/ ändert,
+# die Vorschau aller Deployments (Trigger terraform-vorschau), nach dem Merge
+# das Anwenden (terraform-anwenden). Der Plan steht im Log dieses Builds; der
+# Check in GitHub ist rot, wenn eine Vorschau scheitert oder etwas gelöscht
+# würde. Läuft im Infra-Projekt als terraform-ci@.
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: MUST_MATCH
+
+steps:
+  - id: terraform
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args: [infra/alle.sh, '${_BEFEHL}']
+    env:
+      - INFRA_PROJECT=$PROJECT_ID
+      - INFRA_LOCATION=$LOCATION
+
+timeout: 3600s

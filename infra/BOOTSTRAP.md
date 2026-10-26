@@ -71,7 +71,16 @@ infra/bootstrap.sh add-site $INFRA_PROJECT <seiten-projekt>
 
 ## 4. Anwenden
 
-Erst die Vorschau; der Plan steht im Cloud-Build-Log der Vorschau (Link `logs`).
+Ist die Zentrale eingerichtet (§6), läuft das von selbst: Jeder PR, der `infra/`
+ändert, bekommt die Vorschau aller Deployments als Check (Trigger
+`terraform-vorschau`, `cloudbuild-terraform.yaml`, `infra/alle.sh`); nach dem
+Merge wendet `terraform-anwenden` sie an. Ein Plan, der etwas löscht oder
+ersetzt, macht den Check rot und wird nicht automatisch angewendet; das bleibt
+Handarbeit. Bei PRs von außen startet die Vorschau erst nach einem Kommentar
+`/gcbrun` der Repo-Eigentümer:in.
+
+Von Hand, erst die Vorschau; sie zeigt, was angelegt, geändert und gelöscht
+würde, der ganze Plan steht im Cloud-Build-Log der Vorschau:
 
 ```sh
 infra/apply.sh preview gcp kutscher

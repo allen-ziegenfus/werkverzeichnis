@@ -49,9 +49,10 @@ preview)
   if gcloud infra-manager deployments describe "$deployment" >/dev/null 2>&1; then
     argumente+=(--deployment="$deployment")
   fi
-  gcloud infra-manager previews create "$vorschau" "${argumente[@]}"
-  # Der Plan steht im Cloud-Build-Log der Vorschau.
-  gcloud infra-manager previews describe "$vorschau" --format='yaml(state,errorCode,tfErrors,logs,build)'
+  gcloud infra-manager previews create "$vorschau" "${argumente[@]}" >/dev/null
+  # Kurz: was angelegt, geändert, gelöscht würde (Exit 3, wenn etwas gelöscht
+  # würde). Der ganze Plan steht im Cloud-Build-Log der Vorschau.
+  python3 "$hier/plan.py" "$vorschau"
   ;;
 apply)
   gcloud infra-manager deployments apply "$deployment" "${argumente[@]}"
