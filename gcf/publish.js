@@ -8,6 +8,8 @@
  * Status: angefordert → läuft → fertig | fehler. Eine Anfrage während eines
  * laufenden Builds wartet („wartet“); endet der Build, übernimmt ein neuer Build
  * alle wartenden Anfragen, denn ein Build liest, was beim Start in Firestore steht.
+ * Hat sich seit dem, was der erfolgreiche Build gelesen hat, nichts geändert,
+ * sind die wartenden ohne neuen Build fertig (#4).
  */
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import { CloudBuildClient } from "@google-cloud/cloudbuild";
@@ -126,6 +128,19 @@ function lesezeit(build) {
   return null;
 }
 
+/**
+ * Ob sich seit `t` etwas geändert hat, das der Build liest (catalog.ts): Werke
+ * (Verlauf), Seiten (Verlauf, auch gelöschte), Werkgruppen, Bildeinträge, die
+ * Einstellungen der Künstler:in. Dieselben Zeitstempel wie die Tafel in
+ * Veroeffentlichen.jsx. Liest in der Transaktion `tx`.
+ */
+async function geaendertSeit(tx, kuenstlerRef, t) {
+  const proben = [["history", "at"], ["seitenverlauf", "at"], ["werkgruppen", "updatedAt"], ["medien", "erstellt"]]
+    .map(([c, feld]) => tx.get(kuenstlerRef.collection(c).where(feld, ">", t).limit(1)));
+  const [k, ...rest] = await Promise.all([tx.get(kuenstlerRef), ...proben]);
+  return (k.get("updatedAt")?.toMillis() ?? 0) > t.toMillis() || rest.some(s => !s.empty);
+}
+
 export const buildStatus = onMessagePublished({
   topic: "cloud-builds",
   region: REGION,
@@ -152,8 +167,20 @@ export const buildStatus = onMessagePublished({
   const naechste = await db().runTransaction(async tx => {
     if ((await tx.get(sperre)).get("buildId") !== build.id) return [];
     const wartend = await tx.get(kuenstlerRef.collection("veroeffentlichungen").where("status", "==", "wartet"));
-    if (wartend.empty) tx.delete(sperre);
-    else tx.set(sperre, { seit: Timestamp.now(), buildId: null });
+    // Erst nach den wartenden Anfragen prüfen: Wer erst ändert und dann anfragt,
+    // dessen Änderung ist hier schon zu sehen. Ohne `gelesen` (ältere Builds)
+    // im Zweifel neu bauen.
+    const nichtsNeues = !wartend.empty && status === "fertig" && gelesen
+      && !(await geaendertSeit(tx, kuenstlerRef, gelesen));
+    if (wartend.empty || nichtsNeues) {
+      for (const d of wartend.docs) {
+        tx.update(d.ref, { status: "fertig", buildId: build.id, logUrl: build.logUrl ?? null, gelesen,
+          fertig: FieldValue.serverTimestamp(), hinweis: "keine neuen Änderungen, schon mit dem vorigen Build online" });
+      }
+      tx.delete(sperre);
+      return [];
+    }
+    tx.set(sperre, { seit: Timestamp.now(), buildId: null });
     return wartend.docs.map(d => d.ref);
   });
   if (naechste.length) await starten(kuenstlerRef, naechste);

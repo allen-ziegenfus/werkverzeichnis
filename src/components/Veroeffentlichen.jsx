@@ -86,11 +86,12 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
   useEffect(() => {
     if (zuletzt === undefined) return;
     setAenderungen({});
-    const seit = (c, feld) => onSnapshot(
+    const seit = (c, feld, nachsichtig = false) => onSnapshot(
       query(collection(db, "artists", kuenstlerId, c), ...(zuletzt ? [where(feld, ">", zuletzt)] : []),
         orderBy(feld, "desc"), limit(HOECHSTENS + 1)),
       snap => setAenderungen(a => ({ ...a, [c]: snap.docs.map(d => ({ id: d.id, ...d.data() })) })),
-      e => setFehler(e.message));
+      // Bildeinträge dürfen erst die Regeln aus #4 lesen; bis die deployt sind, ohne sie.
+      e => nachsichtig ? setAenderungen(a => ({ ...a, [c]: [] })) : setFehler(e.message));
     // Die Einstellungen der Künstler:in (Titel, Copyright) baut catalog.ts mit ein.
     // updatedAt ändert sich auch bei Rollen; dann zählt eine Änderung zu viel.
     const einstellungen = onSnapshot(doc(db, "artists", kuenstlerId), d => {
@@ -99,18 +100,21 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
         t && (!zuletzt || t.toMillis() > zuletzt.toMillis()) ? [{ id: "einstellungen", updatedAt: t }] : [] }));
     }, e => setFehler(e.message));
     // Seiten über ihren Verlauf (#41), damit auch gelöschte zählen (#2).
-    const beenden = [seit("history", "at"), seit("seitenverlauf", "at"), seit("werkgruppen", "updatedAt"), einstellungen];
+    // Bilder, die die Bildfunktion erst nach dem letzten Build fertig hatte (#4).
+    const beenden = [seit("history", "at"), seit("seitenverlauf", "at"), seit("werkgruppen", "updatedAt"),
+      seit("medien", "erstellt", true), einstellungen];
     return () => beenden.forEach(f => f());
   }, [kuenstlerId, zuletzt]);
 
-  const geladen = ["history", "seitenverlauf", "werkgruppen", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
+  const geladen = ["history", "seitenverlauf", "werkgruppen", "medien", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
   // Mehr als HOECHSTENS Einträge sind nicht alle gelesen; dann nur „über …“.
   const zuViele = geladen && Object.values(aenderungen).some(l => l.length > HOECHSTENS);
   // Unvollständig gelesen ergäbe netto() einen falschen veröffentlichten Stand,
   // und Zurücksetzen schriebe ihn ins Werk.
   const n = geladen && !zuViele && netto(aenderungen.history, aenderungen.seitenverlauf);
   const offen = !geladen ? undefined : zuViele ? HOECHSTENS + 1
-    : n.werke.length + n.seiten.length + aenderungen.werkgruppen.length + aenderungen.einstellungen.length;
+    : n.werke.length + n.seiten.length + aenderungen.werkgruppen.length + aenderungen.medien.length
+      + aenderungen.einstellungen.length;
   // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
   const beschaeftigt = liste?.some(v => ["angefordert", "wartet", "läuft"].includes(v.status));
 
@@ -171,6 +175,10 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
   const v = useVeroeffentlichung(kuenstlerId, ich);
   const { liste, offen: n, fehler, beschaeftigt, veroeffentlichen } = v;
   const letzte = liste?.[0];
+  // Ohne Änderungen seit dem letzten Build ist der Knopf aus (#4); nach einem
+  // Fehler bleibt er an. Für den Notfall (z. B. ein kaputter Build nach Push)
+  // bietet die Tafel „Trotzdem veröffentlichen“.
+  const nichtsZuTun = n === 0 && letzte?.status !== "fehler";
   const [auf, setAuf] = useState(false);
   const [fragen, setFragen] = useState(false);   // Tafel mit Notizfeld
   const ref = useRef();
@@ -199,14 +207,16 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
       </button>
       {erlaubt && (
         <button className={knopfKlein} onClick={() => { setAuf(true); setFragen(true); }}
-                disabled={!liste || (auf && fragen)}>Veröffentlichen</button>
+                disabled={!liste || (auf && fragen) || nichtsZuTun}
+                title={nichtsZuTun ? "Keine offenen Änderungen" : undefined}>Veröffentlichen</button>
       )}
       {auf && (
         <div className={"absolute z-50 w-[min(32rem,calc(100vw-2rem))] max-h-[60vh] overflow-auto p-3 "
           + "bg-white text-black border border-gray-400 rounded shadow-lg text-sm "
           + (nachOben ? "bottom-full left-0 mb-2" : "top-full right-0 mt-2")}>
           {fragen && <Notiz {...v} fertig={() => setAuf(false)} />}
-          <Tafel {...v} darfWerke={darfWerke} darfSeiten={darfSeiten} />
+          <Tafel {...v} darfWerke={darfWerke} darfSeiten={darfSeiten}
+                 trotzdem={erlaubt && nichtsZuTun && !fragen ? () => setFragen(true) : undefined} />
         </div>
       )}
     </span>
@@ -241,7 +251,7 @@ function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
 }
 
 /** Was seit der letzten Veröffentlichung geändert wurde, und die letzten Veröffentlichungen. */
-function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke, darfSeiten, zuruecksetzen }) {
+function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke, darfSeiten, zuruecksetzen, trotzdem }) {
   const [laeuft, setLaeuft] = useState();   // Werk, das gerade zurückgesetzt wird
   const [hinweis, setHinweis] = useState();
   const von = s => [...s].join(", ");
@@ -279,6 +289,8 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
       </> })),
     ...aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => ({ id: "g" + g.id, t: g.updatedAt,
       text: <>Werkgruppe „{g.titel || g.id}“</> })),
+    ...aenderungen.medien.slice(0, HOECHSTENS).map(m => ({ id: "m" + m.id, t: m.erstellt,
+      text: <>Bild verarbeitet: {m.original?.split("/").pop() ?? m.id}{m.art === "fehler" && <span className="text-red-700"> (nicht lesbar)</span>}</> })),
     ...aenderungen.einstellungen.map(e => ({ id: "e", t: e.updatedAt, text: <>Einstellungen oder Personen</> })),
   ].sort((a, b) => (b.t?.toMillis() ?? 0) - (a.t?.toMillis() ?? 0));
 
@@ -291,7 +303,12 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
           {zuletzt ? `Seit der letzten Veröffentlichung (${wann(zuletzt)})` : "Noch nie veröffentlicht"}
         </h3>
         {zuViele ? <p className="text-gray-600">Über {HOECHSTENS} Änderungen, zu viele für eine Übersicht hier.</p>
-          : !zeilen ? <p>…</p> : !zeilen.length ? <p className="text-gray-600">Keine offenen Änderungen.</p> : (
+          : !zeilen ? <p>…</p> : !zeilen.length ? (
+            <p className="text-gray-600">
+              Keine offenen Änderungen; die Website ist auf dem Stand.
+              {trotzdem && <> <button className="underline" onClick={trotzdem}>Trotzdem veröffentlichen</button></>}
+            </p>
+          ) : (
           <ul className="space-y-0.5">
             {zeilen.map(z => <li key={z.id}><span className="text-gray-600">{wann(z.t)}</span> · {z.text}</li>)}
           </ul>
@@ -306,6 +323,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
                 <span className="text-gray-600">{wann(v.angefordert)}</span> · {v.von} ·{" "}
                 <span className={FARBE[v.status] ?? ""}>{STATUS[v.status] ?? v.status}</span>
                 {v.meldung && <span className="text-red-700"> ({v.meldung})</span>}
+                {v.hinweis && <span className="text-gray-600"> ({v.hinweis})</span>}
                 {v.logUrl && <> · <a className="underline" href={v.logUrl} target="_blank" rel="noreferrer">Log</a></>}
                 {v.notiz && <div className="pl-4 italic break-words">„{v.notiz}“</div>}
               </li>

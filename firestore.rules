@@ -185,6 +185,12 @@ service cloud.firestore {
         && !exists(/databases/$(database)/documents/artists/$(kuenstler)/history/$(request.resource.data.lastChange));
     }
 
+    // Bildeinträge schreibt nur die Bildfunktion (gcf/process.js); lesen, damit
+    // Veröffentlichen neu verarbeitete Bilder als Änderung zählt (#4).
+    match /artists/{kuenstler}/medien/{m} {
+      allow read: if darf(kuenstler, "lesen");
+    }
+
     // Veröffentlichen: Wer darf, fordert einen neuen Build der Seite an; die
     // Funktion `veroeffentlichen` (gcf/publish.js) startet Cloud Build und trägt
     // den Rest ein. Eine kurze Notiz zum Nachlesen ist freiwillig (#48).
