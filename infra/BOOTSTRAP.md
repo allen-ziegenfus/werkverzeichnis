@@ -127,7 +127,7 @@ Von Hand, mit den eigenen Zugangsdaten, geht es weiterhin:
 ```sh
 node tools/rules_deploy.mjs                     # Firestore-Regeln (vorher die Tests)
 (cd gcf && npm ci) && firebase deploy --only functions --project <seiten-projekt>
-node tools/super_admin.mjs grant <deine-email>  # Notschlüssel; die Künstler:in legt die Zentrale an (#27)
+node tools/super_admin.mjs grant <deine-email>  # Notschlüssel; sonst in der Zentrale (§6)
 ```
 
 Ein Push auf den Branch der Seite baut und deployt sie; Veröffentlichen ebenso.
@@ -180,8 +180,9 @@ gcloud builds triggers run zentrale-main --region=europe-west3 --branch=main --p
 Von Hand geht es weiterhin mit `infra/zentrale/deploy.sh`.
 
 Die Zentrale zeigt je Website (Deployment `<seite>-gcp`) Stand, letzten Build
-und Veröffentlichungen und kann veröffentlichen. Die Rechte dafür im Projekt der
-Website gibt ihr `infra/gcp` (Konto `zentrale@`, Firestore und Builds).
+und Veröffentlichungen, kann veröffentlichen und trägt Personen und Super-Admins
+ein. Die Rechte dafür im Projekt der Website gibt ihr `infra/gcp` (Konto
+`zentrale@`: Firestore, Builds, Firebase Auth).
 
 Zuletzt den Client bei IAP eintragen, in der Console und **beim Dienst**, nicht
 beim Projekt: IAP hat Einstellungen auf beiden Ebenen, und der Dienst bringt beim

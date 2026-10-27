@@ -96,13 +96,19 @@ resource "google_service_account_iam_member" "veroeffentlichen_als_build" {
   member             = local.konten["publish-function"]
 }
 
-# Die Zentrale (#27, #76) im Infra-Projekt: liest Stand und Builds der Seite und
-# legt Veröffentlichungen an, mit IAM statt über die Firestore-Regeln.
+# Die Zentrale (#27) im Infra-Projekt: liest Stand und Builds der Seite, legt
+# Veröffentlichungen an (#76), trägt Personen und Super-Admins ein (#78); mit IAM
+# statt über die Firestore-Regeln.
 resource "google_project_iam_member" "zentrale" {
-  for_each = toset(["roles/datastore.user", "roles/cloudbuild.builds.viewer"])
-  project  = var.projekt_id
-  role     = each.key
-  member   = "serviceAccount:zentrale@${var.infra_projekt}.iam.gserviceaccount.com"
+  for_each = toset([
+    "roles/datastore.user",
+    "roles/cloudbuild.builds.viewer",
+    "roles/firebaseauth.admin",                # Super-Admins (Custom Claim), wer sich angemeldet hat
+    "roles/serviceusage.serviceUsageConsumer", # Firebase Auth rechnet auf das Projekt der Seite ab
+  ])
+  project = var.projekt_id
+  role    = each.key
+  member  = "serviceAccount:zentrale@${var.infra_projekt}.iam.gserviceaccount.com"
 }
 
 # Storage-Ereignisse erreichen die Bildfunktion über Pub/Sub.

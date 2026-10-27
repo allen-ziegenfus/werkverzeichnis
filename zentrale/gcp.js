@@ -33,10 +33,10 @@ export const projekt = process.env.INFRA_PROJECT
     throw new Error("INFRA_PROJECT setzen (außerhalb von Cloud Run)");
   });
 
-export async function api(url, daten) {
+export async function api(url, daten, kopf = {}) {
   const r = await fetch(url, {
     method: daten ? "POST" : "GET",
-    headers: { authorization: `Bearer ${await holeToken()}`, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${await holeToken()}`, "content-type": "application/json", ...kopf },
     body: daten && JSON.stringify(daten),
   });
   const text = await r.text();

@@ -1,12 +1,13 @@
 import http from "node:http";
 import { anwenden, deployments, holeLauf, laeufe, vorschau } from "./terraform.js";
 import { stand, veroeffentlichen, websites } from "./websites.js";
+import { personen, ROLLEN, rolleSetzen, superAdminSetzen, website } from "./personen.js";
 
 /**
  * Die Zentrale (#27): Super-Admin-Aufgaben für alle Websites. Läuft in Cloud
  * Run hinter IAP; wer hier ankommt, hat IAP schon durchgelassen
  * (infra/zentrale). Bisher: Übersicht der Websites mit Veröffentlichen (#76),
- * Terraform je Deployment (#60).
+ * Personen und Super-Admins je Website (#78), Terraform je Deployment (#60).
  */
 
 const maskieren = s => String(s ?? "").replace(/[&<>"']/g, z => `&#${z.charCodeAt(0)};`);
@@ -52,8 +53,15 @@ ${neuLaden ? '<meta http-equiv="refresh" content="5">' : ""}
   .karte h2 { margin-bottom: 0 }
   .karte th { width: 11rem }
   .karte td { overflow-wrap: anywhere }
+  input[type=email] { font: inherit; padding: .25rem .4rem; width: min(18rem, 100%) }
+  select { font: inherit; padding: .2rem }
   summary { cursor: pointer; color: #444; margin: .5rem 0 }
-  @media (max-width: 30rem) { .karte th { width: auto } }
+  @media (max-width: 30rem) {
+    .karte th { width: auto }
+    .personen tr { display: block; border-bottom: 1px solid #ddd; padding: .35rem 0 }
+    .personen td { display: inline-block; border: 0; padding: .2rem .5rem .2rem 0 }
+    .personen td:first-child { display: block }
+  }
   @media (max-width: 30rem) { .breit { display: none } }
 </style>
 <body>
@@ -117,7 +125,7 @@ function websiteKarte(w) {
   <h2>${maskieren(titel)}</h2>
   <p class="klein">${maskieren(w.seite)} · Projekt ${maskieren(w.projekt)}${k === null ? ` · <span class="fehler">kein Künstler:in-Dokument</span>`
     : k?.fehler ? ` · Künstler:in-Dokument ${fehlerText(k.fehler)}` : ""}</p>
-  ${w.adresse ? `<p><a href="${maskieren(w.adresse)}">Website</a> · <a href="${maskieren(w.adresse.replace(/\/$/, ""))}/verwaltung/">Verwaltung</a></p>` : ""}
+  <p>${w.adresse ? `<a href="${maskieren(w.adresse)}">Website</a> · <a href="${maskieren(w.adresse.replace(/\/$/, ""))}/verwaltung/">Verwaltung</a> · ` : ""}<a href="/website/${encodeURIComponent(w.seite)}">Personen und Super-Admins</a></p>
   <table>
     <tr><th>Letzter Build</th><td>${build}</td></tr>
     <tr><th>Letzte Veröffentlichung</th><td>${veroeffentlichung}</td></tr>
@@ -151,6 +159,54 @@ angewendet wird erst nach einer Bestätigung.</p>
   <tr><th>Was</th><th>Deployment</th><th>Ergebnis</th><th>Wann, wer</th></tr>
   ${ls.map(laufZeile).join("")}
 </table>`, { neuLaden: laeuft });
+}
+
+const rollenAuswahl = (gewaehlt = "editor") => `<select name="rolle">${Object.entries(ROLLEN)
+  .map(([k, n]) => `<option value="${k}"${k === gewaehlt ? " selected" : ""}>${n}</option>`).join("")}</select>`;
+
+async function websiteSeite(kennung) {
+  const w = await website(kennung).catch(() => null);
+  if (!w) return null;
+  const [s, p] = await Promise.all([stand(w), personen(w)]);
+  const titel = s.kuenstlerDok?.titel ?? w.seite;
+  const formular = (aktion, felder, knopf, frage) => `<form method="post" action="${aktion}"${frage
+    ? ` onsubmit="return confirm(${maskieren(JSON.stringify(frage))})"` : ""}>
+    <input type="hidden" name="seite" value="${maskieren(w.seite)}">${felder}<button>${knopf}</button></form>`;
+  const versteckt = (name, wert) => `<input type="hidden" name="${name}" value="${maskieren(wert)}">`;
+  const angemeldet = email => {
+    const k = p.konten.get(email);
+    return !k ? `<span class="fehler">noch nie angemeldet</span>` : k.zuletzt ? `zuletzt ${zeit(k.zuletzt)}` : "angemeldet";
+  };
+  const personenZeilen = Object.entries(p.rollen).sort(([a], [b]) => a.localeCompare(b)).map(([email, rolle]) => `<tr>
+    <td>${maskieren(email)}<br><span class="klein">${angemeldet(email)}</span></td>
+    <td>${formular("/rolle", versteckt("email", email) + rollenAuswahl(rolle) + " ", "Ändern")}</td>
+    <td>${formular("/rolle", versteckt("email", email) + versteckt("rolle", ""), "Entfernen", `${email} entfernen?`)}</td>
+  </tr>`).join("");
+  const supers = [...p.konten].filter(([, k]) => k.superAdmin).map(([email]) => email).sort();
+  const superZeilen = supers.map(email => `<tr>
+    <td>${maskieren(email)}<br><span class="klein">${angemeldet(email)}</span></td>
+    <td>${formular("/superadmin", versteckt("email", email) + versteckt("ja", ""), "Entziehen",
+      `${email} die Rechte als Super-Admin entziehen?`)}</td>
+  </tr>`).join("");
+  return seite(titel, `
+<h2>${maskieren(titel)}</h2>
+<p class="klein">${maskieren(w.seite)} · Projekt ${maskieren(w.projekt)} · <a href="/">Übersicht</a></p>
+<h3>Personen</h3>
+${p.gibtDokument ? `
+<p class="klein">${Object.values(ROLLEN).join(" und ")}; Admins dürfen alles außer Super-Admins vergeben, Bearbeiter:innen nur Werke.
+Die Anmeldung geht mit dem Google-Konto dieser Adresse.</p>
+<table class="personen">${personenZeilen || `<tr><td>Noch niemand eingetragen.</td></tr>`}</table>
+<h4>Eintragen</h4>
+${formular("/rolle", `<input type="email" name="email" required placeholder="name@gmail.com" autocomplete="off"> ${rollenAuswahl()} `, "Eintragen")}`
+    : `<p class="fehler">Es gibt noch kein Künstler:in-Dokument.</p>`}
+<h3>Super-Admins</h3>
+<p class="klein">Dürfen auf dieser Website alles. Wirkt bei der nächsten Anmeldung der Person, spätestens nach einer Stunde.
+Wer Super-Admin werden soll, muss sich vorher einmal angemeldet haben.</p>
+<table class="personen">${superZeilen || `<tr><td>Niemand.</td></tr>`}</table>
+<h4>Vergeben</h4>
+${formular("/superadmin", `<input type="email" name="email" required placeholder="name@gmail.com" autocomplete="off">${versteckt("ja", "ja")} `,
+    "Super-Admin machen", "Diese Person zur Super-Admin machen? Sie darf dann auf dieser Website alles.")}
+`);
 }
 
 function planAnzeigen(l) {
@@ -230,6 +286,15 @@ http.createServer(async (anfrage, antwort) => {
     let html;
     if (anfrage.method === "GET" && pfad === "/") html = await uebersicht(email);
     else if (anfrage.method === "GET" && pfad.startsWith("/lauf/")) html = await laufSeite(pfad.slice(6));
+    else if (anfrage.method === "GET" && pfad.startsWith("/website/")) html = await websiteSeite(decodeURIComponent(pfad.slice(9)));
+    else if (anfrage.method === "POST" && (pfad === "/rolle" || pfad === "/superadmin")) {
+      if (!vonHier(anfrage)) throw new Error("Formular nicht von der Zentrale");
+      const f = await formular(anfrage);
+      const w = await website(f.get("seite") ?? "");
+      if (pfad === "/rolle") await rolleSetzen(w, f.get("email"), f.get("rolle") || null);
+      else await superAdminSetzen(w, f.get("email"), f.get("ja") === "ja");
+      return weiter(antwort, `/website/${encodeURIComponent(w.seite)}`);
+    }
     else if (anfrage.method === "POST" && pfad === "/veroeffentlichen") {
       if (!vonHier(anfrage)) throw new Error("Formular nicht von der Zentrale");
       await veroeffentlichen((await formular(anfrage)).get("seite") ?? "", email);
