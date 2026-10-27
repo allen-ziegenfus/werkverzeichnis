@@ -33,13 +33,18 @@ export const projekt = process.env.INFRA_PROJECT
     throw new Error("INFRA_PROJECT setzen (außerhalb von Cloud Run)");
   });
 
-export async function api(url, daten) {
+export async function api(url, daten, kopf = {}) {
   const r = await fetch(url, {
     method: daten ? "POST" : "GET",
-    headers: { authorization: `Bearer ${await holeToken()}`, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${await holeToken()}`, "content-type": "application/json", ...kopf },
     body: daten && JSON.stringify(daten),
   });
   const text = await r.text();
-  if (!r.ok) throw new Error(`${r.status} ${url.replace(/\?.*/, "")}: ${text.slice(0, 300)}`);
+  if (!r.ok) {
+    // „400 FAILED_PRECONDITION https://…: …“; den Status prüfen Aufrufer (personen.js).
+    let status = "";
+    try { status = JSON.parse(text).error?.status ?? ""; } catch { /* kein JSON */ }
+    throw new Error(`${r.status} ${status} ${url.replace(/\?.*/, "")}: ${text.slice(0, 300)}`);
+  }
   return text ? JSON.parse(text) : {};
 }

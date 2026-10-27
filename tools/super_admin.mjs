@@ -2,7 +2,8 @@
  * Erteilt oder entzieht die Rolle Super-Admin: ein Custom Claim
  * `superAdmin: true` am Firebase-Auth-Nutzer, dem firestore.rules vertraut.
  * Claims sind im Firestore Studio unsichtbar, deshalb sieht und ändert man sie
- * mit diesem Skript.
+ * in der Zentrale (Website → Personen und Super-Admins, #78) oder mit diesem
+ * Skript, z. B. wenn die Zentrale nicht erreichbar ist.
  *
  *   node tools/super_admin.mjs list
  *   node tools/super_admin.mjs grant  name@gmail.com
