@@ -11,12 +11,21 @@ locals {
 
 resource "google_project_service" "api" {
   for_each = toset([
-    "artifactregistry", "cloudbuild", "cloudfunctions", "eventarc", "firebase", "firebaserules",
+    "apikeys", "artifactregistry", "cloudbuild", "cloudfunctions", "eventarc", "firebase", "firebaserules",
     "firestore", "iam", "iamcredentials", "identitytoolkit", "logging", "pubsub", "run",
     "secretmanager", "storage", "sts",
   ])
   service            = "${each.key}.googleapis.com"
   disable_on_destroy = false
+}
+
+# Den Web-Schlüssel von Firebase auf die Adressen der Seite und die Dienste
+# einschränken, die der Client braucht (#43). Dafür braucht Terraform selbst
+# (infra-manager@, bootstrap.sh add-site) das Recht auf API-Schlüssel.
+resource "google_project_iam_member" "infra_manager_schluessel" {
+  project = var.projekt_id
+  role    = "roles/serviceusage.apiKeysAdmin"
+  member  = "serviceAccount:infra-manager@${var.infra_projekt}.iam.gserviceaccount.com"
 }
 
 resource "google_firebase_project" "projekt" {
