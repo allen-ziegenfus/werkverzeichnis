@@ -40,6 +40,11 @@ export async function api(url, daten, kopf = {}) {
     body: daten && JSON.stringify(daten),
   });
   const text = await r.text();
-  if (!r.ok) throw new Error(`${r.status} ${url.replace(/\?.*/, "")}: ${text.slice(0, 300)}`);
+  if (!r.ok) {
+    // „400 FAILED_PRECONDITION https://…: …“; den Status prüfen Aufrufer (personen.js).
+    let status = "";
+    try { status = JSON.parse(text).error?.status ?? ""; } catch { /* kein JSON */ }
+    throw new Error(`${r.status} ${status} ${url.replace(/\?.*/, "")}: ${text.slice(0, 300)}`);
+  }
   return text ? JSON.parse(text) : {};
 }

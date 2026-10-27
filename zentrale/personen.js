@@ -32,39 +32,61 @@ export function pruefeEmail(eingabe) {
   return email;
 }
 
+/** Alle Konten in Firebase Auth des Projekts, seitenweise. */
+async function konten(w) {
+  const alle = [];
+  for (let offset = 0; ; offset += 500) {
+    const { userInfo = [] } = await auth(w, "accounts:query",
+      { returnUserInfo: true, limit: "500", offset: String(offset) });
+    alle.push(...userInfo);
+    if (userInfo.length < 500) return alle;
+  }
+}
+
+const rollenDokument = w => api(firestore + dokument(w)).catch(f => f.message.startsWith("404") ? null : Promise.reject(f));
+const rollenVon = d => Object.fromEntries(Object.entries(d?.fields?.roles?.mapValue?.fields ?? {})
+  .map(([email, v]) => [email, v.stringValue]));
+
 /** Rollen (E-Mail → Rolle), dazu alle, die sich je angemeldet haben. */
 export async function personen(w) {
-  const [d, a] = await Promise.all([
-    api(firestore + dokument(w)).catch(f => f.message.startsWith("404") ? null : Promise.reject(f)),
-    auth(w, "accounts:query", { returnUserInfo: true, limit: "500" }),
-  ]);
-  const rollen = Object.fromEntries(Object.entries(d?.fields?.roles?.mapValue?.fields ?? {})
-    .map(([email, v]) => [email, v.stringValue]));
-  const konten = new Map((a.userInfo ?? []).filter(n => n.email).map(n => [n.email.toLowerCase(), {
+  const [d, a] = await Promise.all([rollenDokument(w), konten(w)]);
+  const rollen = rollenVon(d);
+  const angemeldet = new Map(a.filter(n => n.email).map(n => [n.email.toLowerCase(), {
     zuletzt: n.lastLoginAt ? new Date(Number(n.lastLoginAt)).toISOString() : "",
     superAdmin: claims(n).superAdmin === true,
   }]));
-  return { gibtDokument: !!d, rollen, konten };
+  return { gibtDokument: !!d, rollen, konten: angemeldet };
 }
 
-/** Setzt die Rolle einer Person; ohne Rolle wird sie entfernt. */
+/**
+ * Setzt die Rolle einer Person; ohne Rolle wird sie entfernt. Geschrieben wird
+ * nur, wenn das Dokument noch so ist wie gelesen (updateTime); sonst neu lesen
+ * und prüfen, damit zwei gleichzeitige Eintragungen die Grenze nicht überschreiten.
+ */
 export async function rolleSetzen(w, eingabe, rolle) {
   const email = pruefeEmail(eingabe);
-  if (rolle && !ROLLEN[rolle]) throw new Error(`Unbekannte Rolle ${rolle}`);
-  const { gibtDokument, rollen } = await personen(w);
-  if (!gibtDokument) throw new Error("Es gibt noch kein Künstler:in-Dokument");
-  if (rolle && !(email in rollen) && Object.keys(rollen).length >= HOECHSTENS)
-    throw new Error(`Höchstens ${HOECHSTENS} Personen`);
-  // Nur dieses eine Feld der Map: Was andere gleichzeitig ändern, bleibt.
-  const feld = "roles.`" + email + "`";
-  await api(`${firestore}projects/${w.projekt}/databases/${w.datenbank}/documents:commit`, {
-    writes: [{
-      update: { name: dokument(w), fields: { roles: { mapValue: { fields: rolle ? { [email]: { stringValue: rolle } } : {} } } } },
-      updateMask: { fieldPaths: [feld] },
-      updateTransforms: [{ fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }],
-      currentDocument: { exists: true },
-    }],
-  });
+  if (rolle && !Object.hasOwn(ROLLEN, rolle)) throw new Error(`Unbekannte Rolle ${rolle}`);
+  for (let versuch = 1; ; versuch++) {
+    const d = await rollenDokument(w);
+    if (!d) throw new Error("Es gibt noch kein Künstler:in-Dokument");
+    const rollen = rollenVon(d);
+    if (rolle && !Object.hasOwn(rollen, email) && Object.keys(rollen).length >= HOECHSTENS)
+      throw new Error(`Höchstens ${HOECHSTENS} Personen`);
+    try {
+      // Nur dieses eine Feld der Map.
+      await api(`${firestore}projects/${w.projekt}/databases/${w.datenbank}/documents:commit`, {
+        writes: [{
+          update: { name: dokument(w), fields: { roles: { mapValue: { fields: rolle ? { [email]: { stringValue: rolle } } : {} } } } },
+          updateMask: { fieldPaths: ["roles.`" + email + "`"] },
+          updateTransforms: [{ fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" }],
+          currentDocument: { updateTime: d.updateTime },
+        }],
+      });
+      return;
+    } catch (f) {
+      if (versuch >= 3 || !/FAILED_PRECONDITION|ABORTED/.test(f.message)) throw f;
+    }
+  }
 }
 
 /**
