@@ -56,3 +56,20 @@ variable "pages_projekt" {
 variable "cloudflare_konto_id" {
   type = string
 }
+
+variable "web_schluessel" {
+  description = <<-EOT
+    ID des Web-Schlüssels, den Firebase beim Anlegen der Web-App erzeugt hat
+    (der apiKey in firebaseClient.js; nachschlagen mit gcloud services api-keys
+    lookup <apiKey>). Gesetzt: Terraform schränkt ihn ein (#43), nach einem
+    Import in sites/<seite>/gcp-imports.tf.
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "web_adressen" {
+  description = "Wo die Seite läuft, als Referrer-Muster für den Web-Schlüssel, z. B. https://*.example.pages.dev/*. Dazu kommen immer localhost und die Firebase-Domains des Projekts."
+  type        = list(string)
+  default     = []
+}

@@ -28,6 +28,40 @@ resource "google_project_iam_member" "infra_manager_schluessel" {
   member  = "serviceAccount:infra-manager@${var.infra_projekt}.iam.gserviceaccount.com"
 }
 
+# Der Client (firebaseClient.js) braucht nur Anmeldung und Firestore; die
+# Anmeldung läuft über die Seite <projekt>.firebaseapp.com.
+resource "google_apikeys_key" "web" {
+  count        = var.web_schluessel == null ? 0 : 1
+  name         = var.web_schluessel
+  display_name = "Browser key (auto created by Firebase)"
+
+  restrictions {
+    browser_key_restrictions {
+      allowed_referrers = concat(var.web_adressen, [
+        "https://${var.projekt_id}.firebaseapp.com/*",
+        "https://${var.projekt_id}.web.app/*",
+        "http://localhost/*",
+        "http://localhost:4321/*", # astro dev
+        "http://localhost:4322/*", # astro preview
+      ])
+    }
+    dynamic "api_targets" {
+      for_each = ["identitytoolkit.googleapis.com", "securetoken.googleapis.com", "firestore.googleapis.com"]
+      content {
+        service = api_targets.value
+      }
+    }
+  }
+
+  # Ohne ihn kann sich niemand mehr anmelden; zum Aufheben der Einschränkung
+  # die Einschränkungen ändern, nicht den Schlüssel löschen.
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  depends_on = [google_project_service.api, google_project_iam_member.infra_manager_schluessel]
+}
+
 resource "google_firebase_project" "projekt" {
   provider   = google-beta
   depends_on = [google_project_service.api]
