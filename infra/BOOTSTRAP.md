@@ -61,7 +61,11 @@ Befehl. Für eine **neue** Seite einmal von Hand, in der Konsole:
    europe-west3, die App nur für das Repository installieren. Das Repository nicht
    verknüpfen; das macht Terraform.
 4. `infra/sites/kutscher` nach `infra/sites/<seite>` kopieren, beide `.tfvars`
-   anpassen, die `*-imports.tf` löschen.
+   anpassen, die `*-imports.tf` löschen. Den Web-Schlüssel der Web-App schränkt
+   Terraform ein (#43): seine ID mit `gcloud services api-keys lookup <apiKey>
+   --project=<seiten-projekt>` nachschlagen, als `web_schluessel` in `gcp.tfvars`
+   eintragen und wie in `kutscher/gcp-imports.tf` importieren (geht erst, wenn
+   ein erstes Apply die API Keys eingeschaltet hat).
 
 Dann übernimmt Terraform:
 
