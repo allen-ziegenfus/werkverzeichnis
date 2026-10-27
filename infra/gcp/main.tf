@@ -53,6 +53,12 @@ resource "google_apikeys_key" "web" {
     }
   }
 
+  # Ohne ihn kann sich niemand mehr anmelden; zum Aufheben der Einschränkung
+  # die Einschränkungen ändern, nicht den Schlüssel löschen.
+  lifecycle {
+    prevent_destroy = true
+  }
+
   depends_on = [google_project_service.api, google_project_iam_member.infra_manager_schluessel]
 }
 
