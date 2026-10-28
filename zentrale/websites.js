@@ -22,6 +22,7 @@ export async function websites(ds) {
       datenbank: e.firestore_datenbank ?? "werkverzeichnis",
       adresse: e.seiten_url ?? "",
       trigger: `werkverzeichnis-${e.branch ?? "main"}`,
+      backendTrigger: `werkverzeichnis-backend-${e.branch ?? "main"}`,
       deployments: ds.filter(x => x.name.startsWith(seite + "-")),
     };
   });
@@ -66,10 +67,10 @@ async function letzteVeroeffentlichung(w) {
   return d && felder(d.fields);
 }
 
-/** Der letzte Build der Seite (Push oder Veröffentlichen). */
-async function letzterBuild(w) {
+/** Der letzte Build eines Triggers der Seite: Seite (Push oder Veröffentlichen) oder Backend (#98). */
+async function letzterBuild(w, trigger = w.trigger) {
   // Nach dem Namen filtern; trigger_id bräuchte zusätzlich das Recht, Trigger zu lesen.
-  const filter = encodeURIComponent(`substitutions.TRIGGER_NAME="${w.trigger}"`);
+  const filter = encodeURIComponent(`substitutions.TRIGGER_NAME="${trigger}"`);
   const { builds = [] } = await api(
     `https://cloudbuild.googleapis.com/v1/projects/${w.projekt}/locations/${REGION}/builds?pageSize=1&filter=${filter}`);
   const b = builds[0];
@@ -83,10 +84,11 @@ const oderFehler = p => p.catch(f => ({ fehler: f.message }));
 
 /** Alles, was die Übersicht je Website zeigt; ein Fehler betrifft nur seinen Teil. */
 export async function stand(w) {
-  const [kuenstler, veroeffentlichung, build] = await Promise.all([
+  const [kuenstler, veroeffentlichung, build, backend] = await Promise.all([
     oderFehler(kuenstlerDokument(w)), oderFehler(letzteVeroeffentlichung(w)), oderFehler(letzterBuild(w)),
+    oderFehler(letzterBuild(w, w.backendTrigger)),
   ]);
-  return { ...w, kuenstlerDok: kuenstler, veroeffentlichung, build };
+  return { ...w, kuenstlerDok: kuenstler, veroeffentlichung, build, backend };
 }
 
 const BUILD_FERTIG = ["SUCCESS", "PENDING", "QUEUED", "WORKING"];

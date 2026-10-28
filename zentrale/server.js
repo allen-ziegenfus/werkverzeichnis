@@ -119,14 +119,18 @@ function fehlerText(t) {
 const LAEUFT = ["angefordert", "wartet", "läuft"];
 const BUILD_LAEUFT = ["PENDING", "QUEUED", "WORKING"];
 
-function websiteKarte(w) {
-  const k = w.kuenstlerDok;
-  const titel = k?.titel ?? w.seite;
-  const b = w.build, v = w.veroeffentlichung;
-  const build = !b ? "noch keiner" : b.fehler ? fehlerText(b.fehler)
+function buildText(b) {
+  return !b ? "noch keiner" : b.fehler ? fehlerText(b.fehler)
     : `${BUILD_LAEUFT.includes(b.status) ? dreht(STATUS[b.status]) : b.status === "SUCCESS" ? STATUS[b.status]
       : `<span class="fehler">${STATUS[b.status] ?? maskieren(b.status)}</span>`}
       · ${zeit(b.begonnen)}${b.commit ? ` · Commit ${maskieren(b.commit)}` : ""} · <a href="${maskieren(b.log)}">Log</a>`;
+}
+
+function websiteKarte(w) {
+  const k = w.kuenstlerDok;
+  const titel = k?.titel ?? w.seite;
+  const v = w.veroeffentlichung;
+  const build = buildText(w.build);
   const veroeffentlichung = !v ? "noch keine" : v.fehler ? fehlerText(v.fehler)
     : `${v.status === "fehler" ? `<span class="fehler">fehler</span>` : LAEUFT.includes(v.status) ? dreht(maskieren(v.status)) : maskieren(v.status)}
       · ${zeit(v.angefordert)} · ${maskieren(v.von)}${v.notiz ? ` · „${maskieren(v.notiz)}“` : ""}
@@ -139,6 +143,7 @@ function websiteKarte(w) {
   <p>${w.adresse ? `<a href="${maskieren(w.adresse)}">Website</a> · <a href="${maskieren(w.adresse.replace(/\/$/, ""))}/verwaltung/">Verwaltung</a> · ` : ""}<a href="/website/${encodeURIComponent(w.seite)}">Künstler:in und Personen</a></p>
   <table>
     <tr><th>Letzter Build</th><td>${build}</td></tr>
+    <tr><th>Regeln und Funktionen</th><td>${buildText(w.backend)}</td></tr>
     <tr><th>Letzte Veröffentlichung</th><td>${veroeffentlichung}</td></tr>
   </table>
   ${gescheitert(w) ? `<form method="post" action="/neu-bauen" onsubmit="return confirm(${maskieren(JSON.stringify(`${titel} neu bauen?`))})">
@@ -157,7 +162,7 @@ async function uebersicht(email) {
   const ws = await Promise.all((await websites(ds)).map(stand));
   const zentrale = ds.filter(d => d.name === "zentrale");
   const laeuft = ls.some(l => l.laeuft) || ws.some(w => LAEUFT.includes(w.veroeffentlichung?.status)
-    || BUILD_LAEUFT.includes(w.build?.status));
+    || BUILD_LAEUFT.includes(w.build?.status) || BUILD_LAEUFT.includes(w.backend?.status));
   return seite("Übersicht", `
 <p class="klein">Angemeldet als ${maskieren(email || "unbekannt")}.</p>
 ${ws.map(websiteKarte).join("") || "<p>Noch keine Website.</p>"}
