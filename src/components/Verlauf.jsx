@@ -158,13 +158,14 @@ async function seiteZuruecksetzen(kuenstlerId, ich, s) {
 
 function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
   const [a, setA] = useState();
+  const [ladefehler, setLadefehler] = useState();
   const [fehler, setFehler] = useState();
   const [ergebnis, setErgebnis] = useState();
   const [laeuft, setLaeuft] = useState(false);
 
-  useEffect(() => { aenderungen(kuenstlerId, von, bis).then(setA, e => setFehler(meldung(e))); }, [kuenstlerId, von, bis]);
+  useEffect(() => { aenderungen(kuenstlerId, von, bis).then(setA, e => setLadefehler(meldung(e))); }, [kuenstlerId, von, bis]);
 
-  if (fehler) return <p className="pl-4 text-red-700">{fehler}</p>;
+  if (ladefehler) return <p className="pl-4 text-red-700">{ladefehler}</p>;
   if (!a) return <p className="pl-4 text-gray-600">Lädt…</p>;
   if (a.zuViele) return <p className="pl-4 text-gray-600">Über {HOECHSTENS} Änderungen, zu viele für eine Übersicht hier.</p>;
   const n = netto(a.history, a.seitenverlauf);
@@ -186,7 +187,10 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
         if (await seiteZuruecksetzen(kuenstlerId, ich, s)) zurueck++; else geblieben++;
       }
     } catch (e) {
-      setFehler(meldung(e));
+      // Was schon zurückgesetzt ist, bleibt es; das muss die Meldung sagen.
+      setFehler(`${meldung(e)} Abgebrochen nach ${zurueck} zurückgesetzt; der Rest ist unverändert.`);
+      setLaeuft(false);
+      return;
     }
     setLaeuft(false);
     setErgebnis(`${zurueck} zurückgesetzt${geblieben ? `, ${geblieben} inzwischen erneut geändert und geblieben` : ""}.`
@@ -196,7 +200,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
   const seitenName = s => s.nachher?.titel ?? s.vorher?.titel ?? s.seite;
   return (
     <div className="pl-4 pt-1 space-y-1">
-      {leer && <p className="text-gray-600">Keine Änderungen gefunden.</p>}
+      {leer && <p className="text-gray-600">Keine Änderungen an Werken, Seiten oder Bildern gefunden.</p>}
       <ul className="space-y-0.5">
         {n.werke.map(w => <li key={"w" + w.werk}>Werk {w.werk}: {Object.keys(w.felder).join(", ")} · {[...w.von].join(", ")}</li>)}
         {n.seiten.map(s => (
@@ -215,10 +219,15 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
         <p className="flex flex-wrap gap-2 items-center">
           <button className={knopf} disabled={laeuft} onClick={zuruecknehmen}>{laeuft ? "Setzt zurück…" : "Zurücknehmen"}</button>
           {(a.werkgruppen.length > 0 || a.einstellungen) && (
-            <span className="text-gray-600">Werkgruppen und Einstellungen haben keinen Verlauf; die bleiben.</span>
+            <span className="text-gray-600">Werkgruppen und Einstellungen bleiben.</span>
           )}
         </p>
       ) : null}
+      <p className="text-gray-600 text-xs">
+        Werkgruppen und Einstellungen haben keinen Verlauf: Sie stehen hier nur, wenn sie seitdem nicht noch einmal
+        geändert wurden.
+      </p>
+      {fehler && <p className="text-red-700">{fehler}</p>}
       {ergebnis && <p className="text-green-700">{ergebnis}</p>}
     </div>
   );
