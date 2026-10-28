@@ -17,7 +17,7 @@ import Zugang from "./Zugang.jsx";
  */
 
 const ANZAHL = 30;
-const zelle = "py-1.5 pr-3 align-top";
+const zelle = "py-1.5 px-2 align-top border border-gray-300";
 const knopf = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
@@ -128,7 +128,7 @@ function Build({ b, seit, kuenstlerId, ich, darfWerke, darfSeiten }) {
       </tr>
       {auf && (
         <tr className="border-b">
-          <td colSpan={3} className="pb-3">
+          <td colSpan={3} className="p-2 border border-gray-300">
             <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen}
                     darfWerke={darfWerke} darfSeiten={darfSeiten} />
           </td>
@@ -241,7 +241,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
           <tbody>
             {zeilen.map(([k, was, aenderung, von]) => (
               <tr key={k} className="border-t border-gray-200">
-                <td className={zelle + " pl-2 [overflow-wrap:anywhere]"}>{was}</td>
+                <td className={zelle + " [overflow-wrap:anywhere]"}>{was}</td>
                 <td className={zelle + " break-words"}>{aenderung}</td>
                 <td className={zelle + " text-gray-600 [overflow-wrap:anywhere]"}>{von}</td>
               </tr>
