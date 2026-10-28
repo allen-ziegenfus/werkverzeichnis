@@ -257,6 +257,19 @@ resource "google_service_account_iam_member" "deploy_als_appspot" {
   member             = local.konten["werkverzeichnis-deploy"]
 }
 
+# Die Ereignis-Trigger der Funktionen laufen unter dem Compute-Standardkonto;
+# neuere firebase-tools setzen sie beim Deploy mit, also braucht das Deploy auch dieses
+# Konto (#97; firebase-tools ohne feste Version, seit dem 26.10.).
+data "google_project" "projekt" {
+  project_id = var.projekt_id
+}
+
+resource "google_service_account_iam_member" "deploy_als_compute" {
+  service_account_id = "projects/${var.projekt_id}/serviceAccounts/${data.google_project.projekt.number}-compute@developer.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountUser"
+  member             = local.konten["werkverzeichnis-deploy"]
+}
+
 # Cloud Build meldet hier jeden Build; gcf/publish.js (buildStatus) hört zu.
 resource "google_pubsub_topic" "cloud_builds" {
   name       = "cloud-builds"
