@@ -11,6 +11,8 @@ export const BEREICHE = [
     berechtigung: "seiten.bearbeiten" },
   { pfad: "/verwaltung/einstellungen/", titel: "Einstellungen", text: "Titel der Website und Copyright",
     berechtigung: "einstellungen.bearbeiten" },
+  { pfad: "/verwaltung/verlauf/", titel: "Verlauf", text: "Was wann veröffentlicht wurde, und zurücknehmen",
+    berechtigung: "veroeffentlichen" },
   { pfad: "/verwaltung/personen/", titel: "Personen & Rollen", text: "Wer die Website bearbeiten darf",
     berechtigung: "rollen.verwalten" },
 ];
