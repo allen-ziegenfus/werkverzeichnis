@@ -21,6 +21,7 @@ steps:
       - FIRESTORE_PROJECT=$PROJECT_ID
       - FIRESTORE_DATABASE=${_FIRESTORE_DATABASE}
 
+  # Feste Version: eine neue hat schon einmal neue Rechte verlangt (#97, #103).
   - id: funktionen
     name: node:22
     entrypoint: bash
@@ -28,7 +29,7 @@ steps:
       - -c
       - >-
         (cd gcf && npm ci)
-        && npx --yes firebase-tools deploy --only functions
+        && npx --yes firebase-tools@15.34.1 deploy --only functions
         --project $PROJECT_ID --non-interactive --force
 
 timeout: 1800s
