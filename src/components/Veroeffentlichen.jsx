@@ -11,21 +11,21 @@ import { db } from "./firebaseClient.js";
  * Die Liste folgt den Anfragen live.
  */
 
-const STATUS = {
+export const STATUS = {
   angefordert: "angefordert", wartet: "wartet auf laufenden Build", läuft: "läuft …",
   fertig: "veröffentlicht", fehler: "fehlgeschlagen",
 };
-const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
-const LAEUFT = ["angefordert", "wartet", "läuft"];
+export const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
+export const LAEUFT = ["angefordert", "wartet", "läuft"];
 /** Dreht sich, solange eine Veröffentlichung läuft (#86). */
-const Dreht = () => <span aria-hidden="true" className="inline-block w-3 h-3 mr-1.5 align-[-1px] rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin motion-reduce:[animation-duration:3s]" />;
+export const Dreht = () => <span aria-hidden="true" className="inline-block w-3 h-3 mr-1.5 align-[-1px] rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin motion-reduce:[animation-duration:3s]" />;
 const knopfKlein = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 export const HOECHSTENS = 100;
 export const NOTIZ_LAENGE = 500;   // wie in firestore.rules
 export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const zeit = t => t?.toMillis() ?? Infinity;   // noch ohne Serverzeit: gerade eben
-const SEITENFELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
+export const SEITENFELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
 
 /**
  * Was netto seit der letzten Veröffentlichung geändert ist (#67): je Werk der
@@ -62,6 +62,29 @@ export function netto(history, seitenverlauf) {
     werke: [...werke.values()].filter(w => Object.keys(w.felder).length),
     seiten: [...seiten.values()].filter(s => !gleich(s.vorher, s.nachher)),
   };
+}
+
+/**
+ * Setzt die netto geänderten Felder eines Werks (aus netto()) auf ihren Wert
+ * davor zurück, als neue Änderung mit Verlaufseintrag. Felder, deren Wert sich
+ * inzwischen noch einmal geändert hat, bleiben. Gibt die zurückgesetzten Felder.
+ */
+export async function werkZuruecksetzen(kuenstlerId, ich, w) {
+  const ref = doc(db, "artists", kuenstlerId, "works", w.werk);
+  const eintrag = doc(collection(db, "artists", kuenstlerId, "history"));
+  return runTransaction(db, async tx => {
+    const daten = (await tx.get(ref)).data() ?? {};
+    const zurueck = Object.entries(w.felder).filter(([f, c]) => (daten[f] ?? null) === c.to);
+    if (!zurueck.length) return [];
+    tx.set(eintrag, { work: w.werk, by: ich, at: serverTimestamp(), zurueckgesetzt: true,
+      changes: Object.fromEntries(zurueck.map(([f, c]) => [f, { from: c.to, to: c.from }])) });
+    tx.update(ref, {
+      ...Object.fromEntries(zurueck.map(([f, c]) => [f, c.from ?? deleteField()])),
+      updatedAt: serverTimestamp(),
+      lastChange: eintrag.id,
+    });
+    return zurueck.map(([f]) => f);
+  });
 }
 
 /** Der Stand der Veröffentlichung, live; geteilt von Verwaltung und Werkzeugleiste. */
@@ -135,29 +158,11 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     }
   }
 
-  /**
-   * Setzt die netto geänderten Felder eines Werks auf den veröffentlichten Stand
-   * zurück, als neue Änderung mit Verlaufseintrag. Felder, deren Wert sich
-   * inzwischen noch einmal geändert hat, bleiben.
-   */
+  /** Setzt ein Werk auf den veröffentlichten Stand zurück (werkZuruecksetzen). */
   async function zuruecksetzen(w) {
     setFehler(undefined);
-    const ref = doc(db, "artists", kuenstlerId, "works", w.werk);
-    const eintrag = doc(collection(db, "artists", kuenstlerId, "history"));
     try {
-      return await runTransaction(db, async tx => {
-        const daten = (await tx.get(ref)).data() ?? {};
-        const zurueck = Object.entries(w.felder).filter(([f, c]) => (daten[f] ?? null) === c.to);
-        if (!zurueck.length) return [];
-        tx.set(eintrag, { work: w.werk, by: ich, at: serverTimestamp(), zurueckgesetzt: true,
-          changes: Object.fromEntries(zurueck.map(([f, c]) => [f, { from: c.to, to: c.from }])) });
-        tx.update(ref, {
-          ...Object.fromEntries(zurueck.map(([f, c]) => [f, c.from ?? deleteField()])),
-          updatedAt: serverTimestamp(),
-          lastChange: eintrag.id,
-        });
-        return zurueck.map(([f]) => f);
-      });
+      return await werkZuruecksetzen(kuenstlerId, ich, w);
     } catch (e) {
       setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
     }

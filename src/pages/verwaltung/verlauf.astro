@@ -1,0 +1,8 @@
+---
+import VerwaltungLayout from "../../layouts/VerwaltungLayout.astro";
+import VerlaufSeite from "../../components/Verlauf.jsx";
+---
+
+<VerwaltungLayout titel="Verlauf" aktiv="/verwaltung/verlauf/">
+  <VerlaufSeite client:only="react" />
+</VerwaltungLayout>
