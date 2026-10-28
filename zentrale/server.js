@@ -1,6 +1,6 @@
 import http from "node:http";
 import { anwenden, deployments, holeLauf, laeufe, vorschau } from "./terraform.js";
-import { stand, veroeffentlichen, websites } from "./websites.js";
+import { gescheitert, neuBauen, stand, websites } from "./websites.js";
 import { personen, ROLLEN, rolleSetzen, superAdminSetzen, website } from "./personen.js";
 import { anlegen, FELDER } from "./kuenstler.js";
 
@@ -133,10 +133,10 @@ function websiteKarte(w) {
     <tr><th>Letzter Build</th><td>${build}</td></tr>
     <tr><th>Letzte Veröffentlichung</th><td>${veroeffentlichung}</td></tr>
   </table>
-  <form method="post" action="/veroeffentlichen" onsubmit="return confirm(${maskieren(JSON.stringify(`${titel} jetzt veröffentlichen?`))})">
+  ${gescheitert(w) ? `<form method="post" action="/neu-bauen" onsubmit="return confirm(${maskieren(JSON.stringify(`${titel} neu bauen?`))})">
     <input type="hidden" name="seite" value="${maskieren(w.seite)}">
-    <p><button>Veröffentlichen</button></p>
-  </form>
+    <p><button>Neu bauen</button> <span class="klein">mit dem Stand von jetzt; was sich ändert, zeigt die Verwaltung</span></p>
+  </form>` : ""}
   <details>
     <summary>Infrastruktur (Terraform)</summary>
     <table>${w.deployments.map(d => deploymentZeile(d, schicht(d))).join("")}</table>
@@ -323,9 +323,9 @@ http.createServer(async (anfrage, antwort) => {
       else await superAdminSetzen(w, f.get("email"), f.get("ja") === "ja");
       return weiter(antwort, `/website/${encodeURIComponent(w.seite)}`);
     }
-    else if (anfrage.method === "POST" && pfad === "/veroeffentlichen") {
+    else if (anfrage.method === "POST" && pfad === "/neu-bauen") {
       if (!vonHier(anfrage)) throw new Error("Formular nicht von der Zentrale");
-      await veroeffentlichen((await formular(anfrage)).get("seite") ?? "", email);
+      await neuBauen((await formular(anfrage)).get("seite") ?? "", email);
       return weiter(antwort, "/");
     }
     else if (anfrage.method === "POST" && (pfad === "/vorschau" || pfad === "/anwenden")) {
