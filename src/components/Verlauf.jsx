@@ -17,6 +17,7 @@ import Zugang from "./Zugang.jsx";
  */
 
 const ANZAHL = 30;
+const zelle = "py-1.5 pr-3 align-top";
 const knopf = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
@@ -72,12 +73,21 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
         Die letzten {ANZAHL} Veröffentlichungen. Zurücknehmen setzt Werke und Seiten auf den Stand davor zurück;
         online geht das erst mit der nächsten Veröffentlichung.
       </p>
-      <ul className="divide-y">
-        {builds.map(b => (
-          <Build key={b.id} b={b} seit={erfolgreich.includes(b) ? vorher(b) : undefined} kuenstlerId={kuenstlerId}
-                 ich={ich} darfWerke={darfWerke} darfSeiten={darfSeiten} />
-        ))}
-      </ul>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="text-left text-gray-600 border-b border-gray-400">
+            <th className={zelle + " font-normal"}>Wann, Ergebnis</th>
+            <th className={zelle + " font-normal"}>Angefordert von</th>
+            <th className={zelle + " font-normal"}><span className="sr-only">Inhalt</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {builds.map(b => (
+            <Build key={b.id} b={b} seit={erfolgreich.includes(b) ? vorher(b) : undefined} kuenstlerId={kuenstlerId}
+                   ich={ich} darfWerke={darfWerke} darfSeiten={darfSeiten} />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -85,33 +95,46 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
 function Build({ b, seit, kuenstlerId, ich, darfWerke, darfSeiten }) {
   const [auf, setAuf] = useState(false);
   const erfolgreich = b.status === "fertig" && b.gelesen;
+  const hinweise = <>
+    {b.meldung && <div className="text-red-700">{b.meldung}</div>}
+    {b.status === "fehler" && <div className="text-gray-600">Nichts online gegangen; die Änderungen kommen mit der nächsten Veröffentlichung.</div>}
+    {erfolgreich && !seit && <div className="text-gray-600">Was davor lag, ist hier nicht mehr abgegrenzt.</div>}
+  </>;
   return (
-    <li className="py-2">
-      <div className="flex flex-wrap gap-x-2 items-baseline">
-        <span className="text-gray-600">{wann(b.angefordert)}</span>
-        <span className={FARBE[b.status] ?? ""}>{LAEUFT.includes(b.status) && <Dreht />}{STATUS[b.status] ?? b.status}</span>
-        {b.logUrl && <a className="underline" href={b.logUrl} target="_blank" rel="noreferrer">Log</a>}
-        {erfolgreich && seit && (
-          <button className="underline ml-auto" aria-expanded={auf} onClick={() => setAuf(!auf)}>
-            {auf ? "Zuklappen" : "Was ging online?"}
-          </button>
-        )}
-      </div>
-      <ul className="pl-4">
-        {b.anfragen.map(a => (
-          <li key={a.id}>
-            {a.von}
-            {a.notiz && <span className="italic break-words"> · „{a.notiz}“</span>}
-            {a.hinweis && <span className="text-gray-600"> · {a.hinweis}</span>}
-          </li>
-        ))}
-      </ul>
-      {b.meldung && <p className="pl-4 text-red-700">{b.meldung}</p>}
-      {b.status === "fehler" && <p className="pl-4 text-gray-600">Nichts online gegangen; die Änderungen kommen mit der nächsten Veröffentlichung.</p>}
-      {erfolgreich && !seit && <p className="pl-4 text-gray-600">Was davor lag, ist hier nicht mehr abgegrenzt.</p>}
-      {auf && <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen}
-                      darfWerke={darfWerke} darfSeiten={darfSeiten} />}
-    </li>
+    <>
+      <tr className={auf ? "" : "border-b"}>
+        <td className={zelle}>
+          <div className="text-gray-600 whitespace-nowrap">{wann(b.angefordert)}</div>
+          <span className={FARBE[b.status] ?? ""}>{LAEUFT.includes(b.status) && <Dreht />}{STATUS[b.status] ?? b.status}</span>
+          {b.logUrl && <> · <a className="underline" href={b.logUrl} target="_blank" rel="noreferrer">Log</a></>}
+        </td>
+        <td className={zelle + " break-words [overflow-wrap:anywhere]"}>
+          {b.anfragen.map(a => (
+            <div key={a.id}>
+              {a.von}
+              {a.notiz && <span className="italic"> · „{a.notiz}“</span>}
+              {a.hinweis && <span className="text-gray-600"> · {a.hinweis}</span>}
+            </div>
+          ))}
+          {hinweise}
+        </td>
+        <td className={zelle + " text-right"}>
+          {erfolgreich && seit && (
+            <button className="underline" aria-expanded={auf} onClick={() => setAuf(!auf)}>
+              {auf ? "Zuklappen" : "Was ging online?"}
+            </button>
+          )}
+        </td>
+      </tr>
+      {auf && (
+        <tr className="border-b">
+          <td colSpan={3} className="pb-3">
+            <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen}
+                    darfWerke={darfWerke} darfSeiten={darfSeiten} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -198,23 +221,34 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
   }
 
   const seitenName = s => s.nachher?.titel ?? s.vorher?.titel ?? s.seite;
+  const ohneVerlauf = <span className="text-gray-600">ohne Verlauf</span>;
+  // Je Zeile: Schlüssel, was, welche Änderung, von wem.
+  const zeilen = [
+    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).join(", "), [...w.von].join(", ")]),
+    ...n.seiten.map(s => ["s" + s.seite, `Seite „${seitenName(s)}“`,
+      !s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
+        : Object.keys(SEITENFELDER).filter(k => s.vorher[k] !== s.nachher[k]).map(k => SEITENFELDER[k]).join(", "),
+      [...s.von].join(", ")]),
+    ...a.werkgruppen.map(g => ["g" + g.id, `Werkgruppe „${g.titel || g.id}“`, ohneVerlauf, ""]),
+    ...a.medien.map(m => ["m" + m.id, "Bild verarbeitet", m.original?.split("/").pop() ?? m.id, ""]),
+    ...(a.einstellungen ? [["e", "Einstellungen oder Personen", ohneVerlauf, ""]] : []),
+  ];
   return (
-    <div className="pl-4 pt-1 space-y-1">
+    <div className="pt-1 space-y-2">
       {leer && <p className="text-gray-600">Keine Änderungen an Werken, Seiten oder Bildern gefunden.</p>}
-      <ul className="space-y-0.5">
-        {n.werke.map(w => <li key={"w" + w.werk}>Werk {w.werk}: {Object.keys(w.felder).join(", ")} · {[...w.von].join(", ")}</li>)}
-        {n.seiten.map(s => (
-          <li key={"s" + s.seite}>
-            Seite „{seitenName(s)}“{" "}
-            {!s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
-              : Object.keys(SEITENFELDER).filter(k => s.vorher[k] !== s.nachher[k]).map(k => SEITENFELDER[k]).join(", ")}
-            {" "}· {[...s.von].join(", ")}
-          </li>
-        ))}
-        {a.werkgruppen.map(g => <li key={"g" + g.id}>Werkgruppe „{g.titel || g.id}“ <span className="text-gray-600">(ohne Verlauf)</span></li>)}
-        {a.medien.map(m => <li key={"m" + m.id}>Bild verarbeitet: {m.original?.split("/").pop() ?? m.id}</li>)}
-        {a.einstellungen && <li>Einstellungen oder Personen <span className="text-gray-600">(ohne Verlauf)</span></li>}
-      </ul>
+      {!leer && (
+        <table className="w-full border-collapse bg-gray-50">
+          <tbody>
+            {zeilen.map(([k, was, aenderung, von]) => (
+              <tr key={k} className="border-t border-gray-200">
+                <td className={zelle + " pl-2 [overflow-wrap:anywhere]"}>{was}</td>
+                <td className={zelle + " break-words"}>{aenderung}</td>
+                <td className={zelle + " text-gray-600 [overflow-wrap:anywhere]"}>{von}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {zuruecknehmbar ? (
         <p className="flex flex-wrap gap-2 items-center">
           <button className={knopf} disabled={laeuft} onClick={zuruecknehmen}>{laeuft ? "Setzt zurück…" : "Zurücknehmen"}</button>
