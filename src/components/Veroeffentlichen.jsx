@@ -16,6 +16,9 @@ export const STATUS = {
   fertig: "veröffentlicht", fehler: "fehlgeschlagen",
 };
 export const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
+export const LAEUFT = ["angefordert", "wartet", "läuft"];
+/** Dreht sich, solange eine Veröffentlichung läuft (#86). */
+export const Dreht = () => <span aria-hidden="true" className="inline-block w-3 h-3 mr-1.5 align-[-1px] rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin motion-reduce:[animation-duration:3s]" />;
 const knopfKlein = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 export const HOECHSTENS = 100;
 export const NOTIZ_LAENGE = 500;   // wie in firestore.rules
@@ -139,7 +142,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     : n.werke.length + n.seiten.length + aenderungen.werkgruppen.length + aenderungen.medien.length
       + aenderungen.einstellungen.length;
   // „wartet“ heißt: Ein Build läuft schon, diese Anfrage kommt danach.
-  const beschaeftigt = liste?.some(v => ["angefordert", "wartet", "läuft"].includes(v.status));
+  const beschaeftigt = liste?.some(v => LAEUFT.includes(v.status));
 
   /** Legt die Anfrage an; eine Notiz (#48) wird nur mitgeschickt, wenn es eine gibt. */
   async function veroeffentlichen(notiz = "") {
@@ -203,7 +206,7 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
     <span ref={ref} className={`relative flex items-center gap-2 ${className}`}>
       <button className="hover:underline text-left" aria-expanded={auf} onClick={() => setAuf(!auf)}>
         {fehler ? <span className="text-red-700">{fehler}</span>
-          : beschaeftigt ? <span>Veröffentlichung läuft …</span>
+          : beschaeftigt ? <span><Dreht />Veröffentlichung läuft …</span>
           : letzte?.status === "fehler" ? <span className="text-red-700">Letzte Veröffentlichung fehlgeschlagen</span>
           : n === undefined ? <span>…</span>
           : n === 0 ? <span className="text-green-700">Alles veröffentlicht</span>
@@ -326,7 +329,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
             {liste.map(v => (
               <li key={v.id}>
                 <span className="text-gray-600">{wann(v.angefordert)}</span> · {v.von} ·{" "}
-                <span className={FARBE[v.status] ?? ""}>{STATUS[v.status] ?? v.status}</span>
+                <span className={FARBE[v.status] ?? ""}>{LAEUFT.includes(v.status) && <Dreht />}{STATUS[v.status] ?? v.status}</span>
                 {v.meldung && <span className="text-red-700"> ({v.meldung})</span>}
                 {v.hinweis && <span className="text-gray-600"> ({v.hinweis})</span>}
                 {v.logUrl && <> · <a className="underline" href={v.logUrl} target="_blank" rel="noreferrer">Log</a></>}

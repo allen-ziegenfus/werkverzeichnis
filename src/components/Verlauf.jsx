@@ -4,7 +4,7 @@ import {
 } from "firebase/firestore";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
-import { FARBE, HOECHSTENS, netto, SEITENFELDER, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
+import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -89,7 +89,7 @@ function Build({ b, seit, kuenstlerId, ich, darfWerke, darfSeiten }) {
     <li className="py-2">
       <div className="flex flex-wrap gap-x-2 items-baseline">
         <span className="text-gray-600">{wann(b.angefordert)}</span>
-        <span className={FARBE[b.status] ?? ""}>{STATUS[b.status] ?? b.status}</span>
+        <span className={FARBE[b.status] ?? ""}>{LAEUFT.includes(b.status) && <Dreht />}{STATUS[b.status] ?? b.status}</span>
         {b.logUrl && <a className="underline" href={b.logUrl} target="_blank" rel="noreferrer">Log</a>}
         {erfolgreich && seit && (
           <button className="underline ml-auto" aria-expanded={auf} onClick={() => setAuf(!auf)}>

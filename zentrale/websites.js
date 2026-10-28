@@ -89,13 +89,21 @@ export async function stand(w) {
   return { ...w, kuenstlerDok: kuenstler, veroeffentlichung, build };
 }
 
+const BUILD_FERTIG = ["SUCCESS", "PENDING", "QUEUED", "WORKING"];
+
+/** Ob der letzte Build oder die letzte Veröffentlichung gescheitert ist (#87). */
+export const gescheitert = s =>
+  (s.build && !s.build.fehler && !BUILD_FERTIG.includes(s.build.status)) || s.veroeffentlichung?.status === "fehler";
+
 /**
- * Legt eine Veröffentlichung an wie die Verwaltung (Veroeffentlichen.jsx); die
- * Funktion veroeffentlichen startet daraufhin den Build.
+ * Baut die Seite neu, nur nach einem gescheiterten Build (#87): Veröffentlicht
+ * wird in der Verwaltung, die zeigt, was sich ändert. Legt eine Veröffentlichung
+ * an wie Veroeffentlichen.jsx; die Funktion veroeffentlichen startet den Build.
  */
-export async function veroeffentlichen(seite, email) {
+export async function neuBauen(seite, email) {
   const w = (await websites()).find(x => x.seite === seite);
   if (!w) throw new Error(`Keine Website ${seite}`);
+  if (!gescheitert(await stand(w))) throw new Error("Der letzte Build ist nicht gescheitert; veröffentlicht wird in der Verwaltung.");
   const id = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
   const name = `projects/${w.projekt}/databases/${w.datenbank}/documents/artists/${w.kuenstler}/veroeffentlichungen/${id}`;
   await api(`https://firestore.googleapis.com/v1/projects/${w.projekt}/databases/${w.datenbank}/documents:commit`, {
@@ -103,7 +111,7 @@ export async function veroeffentlichen(seite, email) {
       update: { name, fields: {
         von: { stringValue: email || "Zentrale" },
         status: { stringValue: "angefordert" },
-        notiz: { stringValue: "aus der Zentrale" },
+        notiz: { stringValue: "neu gebaut aus der Zentrale" },
       } },
       updateTransforms: [{ fieldPath: "angefordert", setToServerValue: "REQUEST_TIME" }],
       currentDocument: { exists: false },

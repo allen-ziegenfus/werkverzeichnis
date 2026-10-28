@@ -1,6 +1,6 @@
 import http from "node:http";
 import { anwenden, deployments, holeLauf, laeufe, vorschau } from "./terraform.js";
-import { stand, veroeffentlichen, websites } from "./websites.js";
+import { gescheitert, neuBauen, stand, websites } from "./websites.js";
 import { personen, ROLLEN, rolleSetzen, superAdminSetzen, website } from "./personen.js";
 import { anlegen, FELDER } from "./kuenstler.js";
 
@@ -21,6 +21,9 @@ const STATUS = {
   INTERNAL_ERROR: "gescheitert", TIMEOUT: "Zeit überschritten", CANCELLED: "abgebrochen", EXPIRED: "verfallen",
 };
 
+// Ein Drehsymbol vor allem, was gerade läuft; die Seite lädt sich dann neu (#86).
+const dreht = text => `<span class="dreht" aria-hidden="true"></span>${text}`;
+
 const AKTIONEN = { create: "anlegen", update: "ändern", delete: "löschen", "delete+create": "ersetzen", "create+delete": "ersetzen" };
 
 // Eine Vorschau, deren Plan etwas löscht, endet als FAILURE (alle.sh macht den
@@ -29,7 +32,8 @@ function ergebnis(l) {
   if (l.befehl === "vorschau" && !l.laeuft && l.plan?.zaehler.delete > 0)
     return `<span class="fehler">löscht etwas</span>`;
   const text = STATUS[l.status] ?? maskieren(l.status);
-  return l.erfolg || l.laeuft ? text : `<span class="fehler">${text}</span>`;
+  if (l.laeuft) return dreht(text);
+  return l.erfolg ? text : `<span class="fehler">${text}</span>`;
 }
 
 function seite(titel, inhalt, { neuLaden = false } = {}) {
@@ -59,6 +63,10 @@ ${neuLaden ? '<meta http-equiv="refresh" content="5">' : ""}
   .felder th { width: 11rem }
   select { font: inherit; padding: .2rem }
   summary { cursor: pointer; color: #444; margin: .5rem 0 }
+  .dreht { display: inline-block; width: .8em; height: .8em; margin-right: .35em; vertical-align: -.05em;
+    border: 2px solid #ccc; border-top-color: #444; border-radius: 50%; animation: drehen 1s linear infinite }
+  @keyframes drehen { to { transform: rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { .dreht { animation-duration: 3s } }
   @media (max-width: 30rem) {
     .karte th { width: auto }
     .personen tr { display: block; border-bottom: 1px solid #ddd; padding: .35rem 0 }
@@ -116,11 +124,11 @@ function websiteKarte(w) {
   const titel = k?.titel ?? w.seite;
   const b = w.build, v = w.veroeffentlichung;
   const build = !b ? "noch keiner" : b.fehler ? fehlerText(b.fehler)
-    : `${b.status === "SUCCESS" || BUILD_LAEUFT.includes(b.status) ? STATUS[b.status]
+    : `${BUILD_LAEUFT.includes(b.status) ? dreht(STATUS[b.status]) : b.status === "SUCCESS" ? STATUS[b.status]
       : `<span class="fehler">${STATUS[b.status] ?? maskieren(b.status)}</span>`}
       · ${zeit(b.begonnen)}${b.commit ? ` · Commit ${maskieren(b.commit)}` : ""} · <a href="${maskieren(b.log)}">Log</a>`;
   const veroeffentlichung = !v ? "noch keine" : v.fehler ? fehlerText(v.fehler)
-    : `${v.status === "fehler" ? `<span class="fehler">fehler</span>` : maskieren(v.status)}
+    : `${v.status === "fehler" ? `<span class="fehler">fehler</span>` : LAEUFT.includes(v.status) ? dreht(maskieren(v.status)) : maskieren(v.status)}
       · ${zeit(v.angefordert)} · ${maskieren(v.von)}${v.notiz ? ` · „${maskieren(v.notiz)}“` : ""}
       ${v.meldung ? `<br><span class="klein fehler">${maskieren(v.meldung)}</span>` : ""}`;
   const schicht = d => d.name.endsWith("-gcp") ? "Google Cloud" : d.name.endsWith("-cloudflare") ? "Cloudflare" : d.name;
@@ -133,10 +141,10 @@ function websiteKarte(w) {
     <tr><th>Letzter Build</th><td>${build}</td></tr>
     <tr><th>Letzte Veröffentlichung</th><td>${veroeffentlichung}</td></tr>
   </table>
-  <form method="post" action="/veroeffentlichen" onsubmit="return confirm(${maskieren(JSON.stringify(`${titel} jetzt veröffentlichen?`))})">
+  ${gescheitert(w) ? `<form method="post" action="/neu-bauen" onsubmit="return confirm(${maskieren(JSON.stringify(`${titel} neu bauen?`))})">
     <input type="hidden" name="seite" value="${maskieren(w.seite)}">
-    <p><button>Veröffentlichen</button></p>
-  </form>
+    <p><button>Neu bauen</button> <span class="klein">mit dem Stand von jetzt; was sich ändert, zeigt die Verwaltung</span></p>
+  </form>` : ""}
   <details>
     <summary>Infrastruktur (Terraform)</summary>
     <table>${w.deployments.map(d => deploymentZeile(d, schicht(d))).join("")}</table>
@@ -323,9 +331,9 @@ http.createServer(async (anfrage, antwort) => {
       else await superAdminSetzen(w, f.get("email"), f.get("ja") === "ja");
       return weiter(antwort, `/website/${encodeURIComponent(w.seite)}`);
     }
-    else if (anfrage.method === "POST" && pfad === "/veroeffentlichen") {
+    else if (anfrage.method === "POST" && pfad === "/neu-bauen") {
       if (!vonHier(anfrage)) throw new Error("Formular nicht von der Zentrale");
-      await veroeffentlichen((await formular(anfrage)).get("seite") ?? "", email);
+      await neuBauen((await formular(anfrage)).get("seite") ?? "", email);
       return weiter(antwort, "/");
     }
     else if (anfrage.method === "POST" && (pfad === "/vorschau" || pfad === "/anwenden")) {
