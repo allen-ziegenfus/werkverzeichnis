@@ -38,8 +38,10 @@ nicht mit `neue-seite` angelegt wurde):
 oder über
 [diesen Link](https://console.cloud.google.com/flows/enableapi?apiid=cloudbuild.googleapis.com,secretmanager.googleapis.com&project={{project-id}}).
 
-Dann in
-[Cloud Build → Repositories (2nd gen)](https://console.cloud.google.com/cloud-build/repositories/2nd-gen?project={{project-id}})
+Dann
+<walkthrough-path-nav path="/cloud-build/repositories/2nd-gen?project={{project-id}}" title="Cloud Build → Repositories (2nd gen)">Cloud Build → Repositories (2nd gen)</walkthrough-path-nav>
+öffnen (außerhalb der Console:
+[in neuem Tab](https://console.cloud.google.com/cloud-build/repositories/2nd-gen?project={{project-id}}))
 → *Create host connection*:
 
 - GitHub, Region europe-west3, Name **werkverzeichnis**;
