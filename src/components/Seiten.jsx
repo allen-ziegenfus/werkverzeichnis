@@ -3,7 +3,7 @@ import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestam
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { useQuery } from "@tanstack/react-query";
-import { client, SCHLUESSEL } from "./abfragen.js";
+import { client, SCHLUESSEL, zielSuchen } from "./abfragen.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
@@ -37,7 +37,7 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
   const sammlung = collection(db, "artists", kuenstlerId, "seiten");
   const verlauf = collection(db, "artists", kuenstlerId, "seitenverlauf");
   // seiten: die Seiten; geloescht: je gelöschte Seite der letzte Löscheintrag.
-  const { data, error } = useQuery({
+  const abfrage = useQuery({
     queryKey: SCHLUESSEL.seiten,
     queryFn: async () => {
       const [snap, weg] = await Promise.all([getDocs(sammlung), getDocs(query(verlauf, where("nachher", "==", null)))]);
@@ -47,6 +47,7 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
       return { seiten, geloescht };
     },
   });
+  const { data, error } = abfrage;
   const seiten = data?.seiten;
   const geloescht = data?.geloescht ?? [];
   const fehler = error && meldung(error);
@@ -55,12 +56,8 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
 
   // ?seite=<Kennung> (aus der Werkzeugleiste) öffnet diese Seite direkt, einmal.
   const ziel = useRef(new URLSearchParams(location.search).get("seite"));
-  useEffect(() => {
-    if (!ziel.current || !seiten) return;
-    const s = seiten.find(x => x.id === ziel.current);
-    ziel.current = null;
-    if (s) setOffen(s);
-  }, [seiten]);
+  useEffect(() => zielSuchen(ziel, abfrage, d => d.seiten.find(x => x.id === ziel.current), setOffen),
+    [seiten, abfrage.isFetching]);
 
   if (offen) return (
     <Seite sammlung={sammlung} verlauf={verlauf} ich={ich} seite={offen} bearbeitbar={bearbeitbar} seiten={seiten}

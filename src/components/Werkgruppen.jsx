@@ -75,18 +75,19 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
           {gruppen.map(g => (
             <tr key={g.id} className={g.id === ziel ? "bg-yellow-100" : ""}>
               <td>
-                <input type="number" className="border p-1 w-14 disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.reihenfolge}
+                {/* key: Neu geladene Werte ersetzen das Feld; sonst speicherte onBlur den alten Wert zurück. */}
+                <input key={g.reihenfolge} type="number" className="border p-1 w-14 disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.reihenfolge}
                        onBlur={e => Number(e.target.value) !== g.reihenfolge
                          && aendern(g, { reihenfolge: Math.trunc(Number(e.target.value)) })} />
               </td>
               <td>
-                <input className="border p-1 w-full disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.titel}
+                <input key={g.titel} className="border p-1 w-full disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.titel}
                        ref={g.id === ziel ? zielFeld : undefined}
                        onBlur={e => e.target.value.trim() && e.target.value !== g.titel
                          && aendern(g, { titel: e.target.value.trim() })} />
               </td>
               <td>
-                <input className="border p-1 w-full disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.kurztitel ?? ""}
+                <input key={g.kurztitel ?? ""} className="border p-1 w-full disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.kurztitel ?? ""}
                        onBlur={e => e.target.value !== (g.kurztitel ?? "")
                          && aendern(g, { kurztitel: e.target.value.trim() || null })} />
               </td>

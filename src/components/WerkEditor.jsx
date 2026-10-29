@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
-import { client, SCHLUESSEL, useWerke, useWerkgruppen } from "./abfragen.js";
+import { client, SCHLUESSEL, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
@@ -47,7 +47,8 @@ function WerkEditor({ nutzer }) {
   const [gruppe, setGruppeRoh] = useState(() => ziel.current ? "" : letzteGruppe);
   const setGruppe = g => { letzteGruppe = g; setGruppeRoh(g); };
   const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
-  const { data: werke, error: werkeFehler } = useWerke(gruppe);
+  const werkeAbfrage = useWerke(gruppe);
+  const { data: werke, error: werkeFehler } = werkeAbfrage;
   const ladefehler = gruppenFehler ?? werkeFehler;
   const [suche, setSuche] = useState("");
   const [werk, setWerk] = useState();               // {id, data} wie geladen
@@ -69,12 +70,8 @@ function WerkEditor({ nutzer }) {
       })
       .catch(e => setFehler(e.message));
   }, []);
-  useEffect(() => {
-    if (!ziel.current || !werke) return;
-    const w = werke.find(x => x.id === ziel.current);
-    ziel.current = null;
-    if (w) oeffnen(w);
-  }, [werke]);
+  useEffect(() => zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current), oeffnen),
+    [werke, werkeAbfrage.isFetching]);
 
   async function oeffnen(w) {
     offen.current = w.id;

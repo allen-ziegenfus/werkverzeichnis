@@ -50,3 +50,15 @@ export const useWerke = gruppe => useQuery({
     .docs.map(d => ({ id: d.id, data: d.data() })).sort(nachInvNr),
   enabled: !!gruppe,
 });
+
+/**
+ * Für Direktlinks (?werk=, ?seite=): findet `finden` in einer Liste aus dem
+ * Cache nichts, kann das Ziel neu sein. Dann einmal neu laden, erst danach aufgeben.
+ */
+export function zielSuchen(ziel, abfrage, finden, oeffnen) {
+  if (!ziel.current || !abfrage.data || abfrage.isFetching) return;
+  const treffer = finden(abfrage.data);
+  if (treffer) { ziel.current = null; oeffnen(treffer); return; }
+  if (abfrage.isFetchedAfterMount) ziel.current = null;
+  else abfrage.refetch();
+}
