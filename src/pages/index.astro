@@ -5,13 +5,14 @@ import Card from "../components/Card.astro";
 import werkgruppen from "../../public/werkgruppen.json";
 ---
 
-<Layout titel={einstellungen.websiteTitel} bild={werkgruppen[0].Thumbnail}>
+<Layout titel={einstellungen.websiteTitel} bild={werkgruppen[0]?.Thumbnail}>
   <main>
     <nav class="print:hidden">
       <ul class="m-2 flex flex-row">
         <li><a class="text-blue-800 dark:text-blue-400" href="/">Startseite</a></li>
       </ul>
     </nav>
+    {werkgruppen.length === 0 && <p class="m-2">Noch keine Werkgruppen.</p>}
     <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
       {
         werkgruppen.map((werkgruppe) => (
