@@ -20,6 +20,7 @@ import {
 export default function MarkdownEditor({ markdown, onAenderung, nurLesen }) {
   // Beim Laden schreibt der Editor das Markdown um (Leerzeilen, Listenzeichen …).
   // Solange der Text dieser Fassung entspricht, gilt der ursprüngliche (#132).
+  const urspruenglich = useRef(markdown);
   const geladen = useRef();
   return (
     <div className="border rounded markdown-editor">
@@ -37,7 +38,7 @@ export default function MarkdownEditor({ markdown, onAenderung, nurLesen }) {
         markdown={markdown}
         onChange={(text, beimLaden) => {
           if (beimLaden) { geladen.current = text; return; }
-          onAenderung(text === geladen.current ? markdown : text);
+          onAenderung(text === geladen.current ? urspruenglich.current : text);
         }}
         readOnly={nurLesen}
         contentEditableClassName="md-content"

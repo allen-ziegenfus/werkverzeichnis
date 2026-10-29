@@ -4,6 +4,7 @@ import {
   serverTimestamp, where,
 } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
+import { marked } from "marked";
 
 /**
  * Änderungen gehen erst online, wenn jemand auf Veröffentlichen drückt: Das legt
@@ -26,13 +27,12 @@ export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const zeit = t => t?.toMillis() ?? Infinity;   // noch ohne Serverzeit: gerade eben
 export const SEITENFELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
-// Seitentexte so, wie die Website sie zeigt: mehrere Leerzeilen und Leerraum am
-// Anfang und Ende machen keinen Unterschied; der Editor schreibt sie beim Laden um
-// (#132). Leerzeichen am Zeilenende bleiben, zwei davon sind ein Zeilenumbruch.
-const textKern = t => (t ?? "").replace(/\n[ \t]+(?=\n)/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+// Seitentexte so, wie die Website sie zeigt (marked wie in build_data.ts): Was der
+// Editor beim Laden umschreibt, etwa Leerzeilen oder Listenzeichen, zählt nicht (#132).
+const html = t => marked.parse(t ?? "");
 /** Die Felder, in denen sich zwei Fassungen einer Seite sichtbar unterscheiden. */
 export const seitenUnterschiede = (a, b) => Object.keys(SEITENFELDER)
-  .filter(k => k === "text" ? textKern(a[k]) !== textKern(b[k]) : a[k] !== b[k]);
+  .filter(k => k === "text" ? a[k] !== b[k] && html(a[k]) !== html(b[k]) : a[k] !== b[k]);
 export const seitenGleich = (a, b) => (!a && !b) || (!!a && !!b && !seitenUnterschiede(a, b).length);
 
 /**
