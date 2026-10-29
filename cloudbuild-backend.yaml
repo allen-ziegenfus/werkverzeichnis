@@ -27,9 +27,11 @@ steps:
     entrypoint: bash
     args:
       - -c
-      # Die Funktionen lesen daraus, welche Seite sie veröffentlichen (#109).
+      # Die Funktionen lesen daraus, welche Seite sie veröffentlichen (#109)
+      # und welche Buckets sie lesen und beschreiben (#137).
       - >-
-        printf 'KUENSTLER=%s\nBRANCH=%s\n' '${_ARTIST}' '$BRANCH_NAME' > gcf/.env
+        printf 'KUENSTLER=%s\nBRANCH=%s\nBUCKET=%s\nR2_BUCKET=%s\n'
+        '${_ARTIST}' '$BRANCH_NAME' '${_BUCKET}' '${_R2_BUCKET}' > gcf/.env
         && (cd gcf && npm ci)
         && npx --yes firebase-tools@15.34.1 deploy --only functions
         --project $PROJECT_ID --non-interactive --force

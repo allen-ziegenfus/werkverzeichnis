@@ -144,7 +144,8 @@ Von Hand, mit den eigenen Zugangsdaten, geht es weiterhin:
 ```sh
 export FIRESTORE_PROJECT=<seiten-projekt>
 node tools/rules_deploy.mjs                     # Firestore-Regeln (vorher die Tests)
-printf 'KUENSTLER=<kuenstler>\nBRANCH=<branch>\n' > gcf/.env   # welche Seite veröffentlicht wird
+# welche Seite, welche Buckets (wie in infra/sites/<seite>/)
+printf 'KUENSTLER=<kuenstler>\nBRANCH=<branch>\nBUCKET=<bucket>\nR2_BUCKET=<r2-bucket>\n' > gcf/.env
 (cd gcf && npm ci) && firebase deploy --only functions --project $FIRESTORE_PROJECT
 node tools/super_admin.mjs grant <deine-email>  # Notschlüssel; sonst in der Zentrale (§6)
 ```

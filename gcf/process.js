@@ -17,7 +17,8 @@ import sharp from "sharp";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 export const R2_KONTO = "cf3fa9a06c8f2e93e24fa3eeaa80b783";
-export const R2_BUCKET = "werkverzeichnis-bilder";
+// Der R2-Bucket dieser Seite, aus gcf/.env bzw. der Umgebung (#137).
+export const R2_BUCKET = process.env.R2_BUCKET;
 
 /** Breiten, aus denen die Seite wählt; kleinere Originale bekommen nur die, die sie erreichen. */
 export const BREITEN = [400, 800, 1200, 2000];
@@ -45,11 +46,14 @@ export function r2Client(accessKeyId, secretAccessKey) {
   });
 }
 
-const hochladen = (r2, schluessel, inhalt, typ) => r2.send(new PutObjectCommand({
-  Bucket: R2_BUCKET, Key: schluessel, Body: inhalt, ContentType: typ,
-  // Ändert sich unter diesem Namen nie, Caches dürfen es für immer behalten.
-  CacheControl: "public, max-age=31536000, immutable",
-}));
+async function hochladen(r2, schluessel, inhalt, typ) {
+  if (!R2_BUCKET) throw new Error("R2_BUCKET fehlt (gcf/.env, #137)");
+  return r2.send(new PutObjectCommand({
+    Bucket: R2_BUCKET, Key: schluessel, Body: inhalt, ContentType: typ,
+    // Ändert sich unter diesem Namen nie, Caches dürfen es für immer behalten.
+    CacheControl: "public, max-age=31536000, immutable",
+  }));
+}
 
 /**
  * Ein Original verarbeiten. `datei` ist eine @google-cloud/storage-File, `md5`

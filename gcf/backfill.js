@@ -4,7 +4,9 @@
  * es die Funktion gab, oder nachdem sich geändert hat, was sie erzeugt (dann
  * vorher die medien-Einträge löschen, sonst gelten sie als erledigt).
  *
- *   cd gcf && npm install && node backfill.js <projekt> <kuenstler>
+ *   cd gcf && npm install && BUCKET=<bucket> R2_BUCKET=<r2-bucket> node backfill.js <projekt> <kuenstler>
+ *
+ * Die Buckets stehen in infra/sites/<seite>/ (bucket, bilder_bucket; #137).
  *
  * Läuft mit deinen gcloud Application Default Credentials, auch für den R2-Schlüssel
  * aus dem Secret Manager.
@@ -17,8 +19,10 @@ import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { originalVerarbeiten, r2Client } from "./process.js";
 
 const [PROJEKT, KUENSTLER] = process.argv.slice(2);
-if (!PROJEKT || !KUENSTLER) throw new Error("node backfill.js <projekt> <kuenstler>");
-const BUCKET = `${PROJEKT}.firebasestorage.app`;
+const BUCKET = process.env.BUCKET;
+if (!PROJEKT || !KUENSTLER || !BUCKET || !process.env.R2_BUCKET) {
+  throw new Error("BUCKET=<bucket> R2_BUCKET=<r2-bucket> node backfill.js <projekt> <kuenstler>");
+}
 
 initializeApp({ projectId: PROJEKT });
 const sm = new SecretManagerServiceClient();
