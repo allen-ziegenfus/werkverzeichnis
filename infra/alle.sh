@@ -62,12 +62,13 @@ for ziel in "${ziele[@]}"; do
     echo "!!! Vorschau für $ziel gescheitert."
     fehler=1; continue
   fi
-  # Ein leerer Plan ohne geänderte Ausgaben braucht kein Apply (#155); nur wenn
+  # Ein leerer Plan ohne Importe und geänderte Ausgaben braucht kein Apply (#155); nur wenn
   # das Deployment nach einem gescheiterten Lauf FAILED steht, damit der Status
   # wieder stimmt.
   read -r schicht seite <<<"$ziel"
   if [ "$befehl" = apply ] && grep -q "^Plan: 0 anlegen, 0 ändern, 0 löschen" <<<"$ausgabe" \
     && ! grep -q "^Ausgaben ändern sich" <<<"$ausgabe" \
+    && ! grep -q "^Importe:" <<<"$ausgabe" \
     && [ "$(gcloud infra-manager deployments describe "${seite:+$seite-}$schicht" --project="$INFRA_PROJECT" \
          --location="${INFRA_LOCATION:-europe-west3}" --format='value(state)' 2>/dev/null)" = ACTIVE ]; then
     echo "Nichts zu tun."
