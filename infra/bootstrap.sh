@@ -85,6 +85,12 @@ neue-seite)
   fi
   gcloud billing projects link "$SEITE" --billing-account="$RECHNUNG" >/dev/null
   "$0" add-site "$INFRA" "$SEITE"
+  # Damit die Zentrale den ersten Schritt schon vor Terraform sieht (#111).
+  gcloud services enable --project="$SEITE" cloudbilling.googleapis.com
+  for rolle in roles/browser roles/serviceusage.serviceUsageConsumer; do
+    wiederholen gcloud projects add-iam-policy-binding "$SEITE" \
+      --member="serviceAccount:zentrale@$INFRA.iam.gserviceaccount.com" --role="$rolle" --condition=None >/dev/null
+  done
   cat <<WEITER
 
 Projekt $SEITE ist angelegt. Weiter (BOOTSTRAP.md §3):
