@@ -21,6 +21,9 @@ const BUILD = { SUCCESS: "fertig", FAILURE: "gescheitert", WORKING: "läuft", QU
   INTERNAL_ERROR: "gescheitert", TIMEOUT: "Zeit überschritten", CANCELLED: "abgebrochen" };
 const buildText = b => b?.status ? `Letzter Build: ${BUILD[b.status] ?? b.status}` : "";
 
+/** Wie Firebase: Eine eingetragene Domain lässt auch ihre Subdomains zu (#144). */
+const zugelassen = (host, domains = []) => domains.some(d => host === d || host.endsWith("." + d));
+
 /** Die Eingaben einer neuen Website, als Vorlage für infra/sites/<seite>/. */
 export function vorlagen(w, vorbild) {
   const e = vorbild?.eingaben ?? {};
@@ -101,9 +104,9 @@ export async function einrichtung({ seite, projekt, adresse }) {
     },
     {
       titel: "Anmeldung mit Google",
-      erledigt: google.wert?.enabled === true && !!host && (config.wert?.authorizedDomains ?? []).includes(host),
+      erledigt: google.wert?.enabled === true && !!host && zugelassen(host, config.wert?.authorizedDomains),
       text: google.fehler?.startsWith("404") ? "Google ist nicht aktiviert." : google.fehler ? NICHT_LESBAR : [google.wert?.enabled ? "" : "Google ist nicht aktiviert.",
-        host && config.wert && !(config.wert.authorizedDomains ?? []).includes(host) ? `${host} fehlt bei den Authorized domains.` : ""]
+        host && config.wert && !zugelassen(host, config.wert.authorizedDomains) ? `${host} fehlt bei den Authorized domains.` : ""]
         .filter(Boolean).join(" "),
       aktion: { link: `${firebaseKonsole}/providers`, text: "Authentication → Google aktivieren, Settings → Authorized domains" },
     },

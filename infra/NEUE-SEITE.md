@@ -62,7 +62,7 @@ In der Firebase-Console (Project shortcuts → Authentication); das geht nur dor
    *Get started*, dann Google aktivieren.
 2. [Settings → Authorized domains](https://console.firebase.google.com/project/{{project-id}}/authentication/settings):
    *Add domain* für jede Adresse der Seite, ohne `https://`, z. B.
-   `<pages-projekt>.pages.dev` und `main.<pages-projekt>.pages.dev`. Dieselben
+   `<pages-projekt>.pages.dev` (gilt auch für `main.<pages-projekt>.pages.dev`). Dieselben
    Adressen stehen in `web_adressen` in `gcp.tfvars` (dort mit `https://` und `/*`).
 
 Eine Web-App in Firebase braucht es nicht; den Schlüssel legt Terraform an.
