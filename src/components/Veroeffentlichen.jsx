@@ -4,6 +4,7 @@ import {
   serverTimestamp, where,
 } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
+import { marked } from "marked";
 
 /**
  * Änderungen gehen erst online, wenn jemand auf Veröffentlichen drückt: Das legt
@@ -26,6 +27,13 @@ export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const zeit = t => t?.toMillis() ?? Infinity;   // noch ohne Serverzeit: gerade eben
 export const SEITENFELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
+// Seitentexte so, wie die Website sie zeigt (marked wie in build_data.ts): Was der
+// Editor beim Laden umschreibt, etwa Leerzeilen oder Listenzeichen, zählt nicht (#132).
+const html = t => marked.parse(t ?? "");
+/** Die Felder, in denen sich zwei Fassungen einer Seite sichtbar unterscheiden. */
+export const seitenUnterschiede = (a, b) => Object.keys(SEITENFELDER)
+  .filter(k => k === "text" ? a[k] !== b[k] && html(a[k]) !== html(b[k]) : a[k] !== b[k]);
+export const seitenGleich = (a, b) => (!a && !b) || (!!a && !!b && !seitenUnterschiede(a, b).length);
 
 /**
  * Was netto seit der letzten Veröffentlichung geändert ist (#67): je Werk der
@@ -56,11 +64,9 @@ export function netto(history, seitenverlauf) {
     s.t = e.at;
     seiten.set(e.seite, s);
   }
-  const gleich = (a, b) => (!a && !b) || (a && b && Object.keys(SEITENFELDER).every(k => a[k] === b[k]));
-
   return {
     werke: [...werke.values()].filter(w => Object.keys(w.felder).length),
-    seiten: [...seiten.values()].filter(s => !gleich(s.vorher, s.nachher)),
+    seiten: [...seiten.values()].filter(s => !seitenGleich(s.vorher, s.nachher)),
   };
 }
 
@@ -292,7 +298,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
           ? <a className="underline" href={`/verwaltung/seiten/?seite=${encodeURIComponent(s.seite)}`}>Seite „{s.nachher.titel}“</a>
           : <>Seite „{s.nachher?.titel ?? s.vorher?.titel ?? s.seite}“</>}
         {" "}{!s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
-          : Object.keys(SEITENFELDER).filter(k => s.vorher[k] !== s.nachher[k]).map(k => SEITENFELDER[k]).join(", ")}
+          : seitenUnterschiede(s.vorher, s.nachher).map(k => SEITENFELDER[k]).join(", ")}
         {" "}· {von(s.von)}
       </> })),
     ...aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => ({ id: "g" + g.id, t: g.updatedAt,
