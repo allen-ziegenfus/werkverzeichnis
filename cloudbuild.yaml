@@ -32,6 +32,8 @@ steps:
       - PUBLIC_FIREBASE_PROJECT=$PROJECT_ID
       - PUBLIC_FIREBASE_API_KEY=${_FIREBASE_API_KEY}
       - PUBLIC_KUENSTLER=${_ARTIST}
+      # Der Bucket der Originale für build_data.ts (#137).
+      - BUCKET=${_BUCKET}
 
   - id: deploy
     name: node:24
