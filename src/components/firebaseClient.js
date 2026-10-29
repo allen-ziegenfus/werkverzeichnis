@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { doc, getFirestore } from "firebase/firestore";
+import { doc, initializeFirestore } from "firebase/firestore";
 
 /** Die Firebase-App der Verwaltung und des Editors. Absichtlich öffentlich. */
 export const app = initializeApp({
@@ -12,7 +12,9 @@ export const app = initializeApp({
   appId: "1:47327094040:web:9ef49f7586def8e0a7ea6d",
 });
 export const auth = getAuth(app);
-export const db = getFirestore(app, "werkverzeichnis");
+// Long Polling statt Streaming: Safari puffert die Antworten des Streams, die
+// Verwaltung wartete dann zehn Sekunden und länger auf ihre Daten (#121).
+export const db = initializeFirestore(app, { experimentalForceLongPolling: true }, "werkverzeichnis");
 export const KUENSTLER = "kutscher";
 export const kuenstler = doc(db, "artists", KUENSTLER);
 
