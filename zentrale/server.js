@@ -3,6 +3,7 @@ import { anwenden, deployments, holeLauf, laeufe, vorschau } from "./terraform.j
 import { gescheitert, neuBauen, stand, websites } from "./websites.js";
 import { personen, ROLLEN, rolleSetzen, superAdminSetzen, website } from "./personen.js";
 import { anlegen, FELDER } from "./kuenstler.js";
+import { einrichtung } from "./einrichten.js";
 
 /**
  * Die Zentrale (#27): Super-Admin-Aufgaben für alle Websites. Läuft in Cloud
@@ -59,7 +60,7 @@ ${neuLaden ? '<meta http-equiv="refresh" content="5">' : ""}
   .karte h2 { margin-bottom: 0 }
   .karte th { width: 11rem }
   .karte td { overflow-wrap: anywhere }
-  input[type=email], input:not([type]) { font: inherit; padding: .25rem .4rem; width: min(18rem, 100%) }
+  input[type=email], input[type=url], input:not([type]) { font: inherit; padding: .25rem .4rem; width: min(18rem, 100%) }
   .felder th { width: 11rem }
   select { font: inherit; padding: .2rem }
   summary { cursor: pointer; color: #444; margin: .5rem 0 }
@@ -67,6 +68,10 @@ ${neuLaden ? '<meta http-equiv="refresh" content="5">' : ""}
     border: 2px solid #ccc; border-top-color: #444; border-radius: 50%; animation: drehen 1s linear infinite }
   @keyframes drehen { to { transform: rotate(360deg) } }
   @media (prefers-reduced-motion: reduce) { .dreht { animation-duration: 3s } }
+  .schritte td:first-child { width: 1.5rem; font-size: 1.1rem }
+  .naechster { background: #fffbe6 }
+  .aktion { margin-top: .35rem }
+  pre { background: #f6f6f6; padding: .5rem; overflow-x: auto; font-size: .8rem }
   @media (max-width: 30rem) {
     .karte th { width: auto }
     .personen tr { display: block; border-bottom: 1px solid #ddd; padding: .35rem 0 }
@@ -140,7 +145,7 @@ function websiteKarte(w) {
   <h2>${maskieren(titel)}</h2>
   <p class="klein">${maskieren(w.seite)} · Projekt ${maskieren(w.projekt)}${k === null ? ` · <span class="fehler">kein Künstler:in-Dokument</span>`
     : k?.fehler ? ` · Künstler:in-Dokument ${fehlerText(k.fehler)}` : ""}</p>
-  <p>${w.adresse ? `<a href="${maskieren(w.adresse)}">Website</a> · <a href="${maskieren(w.adresse.replace(/\/$/, ""))}/verwaltung/">Verwaltung</a> · ` : ""}<a href="/website/${encodeURIComponent(w.seite)}">Künstler:in und Personen</a></p>
+  <p>${w.adresse ? `<a href="${maskieren(w.adresse)}">Website</a> · <a href="${maskieren(w.adresse.replace(/\/$/, ""))}/verwaltung/">Verwaltung</a> · ` : ""}<a href="/website/${encodeURIComponent(w.seite)}">Künstler:in und Personen</a> · <a href="/neu?seite=${encodeURIComponent(w.seite)}&amp;projekt=${encodeURIComponent(w.projekt)}">Einrichtung</a></p>
   <table>
     <tr><th>Letzter Build</th><td>${build}</td></tr>
     <tr><th>Regeln und Funktionen</th><td>${buildText(w.backend)}</td></tr>
@@ -166,6 +171,7 @@ async function uebersicht(email) {
   return seite("Übersicht", `
 <p class="klein">Angemeldet als ${maskieren(email || "unbekannt")}.</p>
 ${ws.map(websiteKarte).join("") || "<p>Noch keine Website.</p>"}
+<p><a href="/neu">Neue Website einrichten</a></p>
 <h2>Zentrale</h2>
 <p class="klein">Die Vorschau zeigt, was Terraform ändern würde, mit dem Code von <code>main</code>;
 angewendet wird erst nach einer Bestätigung.</p>
@@ -241,6 +247,51 @@ Wer Super-Admin werden soll, muss sich vorher einmal angemeldet haben.</p>
 ${formular("/superadmin", `<input type="email" name="email" required placeholder="name@gmail.com" autocomplete="off">${versteckt("ja", "ja")} `,
     "Super-Admin machen", "Diese Person zur Super-Admin machen? Sie darf dann auf dieser Website alles.")}
 `);
+}
+
+// Neue Website (#111): erst Kennung und Projekt, dann die Schritte mit Haken.
+const KENNUNG = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/;
+
+async function neuSeite(suche) {
+  const kennung = suche.get("seite") ?? "", projekt = suche.get("projekt") ?? "";
+  if (!KENNUNG.test(kennung) || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projekt)) return seite("Neue Website", `
+<h2>Neue Website</h2>
+${kennung || projekt ? `<p class="fehler">Kennung und Projekt-ID: Kleinbuchstaben, Ziffern und Bindestriche, mit einem Buchstaben vorn.</p>` : ""}
+<form method="get" action="/neu">
+  <p><label>Kennung der Website (auch Name der Künstler:in in Firestore)<br>
+    <input name="seite" required value="${maskieren(kennung)}" placeholder="z. B. beispiel"></label></p>
+  <p><label>Projekt-ID in Google Cloud (weltweit eindeutig)<br>
+    <input name="projekt" required value="${maskieren(projekt)}" placeholder="z. B. beispiel-werkverzeichnis"></label></p>
+  <p><label>Adresse (leer: https://werkverzeichnis-&lt;kennung&gt;.pages.dev)<br>
+    <input name="adresse" type="url" value="${maskieren(suche.get("adresse") ?? "")}"></label></p>
+  <p><button>Schritte zeigen</button></p>
+</form>
+<p class="klein">Es wird noch nichts angelegt; die nächste Seite zeigt, was zu tun ist und was schon erledigt ist.</p>`);
+  const e = await einrichtung({ seite: kennung, projekt, adresse: suche.get("adresse") ?? "" });
+  const link = a => `<a href="${maskieren(a.link)}"${a.intern ? "" : ` target="_blank" rel="noopener"`}>${maskieren(a.text)}</a>`;
+  const aktion = a => !a ? "" : [
+    a.befehl && `<code>${maskieren(a.befehl)}</code><br><a href="https://shell.cloud.google.com/?cloudshell_git_repo=${
+      encodeURIComponent("https://github.com/allen-ziegenfus/werkverzeichnis")}&amp;show=terminal" target="_blank" rel="noopener">In Cloud Shell öffnen</a>`,
+    a.link && link(a),
+    a.links?.map(link).join(" · "),
+    a.hinweis && `<span class="klein">${maskieren(a.hinweis)}</span>`,
+    a.weitere?.map(link).join(" · "),
+  ].filter(Boolean).join("<br>");
+  const offen = e.schritte.findIndex(x => !x.erledigt);
+  const zeilen = e.schritte.map((x, i) => `<tr${i === offen ? ' class="naechster"' : ""}>
+    <td>${x.erledigt ? "✓" : i === offen ? "→" : "○"}</td>
+    <td><strong>${maskieren(x.titel)}</strong>${x.text ? `<br><span class="klein">${maskieren(x.text)}</span>` : ""}
+      ${!x.erledigt && x.aktion ? `<div class="aktion">${aktion(x.aktion)}</div>` : ""}</td>
+  </tr>`).join("");
+  return seite(`Einrichtung ${kennung}`, `
+<h2>Einrichtung: ${maskieren(kennung)}</h2>
+<p class="klein">Projekt ${maskieren(projekt)} · ${maskieren(e.w.adresse)} · <a href="/neu?${maskieren(suche.toString())}">neu prüfen</a> · <a href="/">Übersicht</a></p>
+${offen < 0 ? "<p><strong>Alles eingerichtet.</strong></p>" : ""}
+<table class="schritte">${zeilen}</table>
+<details><summary>Vorlagen für infra/sites/${maskieren(kennung)}/</summary>
+<p class="klein">gcp.tfvars</p><pre>${maskieren(e.vorlagen.gcp)}</pre>
+<p class="klein">cloudflare.tfvars</p><pre>${maskieren(e.vorlagen.cloudflare)}</pre>
+</details>`);
 }
 
 function planAnzeigen(l) {
@@ -321,6 +372,7 @@ http.createServer(async (anfrage, antwort) => {
     if (anfrage.method === "GET" && pfad === "/") html = await uebersicht(email);
     else if (anfrage.method === "GET" && pfad.startsWith("/lauf/")) html = await laufSeite(pfad.slice(6));
     else if (anfrage.method === "GET" && pfad.startsWith("/website/")) html = await websiteSeite(decodeURIComponent(pfad.slice(9)));
+    else if (anfrage.method === "GET" && pfad === "/neu") html = await neuSeite(new URL(anfrage.url, "http://x").searchParams);
     else if (anfrage.method === "POST" && pfad === "/kuenstler") {
       if (!vonHier(anfrage)) throw new Error("Formular nicht von der Zentrale");
       const f = await formular(anfrage);

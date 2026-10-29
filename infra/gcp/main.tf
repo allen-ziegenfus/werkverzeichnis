@@ -11,7 +11,7 @@ locals {
 
 resource "google_project_service" "api" {
   for_each = toset([
-    "apikeys", "artifactregistry", "cloudbuild", "cloudfunctions", "eventarc", "firebase", "firebaserules",
+    "apikeys", "artifactregistry", "cloudbilling", "cloudbuild", "cloudfunctions", "cloudresourcemanager", "eventarc", "firebase", "firebaserules",
     "firestore", "iam", "iamcredentials", "identitytoolkit", "logging", "pubsub", "run",
     "secretmanager", "storage", "sts",
   ])
@@ -148,6 +148,11 @@ resource "google_project_iam_member" "zentrale" {
     "roles/cloudbuild.builds.viewer",
     "roles/firebaseauth.admin",                # Super-Admins (Custom Claim), wer sich angemeldet hat
     "roles/serviceusage.serviceUsageConsumer", # Firebase Auth rechnet auf das Projekt der Seite ab
+    # Die Schritte der Einrichtung nachsehen (#111): Projekt und Rechnungskonto,
+    # Firebase, ob die Secrets einen Wert haben (nicht welchen).
+    "roles/browser",
+    "roles/firebase.viewer",
+    "roles/secretmanager.viewer",
   ])
   project = var.projekt_id
   role    = each.key
