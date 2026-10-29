@@ -173,7 +173,19 @@ service cloud.firestore {
     match /artists/{kuenstler}/works/{werk} {
       allow read: if darf(kuenstler, "lesen");
 
-      // Nur bearbeiten (kein Anlegen/Löschen). Inv. Nr. und Werkgruppe bleiben,
+      // Anlegen (#179): in einer vorhandenen Werkgruppe, mit Inv. Nr., und wie
+      // beim Bearbeiten nur zusammen mit dem Verlaufseintrag. Die Kennung leitet
+      // die Verwaltung aus der Inv. Nr. ab; gibt es sie schon, ist es ein Update.
+      allow create: if darf(kuenstler, "werke.bearbeiten")
+        && request.resource.data.InvNr is string
+        && request.resource.data.InvNr.size() > 0 && request.resource.data.InvNr.size() <= 100
+        && request.resource.data.werkgruppe is string
+        && exists(/databases/$(database)/documents/artists/$(kuenstler)/werkgruppen/$(request.resource.data.werkgruppe))
+        && request.resource.data.updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/artists/$(kuenstler)/history/$(request.resource.data.lastChange)).data.work == werk
+        && !exists(/databases/$(database)/documents/artists/$(kuenstler)/history/$(request.resource.data.lastChange));
+
+      // Bearbeiten (kein Löschen). Inv. Nr. und Werkgruppe bleiben,
       // der Zeitstempel ist der des Servers, und derselbe Schreibvorgang muss den
       // Verlaufseintrag anlegen, auf den `lastChange` zeigt — keine Änderung
       // bleibt unprotokolliert.
