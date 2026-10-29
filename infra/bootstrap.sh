@@ -16,8 +16,20 @@
 #       Secret mit den Adressen an, die hinein dürfen
 set -euo pipefail
 
-befehl=${1:?infra, add-site, neue-seite or zentrale}
-INFRA=${2:?infra project id}
+# Die Befehle oben aus diesem Kommentar, ohne die Raute.
+hilfe() {
+  echo "Aufruf:" >&2
+  sed -n '/^#   infra\/bootstrap.sh/,/^set /p' "$0" | sed -e '$d' -e 's/^#//' >&2
+  echo "Mehr in infra/BOOTSTRAP.md." >&2
+  exit 1
+}
+# Ein fehlendes Argument: was fehlt, dann die Hilfe.
+noetig() { [ -n "${1:-}" ] || { echo "Fehlt: $2" >&2; echo >&2; hilfe; }; }
+
+befehl=${1:-}
+case $befehl in infra|add-site|neue-seite|zentrale) ;; *) hilfe ;; esac
+noetig "${2:-}" "<infra-projekt>"
+INFRA=$2
 KONTO=infra-manager@$INFRA.iam.gserviceaccount.com
 
 # Ein neues Servicekonto ist in IAM erst nach einigen Sekunden überall bekannt;
@@ -73,7 +85,8 @@ infra)
   ;;
 
 add-site)
-  SEITE=${3:?site project id}
+  noetig "${3:-}" "<seiten-projekt>"
+  SEITE=$3
   gcloud services enable --project="$SEITE" serviceusage.googleapis.com cloudresourcemanager.googleapis.com
   for rolle in \
     roles/serviceusage.serviceUsageAdmin roles/resourcemanager.projectIamAdmin \
@@ -88,14 +101,19 @@ add-site)
   ;;
 
 neue-seite)
-  SEITE=${3:?site project id}
-  RECHNUNG=${4:?billing account id (gcloud billing accounts list)}
+  noetig "${3:-}" "<seiten-projekt>"
+  noetig "${4:-}" "<rechnungskonto> (gcloud billing accounts list)"
+  SEITE=$3
+  RECHNUNG=$4
   NAME=${5:-$SEITE}
   if ! gcloud projects describe "$SEITE" >/dev/null 2>&1; then
     anzeige="Werkverzeichnis $NAME"   # höchstens 30 Zeichen
     gcloud projects create "$SEITE" --name="${anzeige:0:30}"
   fi
   gcloud billing projects link "$SEITE" --billing-account="$RECHNUNG" >/dev/null
+  # Für die GitHub-Verbindung, die vor Terraform kommt (sie legt ihr Token in
+  # Secret Manager ab); alles andere schaltet Terraform ein.
+  gcloud services enable --project="$SEITE" cloudbuild.googleapis.com secretmanager.googleapis.com
   "$0" add-site "$INFRA" "$SEITE"
   # Damit die Zentrale den ersten Schritt schon vor Terraform sieht (#111);
   # nur, wenn es sie gibt (bootstrap.sh zentrale).
@@ -156,6 +174,4 @@ zentrale)
   echo "$KONTO may now set up the Zentrale in $INFRA."
   ;;
 
-*)
-  echo "unknown command: $befehl" >&2; exit 1 ;;
 esac

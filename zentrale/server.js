@@ -5,6 +5,12 @@ import { personen, ROLLEN, rolleSetzen, superAdminSetzen, website } from "./pers
 import { anlegen, FELDER } from "./kuenstler.js";
 import { einrichtung } from "./einrichten.js";
 
+// „In Cloud Shell öffnen“: das Repository, das Terminal und daneben die
+// Anleitung für eine neue Website (#134), wie der Knopf in BOOTSTRAP.md.
+const CLOUD_SHELL = "https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo="
+  + "https://github.com/allen-ziegenfus/werkverzeichnis&amp;cloudshell_git_branch=main"
+  + "&amp;cloudshell_tutorial=infra/NEUE-SEITE.md";
+
 /**
  * Die Zentrale (#27): Super-Admin-Aufgaben für alle Websites. Läuft in Cloud
  * Run hinter IAP; wer hier ankommt, hat IAP schon durchgelassen
@@ -270,8 +276,7 @@ ${kennung || projekt ? `<p class="fehler">Kennung und Projekt-ID: Kleinbuchstabe
   const e = await einrichtung({ seite: kennung, projekt, adresse: suche.get("adresse") ?? "" });
   const link = a => `<a href="${maskieren(a.link)}"${a.intern ? "" : ` target="_blank" rel="noopener"`}>${maskieren(a.text)}</a>`;
   const aktion = a => !a ? "" : [
-    a.befehl && `<code>${maskieren(a.befehl)}</code><br><a href="https://shell.cloud.google.com/?cloudshell_git_repo=${
-      encodeURIComponent("https://github.com/allen-ziegenfus/werkverzeichnis")}&amp;show=terminal" target="_blank" rel="noopener">In Cloud Shell öffnen</a>`,
+    a.befehl && `<code>${maskieren(a.befehl)}</code><br><a href="${CLOUD_SHELL}" target="_blank" rel="noopener">In Cloud Shell öffnen</a>`,
     a.link && link(a),
     a.links?.map(link).join(" · "),
     a.hinweis && `<span class="klein">${maskieren(a.hinweis)}</span>`,

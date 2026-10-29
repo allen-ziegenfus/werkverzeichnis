@@ -50,6 +50,9 @@ infra/bootstrap.sh infra $INFRA_PROJECT <rechnungskonto-id>
 
 ## 3. Ein Seiten-Projekt
 
+Kurz und mit Anleitung neben dem Terminal:
+[![In Cloud Shell öffnen](https://www.gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/allen-ziegenfus/werkverzeichnis&cloudshell_git_branch=main&cloudshell_tutorial=infra/NEUE-SEITE.md)
+
 Eine **neue** Seite: Projekt-ID wählen (weltweit eindeutig), dann mit dem
 eigenen Login (ein Servicekonto darf ohne Organisation keine Projekte anlegen):
 
