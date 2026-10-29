@@ -117,7 +117,7 @@ function deploymentZeile(d, name) {
       ${d.fehler ? `<br><span class="klein">${maskieren(d.fehler)}</span>` : ""}</td>
     <td class="klein breit">${zeit(d.geaendert)}</td>
     <td><form method="post" action="/vorschau"><input type="hidden" name="ziel" value="${maskieren(d.name)}">
-      <button>Vorschau</button></form></td>
+      <button>Terraform-Vorschau starten</button></form></td>
   </tr>`;
 }
 
