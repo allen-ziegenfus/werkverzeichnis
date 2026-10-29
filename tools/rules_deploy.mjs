@@ -25,7 +25,13 @@ const { data: regelsatz } = await anfrage(`${api}/rulesets`, "POST", {
   source: { files: [{ name: "firestore.rules", content: fs.readFileSync("firestore.rules", "utf8") }] },
 });
 const freigabe = `projects/${PROJEKT}/releases/cloud.firestore/${DATENBANK}`;
-await anfrage(`https://firebaserules.googleapis.com/v1/${freigabe}`, "PATCH", {
-  release: { name: freigabe, rulesetName: regelsatz.name },
-});
+try {
+  await anfrage(`https://firebaserules.googleapis.com/v1/${freigabe}`, "PATCH", {
+    release: { name: freigabe, rulesetName: regelsatz.name },
+  });
+} catch (e) {
+  // Ein neues Projekt hat noch keine Freigabe; beim ersten Mal anlegen (#153).
+  if (e.response?.status !== 404) throw e;
+  await anfrage(`${api}/releases`, "POST", { name: freigabe, rulesetName: regelsatz.name });
+}
 console.log(`deployed ${regelsatz.name} to ${DATENBANK}`);
