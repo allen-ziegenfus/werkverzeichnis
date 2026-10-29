@@ -151,7 +151,7 @@ function websiteKarte(w) {
   const build = buildText(w.build);
   const veroeffentlichung = !v ? "noch keine" : v.fehler ? fehlerText(v.fehler)
     : `${v.status === "fehler" ? `<span class="fehler">fehler</span>` : LAEUFT.includes(v.status) ? dreht(maskieren(v.status)) : maskieren(v.status)}
-      · ${zeit(v.angefordert)}${v.angefordert ? ` · ${dauer(v.angefordert, LAEUFT.includes(v.status) ? undefined : v.fertig)}` : ""} · ${maskieren(v.von)}${v.notiz ? ` · „${maskieren(v.notiz)}“` : ""}
+      · ${zeit(v.angefordert)}${v.angefordert && (LAEUFT.includes(v.status) || v.fertig) ? ` · ${dauer(v.angefordert, LAEUFT.includes(v.status) ? undefined : v.fertig)}` : ""} · ${maskieren(v.von)}${v.notiz ? ` · „${maskieren(v.notiz)}“` : ""}
       ${v.meldung ? `<br><span class="klein fehler">${maskieren(v.meldung)}</span>` : ""}`;
   const schicht = d => d.name.endsWith("-gcp") ? "Google Cloud" : d.name.endsWith("-cloudflare") ? "Cloudflare" : d.name;
   return `<section class="karte">
