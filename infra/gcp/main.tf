@@ -11,7 +11,7 @@ locals {
 
 resource "google_project_service" "api" {
   for_each = toset([
-    "apikeys", "artifactregistry", "cloudbuild", "cloudfunctions", "eventarc", "firebase", "firebaserules",
+    "apikeys", "artifactregistry", "cloudbilling", "cloudbuild", "cloudfunctions", "cloudresourcemanager", "eventarc", "firebase", "firebaserules",
     "firestore", "iam", "iamcredentials", "identitytoolkit", "logging", "pubsub", "run",
     "secretmanager", "storage", "sts",
   ])
@@ -148,6 +148,11 @@ resource "google_project_iam_member" "zentrale" {
     "roles/cloudbuild.builds.viewer",
     "roles/firebaseauth.admin",                # Super-Admins (Custom Claim), wer sich angemeldet hat
     "roles/serviceusage.serviceUsageConsumer", # Firebase Auth rechnet auf das Projekt der Seite ab
+    # Die Schritte der Einrichtung nachsehen (#111): Projekt und Rechnungskonto,
+    # Firebase, ob die Secrets einen Wert haben (nicht welchen).
+    "roles/browser",
+    "roles/firebase.viewer",
+    "roles/secretmanager.viewer",
   ])
   project = var.projekt_id
   role    = each.key
@@ -187,10 +192,59 @@ resource "google_secret_manager_secret_iam_member" "leser" {
 
 # --- Bauen und veröffentlichen ------------------------------------------------
 
+# Die GitHub-Verbindung ohne Konsole (#112): Cloud Build liest das GitHub-Token
+# aus einer Kopie im Projekt der Seite; das Original liegt im Infra-Projekt.
+data "google_secret_manager_secret_version_access" "github" {
+  count   = var.github_app_installation == null ? 0 : 1
+  project = var.infra_projekt
+  secret  = "github-token"
+}
+
+resource "google_secret_manager_secret" "github" {
+  count     = var.github_app_installation == null ? 0 : 1
+  secret_id = "github-token"
+  replication {
+    auto {}
+  }
+  depends_on = [google_project_service.api]
+}
+
+resource "google_secret_manager_secret_version" "github" {
+  count       = var.github_app_installation == null ? 0 : 1
+  secret      = google_secret_manager_secret.github[0].id
+  secret_data = data.google_secret_manager_secret_version_access.github[0].secret_data
+}
+
+resource "google_project_service_identity" "cloudbuild" {
+  count    = var.github_app_installation == null ? 0 : 1
+  provider = google-beta
+  service  = "cloudbuild.googleapis.com"
+}
+
+resource "google_secret_manager_secret_iam_member" "github" {
+  count     = var.github_app_installation == null ? 0 : 1
+  secret_id = google_secret_manager_secret.github[0].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = google_project_service_identity.cloudbuild[0].member
+}
+
+resource "google_cloudbuildv2_connection" "github" {
+  count    = var.github_app_installation == null ? 0 : 1
+  name     = var.github_verbindung
+  location = var.region
+  github_config {
+    app_installation_id = var.github_app_installation
+    authorizer_credential {
+      oauth_token_secret_version = google_secret_manager_secret_version.github[0].id
+    }
+  }
+  depends_on = [google_secret_manager_secret_iam_member.github]
+}
+
 resource "google_cloudbuildv2_repository" "repo" {
   name              = replace(var.github_repo, "/", "-")
   location          = var.region
-  parent_connection = var.github_verbindung
+  parent_connection = var.github_app_installation == null ? var.github_verbindung : google_cloudbuildv2_connection.github[0].name
   remote_uri        = "https://github.com/${var.github_repo}.git"
 }
 
@@ -214,6 +268,9 @@ resource "google_cloudbuild_trigger" "seite" {
     _FIRESTORE_DATABASE    = var.firestore_datenbank
     _PAGES_PROJECT         = var.pages_projekt
     _CLOUDFLARE_ACCOUNT_ID = var.cloudflare_konto_id
+
+    # Für firebaseClient.js; öffentlich, eingeschränkt auf die Adressen der Seite (#43, #109).
+    _FIREBASE_API_KEY = var.web_schluessel == null ? "" : google_apikeys_key.web[0].key_string
   }
 }
 
@@ -238,6 +295,7 @@ resource "google_cloudbuild_trigger" "backend" {
 
   substitutions = {
     _FIRESTORE_DATABASE = var.firestore_datenbank
+    _ARTIST             = var.kuenstler # für gcf/.env (#109)
   }
 }
 

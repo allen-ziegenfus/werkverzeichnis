@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { serverTimestamp, updateDoc } from "firebase/firestore";
+import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
 import { kuenstler } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
@@ -30,11 +31,12 @@ function Einstellungen() {
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
 
+  // Aus dem Cache, wenn schon geladen; der Entwurf wird nur einmal gefüllt.
+  const { data, error } = useKuenstler();
   useEffect(() => {
-    getDoc(kuenstler)
-      .then(d => setEntwurf(Object.fromEntries(EINSTELLUNGEN.map(([k]) => [k, d.get(k) ?? ""]))))
-      .catch(e => setFehler(meldung(e)));
-  }, []);
+    if (data && !entwurf) setEntwurf(Object.fromEntries(EINSTELLUNGEN.map(([k]) => [k, data[k] ?? ""])));
+  }, [data]);
+  useEffect(() => { if (error) setFehler(meldung(error)); }, [error]);
 
   const setze = (k, v) => { setEntwurf(e => ({ ...e, [k]: v })); setHinweis(undefined); };
 
@@ -42,6 +44,7 @@ function Einstellungen() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     try {
       await updateDoc(kuenstler, { ...entwurf, updatedAt: serverTimestamp() });
+      client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, ...entwurf });
       setHinweis("Gespeichert.");
     } catch (e) {
       setFehler(meldung(e));

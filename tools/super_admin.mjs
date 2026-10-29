@@ -5,9 +5,9 @@
  * in der Zentrale (Website → Künstler:in und Personen, #78) oder mit diesem
  * Skript, z. B. wenn die Zentrale nicht erreichbar ist.
  *
- *   node tools/super_admin.mjs list
- *   node tools/super_admin.mjs grant  name@gmail.com
- *   node tools/super_admin.mjs revoke name@gmail.com
+ *   FIRESTORE_PROJECT=<seiten-projekt> node tools/super_admin.mjs list
+ *   FIRESTORE_PROJECT=<seiten-projekt> node tools/super_admin.mjs grant  name@gmail.com
+ *   FIRESTORE_PROJECT=<seiten-projekt> node tools/super_admin.mjs revoke name@gmail.com
  *
  * Die Person muss sich einmal angemeldet haben (damit es den Nutzer gibt). Die
  * Änderung wirkt bei ihrer nächsten Anmeldung oder spätestens nach einer Stunde,
@@ -16,7 +16,9 @@
  */
 import { GoogleAuth } from "google-auth-library";
 
-const PROJEKT = process.env.FIRESTORE_PROJECT ?? "vollrad-werkverzeichnis";
+// Schreibt; mit mehreren Seiten-Projekten nie auf ein vorgegebenes (#109).
+const PROJEKT = process.env.FIRESTORE_PROJECT;
+if (!PROJEKT) throw new Error("FIRESTORE_PROJECT=<seiten-projekt> setzen");
 const api = `https://identitytoolkit.googleapis.com/v1/projects/${PROJEKT}`;
 
 const client = await new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] }).getClient();

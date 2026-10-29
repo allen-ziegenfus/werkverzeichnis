@@ -2,20 +2,22 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, initializeFirestore } from "firebase/firestore";
 
-/** Die Firebase-App der Verwaltung und des Editors. Absichtlich öffentlich. */
+/**
+ * Die Firebase-App der Verwaltung und des Editors. Projekt, Schlüssel und
+ * Künstler:in setzt der Build (cloudbuild.yaml, aus dem Trigger der Seite, #109);
+ * lokal aus .env. Der Schlüssel ist absichtlich öffentlich.
+ */
+const PROJEKT = import.meta.env.PUBLIC_FIREBASE_PROJECT;
 export const app = initializeApp({
-  apiKey: "AIzaSyD_wF0plrxVM7LqX6cu7Ex74T2FH9wnIjQ",
-  authDomain: "vollrad-werkverzeichnis.firebaseapp.com",
-  projectId: "vollrad-werkverzeichnis",
-  storageBucket: "vollrad-werkverzeichnis.firebasestorage.app",
-  messagingSenderId: "47327094040",
-  appId: "1:47327094040:web:9ef49f7586def8e0a7ea6d",
+  apiKey: import.meta.env.PUBLIC_FIREBASE_API_KEY,
+  authDomain: `${PROJEKT}.firebaseapp.com`,
+  projectId: PROJEKT,
 });
 export const auth = getAuth(app);
 // Long Polling statt Streaming: Safari puffert die Antworten des Streams, die
 // Verwaltung wartete dann zehn Sekunden und länger auf ihre Daten (#121).
 export const db = initializeFirestore(app, { experimentalForceLongPolling: true }, "werkverzeichnis");
-export const KUENSTLER = "kutscher";
+export const KUENSTLER = import.meta.env.PUBLIC_KUENSTLER;
 export const kuenstler = doc(db, "artists", KUENSTLER);
 
 // Merkt sich, ob auf diesem Gerät jemand angemeldet ist; nur dann lädt das

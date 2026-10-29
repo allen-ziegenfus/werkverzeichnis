@@ -19,3 +19,14 @@ variable "bilder_bucket" {
   description = "R2-Bucket für die Webversionen, an die Seite gebunden als BILDER (functions/bilder)."
   type        = string
 }
+
+variable "seiten_projekt" {
+  description = <<-EOT
+    Gesetzt: Terraform legt die Cloudflare-Tokens des Builds (Pages) und der
+    Bildfunktion (R2) an und schreibt sie als Secret-Versionen in dieses
+    Projekt (#112). Dafür braucht das Cloudflare-Token für Terraform zusätzlich
+    Account API Tokens: Edit. Die Tokens stehen dann im Terraform-State.
+  EOT
+  type        = string
+  default     = null
+}

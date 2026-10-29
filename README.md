@@ -18,6 +18,10 @@ gcloud auth application-default login
 FIRESTORE_PROJECT=vollrad-werkverzeichnis FIRESTORE_DATABASE=werkverzeichnis ARTIST_ID=kutscher yarn build
 ```
 
+Die Verwaltung braucht dazu `PUBLIC_FIREBASE_PROJECT` (Projekt der Seite),
+`PUBLIC_FIREBASE_API_KEY` (Web-Schlüssel, `gcloud services api-keys get-key-string`)
+und `PUBLIC_KUENSTLER`, lokal in `.env`; im Cloud Build setzt sie der Trigger.
+
 `yarn data` führt nur den Datenschritt aus; `yarn build` den und danach `astro build`
 nach `dist/`. Mit `STRICT=1` lassen Datenprobleme (ein Bild fehlt im Bucket,
 Webversionen gibt es noch nicht, ein Werk ohne Werkgruppe) den Build scheitern.

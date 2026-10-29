@@ -51,13 +51,16 @@ function nachBuild(anfragen) {
   }).sort((x, y) => (y.angefordert?.toMillis() ?? Infinity) - (x.angefordert?.toMillis() ?? Infinity));
 }
 
+// Die zuletzt gesehenen Veröffentlichungen, bis der Listener die neuen bringt (#122).
+let zuletzt;
+
 function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
-  const [anfragen, setAnfragen] = useState();
+  const [anfragen, setAnfragen] = useState(zuletzt);
   const [fehler, setFehler] = useState();
 
   useEffect(() => onSnapshot(
     query(collection(db, "artists", kuenstlerId, "veroeffentlichungen"), orderBy("angefordert", "desc"), limit(ANZAHL)),
-    snap => setAnfragen(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    snap => setAnfragen(zuletzt = snap.docs.map(d => ({ id: d.id, ...d.data() }))),
     e => setFehler(meldung(e))), [kuenstlerId]);
 
   if (fehler) return <p className="text-red-700 text-sm">{fehler}</p>;

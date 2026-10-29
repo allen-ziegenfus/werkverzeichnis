@@ -50,24 +50,28 @@ infra/bootstrap.sh infra $INFRA_PROJECT <rechnungskonto-id>
 
 ## 3. Ein Seiten-Projekt
 
-Bei einem **vorhandenen** Projekt (vollrad-werkverzeichnis) direkt zum letzten
-Befehl. Für eine **neue** Seite einmal von Hand, in der Konsole:
+Eine **neue** Seite: Projekt-ID wählen (weltweit eindeutig), dann mit dem
+eigenen Login (ein Servicekonto darf ohne Organisation keine Projekte anlegen):
 
-1. Das Projekt anlegen und das Rechnungskonto verknüpfen.
-2. Firebase-Konsole → Projekt hinzufügen → es auswählen. Authentication →
-   Sign-in method → Google. Eine Web-App hinzufügen; ihre Konfiguration kommt in
-   `src/components/firebaseClient.js`.
-3. Cloud Build → Repositories (2nd gen) → Create host connection: GitHub, Region
+```sh
+infra/bootstrap.sh neue-seite $INFRA_PROJECT <seiten-projekt> <rechnungskonto-id> <seite>
+```
+
+Das legt das Projekt an, verknüpft das Rechnungskonto, erlaubt Terraform, es zu
+verwalten, und zeigt die übrigen Schritte mit Links:
+
+1. Cloud Build → Repositories (2nd gen) → Create host connection: GitHub, Region
    europe-west3, die App nur für das Repository installieren. Das Repository nicht
    verknüpfen; das macht Terraform.
-4. `infra/sites/kutscher` nach `infra/sites/<seite>` kopieren, beide `.tfvars`
-   anpassen, die `*-imports.tf` löschen. Den Web-Schlüssel der Web-App schränkt
-   Terraform ein (#43): seine ID mit `gcloud services api-keys lookup <apiKey>
-   --project=<seiten-projekt>` nachschlagen, als `web_schluessel` in `gcp.tfvars`
-   eintragen und wie in `kutscher/gcp-imports.tf` importieren (geht erst, wenn
-   ein erstes Apply die API Keys eingeschaltet hat).
+2. `infra/sites/kutscher` nach `infra/sites/<seite>` kopieren, beide `.tfvars`
+   anpassen (alles, was die kopierte Seite nennt: `seiten_url`, `pages_projekt`,
+   `web_adressen`, `bilder_bucket`), die `*-imports.tf` löschen; `web_schluessel = "web"`, Terraform legt
+   den Web-Schlüssel an und schränkt ihn ein (#43, #110). Als PR; der Merge
+   wendet an und fügt dem Projekt auch Firebase hinzu.
+3. Firebase-Console → Authentication → Get started, Sign-in method → Google
+   aktivieren, unter Settings → Authorized domains die Adresse der Seite.
 
-Dann übernimmt Terraform:
+Ein **vorhandenes** Projekt (vollrad-werkverzeichnis) braucht nur die Rechte:
 
 ```sh
 infra/bootstrap.sh add-site $INFRA_PROJECT <seiten-projekt>
@@ -100,7 +104,16 @@ Falls Infrastructure Manager in europe-west3 nicht angeboten wird,
 `INFRA_LOCATION=europe-west1` davorsetzen (betrifft nur, wo der State liegt; die
 Ressourcen bleiben, wo die tfvars sagen).
 
-Dann die Werte der Secrets, im Projekt der Seite (nach einem neuen Apply leer):
+**Ohne Konsole und ohne Secrets von Hand (#112):** In `cloudflare.tfvars`
+`seiten_projekt = "<seiten-projekt>"` setzen, dann legt Terraform die
+Cloudflare-Tokens an und schreibt sie in die Secrets (das Cloudflare-Token für
+Terraform braucht dafür zusätzlich *Account API Tokens: Edit*; erst nach `gcp`
+anwenden, das die Secrets anlegt). In `gcp.tfvars`
+`github_app_installation = <id>` (steht bei jeder bestehenden Verbindung) statt
+der Verbindung aus der Konsole; das Token dafür legt `bootstrap.sh infra` als
+`github-token` ab. Beide Tokens stehen dann im Terraform-State.
+
+Sonst die Werte der Secrets von Hand, im Projekt der Seite (nach einem neuen Apply leer):
 
 ```sh
 P=<seiten-projekt>
@@ -129,8 +142,10 @@ gcloud builds triggers run werkverzeichnis-backend-<branch> --region=europe-west
 Von Hand, mit den eigenen Zugangsdaten, geht es weiterhin:
 
 ```sh
+export FIRESTORE_PROJECT=<seiten-projekt>
 node tools/rules_deploy.mjs                     # Firestore-Regeln (vorher die Tests)
-(cd gcf && npm ci) && firebase deploy --only functions --project <seiten-projekt>
+printf 'KUENSTLER=<kuenstler>\nBRANCH=<branch>\n' > gcf/.env   # welche Seite veröffentlicht wird
+(cd gcf && npm ci) && firebase deploy --only functions --project $FIRESTORE_PROJECT
 node tools/super_admin.mjs grant <deine-email>  # Notschlüssel; sonst in der Zentrale (§6)
 ```
 
@@ -218,9 +233,3 @@ Wer hinein darf, ändert eine neue Version des Secrets, dann wieder
 printf 'name@gmail.com\nandere@gmail.com\n' | gcloud secrets versions add zentrale-zugang \
   --project=$INFRA_PROJECT --data-file=-
 ```
-
-## Noch nicht je Seite
-
-Diese Stellen nennen noch die Kutscher-Seite im Code: `gcf/index.js` und
-`gcf/publish.js` (Projekt, Trigger), `src/components/firebaseClient.js` und die
-Vorgaben in `tools/*`.
