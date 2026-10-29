@@ -11,15 +11,27 @@ import { auth, kuenstler } from "./firebaseClient.js";
  * für darf() aus permissions.js. `fehler`: Das Laden scheiterte (etwa offline);
  * `erneut()` versucht es noch einmal.
  */
+// Die letzte Prüfung gilt weiter, solange die Seite nicht neu lädt: Ein Wechsel
+// des Bereichs in der Verwaltung (#90) zeigt so nicht jedes Mal erst „…“.
+const bekannt = { nutzer: undefined, wer: undefined };
+
 export function useZugang() {
-  const [nutzer, setNutzer] = useState(undefined);
-  const [wer, setWer] = useState();
+  const [nutzer, setNutzer] = useState(bekannt.nutzer);
+  const [wer, setWer] = useState(bekannt.wer);
   const [fehler, setFehler] = useState();
   const [versuch, setVersuch] = useState(0);
 
-  useEffect(() => onAuthStateChanged(auth, setNutzer), []);
+  useEffect(() => onAuthStateChanged(auth, n => {
+    if (n?.uid !== bekannt.nutzer?.uid) bekannt.wer = undefined;
+    bekannt.nutzer = n;
+    setNutzer(n);
+  }), []);
 
   useEffect(() => {
+    if (nutzer && versuch === 0 && nutzer === bekannt.nutzer && bekannt.wer !== undefined) {
+      setWer(bekannt.wer);
+      return;
+    }
     setWer(undefined);
     setFehler(undefined);
     if (!nutzer) return;
@@ -33,7 +45,9 @@ export function useZugang() {
         // Ohne Rolle darf man das Dokument nicht lesen; alles andere ist ein Fehler.
         if (e.code !== "permission-denied") throw e;
       }
-      if (aktuell) setWer(superAdmin || rolle ? { superAdmin, rolle } : null);
+      const ergebnis = superAdmin || rolle ? { superAdmin, rolle } : null;
+      if (nutzer === bekannt.nutzer) bekannt.wer = ergebnis;
+      if (aktuell) setWer(ergebnis);
     })().catch(e => { if (aktuell) setFehler(e.message); });
     return () => { aktuell = false; };
   }, [nutzer, versuch]);

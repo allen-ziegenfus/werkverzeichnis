@@ -1,18 +1,19 @@
 ---
 import einstellungen from "../../public/site.json";
-import VerwaltungKopf from "../components/VerwaltungKopf.jsx";
+import VerwaltungApp from "../components/VerwaltungApp.jsx";
 
 /**
  * Rahmen der Verwaltung: eigener Kopf mit Reitern und Veröffentlichen, ohne
  * Kopf, Fuß und Suche der Website. Immer hell, damit sie sich von der Website
  * abhebt; die Werkzeugleiste gibt es hier nicht, der Kopf übernimmt sie.
+ * Jede Adresse lädt dieselbe App (VerwaltungApp.jsx, #90); sie wählt den
+ * Bereich selbst und wechselt ihn ohne Neuladen.
  */
 export interface Props {
+  /** Titel bis die App geladen ist. */
   titel: string;
-  /** Pfad des Bereichs, dessen Reiter markiert ist. */
-  aktiv?: string;
 }
-const { titel, aktiv } = Astro.props;
+const { titel } = Astro.props;
 ---
 
 <!DOCTYPE html>
@@ -25,10 +26,6 @@ const { titel, aktiv } = Astro.props;
     <title>{titel} · Verwaltung · {einstellungen.titel}</title>
   </head>
   <body class="bg-white text-black min-h-screen">
-    <VerwaltungKopf client:only="react" kuenstlerName={einstellungen.titel} aktiv={aktiv} />
-    <main class="max-w-5xl mx-auto px-4 py-6">
-      <h1 class="text-2xl mb-4">{titel}</h1>
-      <slot />
-    </main>
+    <VerwaltungApp client:only="react" kuenstlerName={einstellungen.titel} />
   </body>
 </html>
