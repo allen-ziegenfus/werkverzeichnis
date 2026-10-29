@@ -22,6 +22,13 @@ const CLOUD_SHELL = "https://shell.cloud.google.com/cloudshell/editor?cloudshell
 const maskieren = s => String(s ?? "").replace(/[&<>"']/g, z => `&#${z.charCodeAt(0)};`);
 
 const zeit = t => t ? new Date(t).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" }) : "";
+// Wie lange etwas gedauert hat, oder „seit …“, solange es läuft (#164).
+function dauer(von, bis) {
+  if (!von) return "";
+  const s = Math.max(0, Math.round(((bis ? Date.parse(bis) : Date.now()) - Date.parse(von)) / 1000));
+  const text = s < 60 ? `${s} s` : `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ""}`;
+  return bis ? text : `seit ${text}`;
+}
 
 const STATUS = {
   QUEUED: "wartet", PENDING: "wartet", WORKING: "läuft", SUCCESS: "fertig", FAILURE: "gescheitert",
@@ -105,7 +112,7 @@ function laufZeile(l) {
   return `<tr>
     <td><a href="/lauf/${l.id}">${l.befehl === "vorschau" ? "Vorschau" : "Anwenden"}</a></td>
     <td>${maskieren(anzeigeName(l.ziel))}</td>
-    <td>${ergebnis(l)}</td>
+    <td>${ergebnis(l)}<br><span class="klein">${dauer(l.begonnen, l.beendet)}</span></td>
     <td class="klein">${zeit(l.begonnen)}<span class="breit"><br>${maskieren(l.wer || "Merge")}</span></td>
   </tr>`;
 }
@@ -134,7 +141,7 @@ function buildText(b) {
   return !b ? "noch keiner" : b.fehler ? fehlerText(b.fehler)
     : `${BUILD_LAEUFT.includes(b.status) ? dreht(STATUS[b.status]) : b.status === "SUCCESS" ? STATUS[b.status]
       : `<span class="fehler">${STATUS[b.status] ?? maskieren(b.status)}</span>`}
-      · ${zeit(b.begonnen)}${b.commit ? ` · Commit ${maskieren(b.commit)}` : ""} · <a href="${maskieren(b.log)}">Log</a>`;
+      · ${zeit(b.begonnen)} · ${dauer(b.begonnen, b.beendet)}${b.commit ? ` · Commit ${maskieren(b.commit)}` : ""} · <a href="${maskieren(b.log)}">Log</a>`;
 }
 
 function websiteKarte(w) {
@@ -144,7 +151,7 @@ function websiteKarte(w) {
   const build = buildText(w.build);
   const veroeffentlichung = !v ? "noch keine" : v.fehler ? fehlerText(v.fehler)
     : `${v.status === "fehler" ? `<span class="fehler">fehler</span>` : LAEUFT.includes(v.status) ? dreht(maskieren(v.status)) : maskieren(v.status)}
-      · ${zeit(v.angefordert)} · ${maskieren(v.von)}${v.notiz ? ` · „${maskieren(v.notiz)}“` : ""}
+      · ${zeit(v.angefordert)}${v.angefordert && (LAEUFT.includes(v.status) || v.fertig) ? ` · ${dauer(v.angefordert, LAEUFT.includes(v.status) ? undefined : v.fertig)}` : ""} · ${maskieren(v.von)}${v.notiz ? ` · „${maskieren(v.notiz)}“` : ""}
       ${v.meldung ? `<br><span class="klein fehler">${maskieren(v.meldung)}</span>` : ""}`;
   const schicht = d => d.name.endsWith("-gcp") ? "Google Cloud" : d.name.endsWith("-cloudflare") ? "Cloudflare" : d.name;
   return `<section class="karte">
@@ -335,7 +342,7 @@ async function laufSeite(id) {
   const titel = `${l.befehl === "vorschau" ? "Vorschau" : "Anwenden"}: ${anzeigeName(l.ziel)}`;
   let inhalt = `<h2>${maskieren(titel)}</h2>
 <p><strong>${ergebnis(l)}</strong>
-  <span class="klein">· begonnen ${zeit(l.begonnen)}${l.beendet ? `, beendet ${zeit(l.beendet)}` : ""}
+  <span class="klein">· begonnen ${zeit(l.begonnen)}${l.beendet ? `, beendet ${zeit(l.beendet)}` : ""} · ${dauer(l.begonnen, l.beendet)}
   · ${maskieren(l.wer || "Merge")}${l.commit ? ` · Commit ${maskieren(l.commit)}` : ""}
   · <a href="${maskieren(l.log)}">Log</a></span></p>`;
   if (l.laeuft) inhalt += `<p>Das dauert ein bis drei Minuten; die Seite lädt sich neu.</p>`;

@@ -74,14 +74,11 @@ export default function Suche() {
         const suchDaten = await (await fetch("/searchData.json")).json();
         setEintraege(suchDaten);
         const suchMetadaten = await (await fetch("/searchMetadata.json")).json();
-        setJahresSpanne([
-          Number(suchMetadaten.MinYear),
-          Number(suchMetadaten.MaxYear),
-        ]);
-        setGewaehlteJahre([
-          Number(suchMetadaten.MinYear),
-          Number(suchMetadaten.MaxYear),
-        ]);
+        // Ohne Jahre (noch keine Werke mit Jahr) gibt es keinen Regler (#185).
+        const von = Number(suchMetadaten.MinYear), bis = Number(suchMetadaten.MaxYear);
+        const spanne = suchMetadaten.MinYear != null && von > 0 && von <= bis ? [von, bis] : null;
+        setJahresSpanne(spanne);
+        setGewaehlteJahre(spanne ?? [-Infinity, Infinity]);
         const alle = { value: "all", label: "Alle" };
         setWerkgruppen([
           alle,
@@ -182,7 +179,7 @@ export default function Suche() {
 
           <div className="p-6">
             <div className="w-full flex-wrap md:flex border-2  rounded-md p-2 items-center gap-4">
-              <div className="p-1 flex-1">
+              {jahresSpanne && <div className="p-1 flex-1">
                 <div className="mb-2 text-center">Jahr</div>
                 <style>
                   {`
@@ -204,7 +201,7 @@ export default function Suche() {
                 <div className="text-white text-center">
                   {gewaehlteJahre[0]} - {gewaehlteJahre[1]}
                 </div>
-              </div>
+              </div>}
 
               <div className="p-1  text-black flex flex-wrap items-center flex-1">
                 <div className="my-1 w-full flex items-center ">
@@ -241,13 +238,14 @@ export default function Suche() {
 
           <div className="text-center text-white">
             <h2>
-              Ergebnisse {suchbegriff && <>für {suchbegriff}</>} von{" "}
-              {gewaehlteJahre[0]} - {gewaehlteJahre[1]}{" "}
+              Ergebnisse {suchbegriff && <>für {suchbegriff}</>}{" "}
+              {jahresSpanne && <>von {gewaehlteJahre[0]} - {gewaehlteJahre[1]}{" "}</>}
               {gewaehlteWerkgruppe.value != "all" && (
                 <span>in Werkgruppe {gewaehlteWerkgruppe.label}</span>
               )}
               {bildVorhanden && <>&nbsp;wo Bilder vorhanden sind</>}
             </h2>
+            {geladen && eintraege.length === 0 && <p className="mt-2">Noch keine Werke.</p>}
           </div>
 
           <div className="p-6 ]ext-center flex items-center justify-evenly gap-2">

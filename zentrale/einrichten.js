@@ -21,6 +21,9 @@ const BUILD = { SUCCESS: "fertig", FAILURE: "gescheitert", WORKING: "läuft", QU
   INTERNAL_ERROR: "gescheitert", TIMEOUT: "Zeit überschritten", CANCELLED: "abgebrochen" };
 const buildText = b => b?.status ? `Letzter Build: ${BUILD[b.status] ?? b.status}` : "";
 
+/** Wie Firebase: Eine eingetragene Domain lässt auch ihre Subdomains zu (#144). */
+const zugelassen = (host, domains = []) => domains.some(d => host === d || host.endsWith("." + d));
+
 /** Die Eingaben einer neuen Website, als Vorlage für infra/sites/<seite>/. */
 export function vorlagen(w, vorbild) {
   const e = vorbild?.eingaben ?? {};
@@ -80,6 +83,10 @@ export async function einrichtung({ seite, projekt, adresse }) {
   const firebaseKonsole = `https://console.firebase.google.com/project/${p}/authentication`;
   const fertig = b => b?.status === "SUCCESS";
   const tf = ["gcp", "cloudflare"].map(deployment);
+  // Für die Anleitung zu den Cloudflare-Tokens (#166).
+  const cf = tf[1]?.eingaben ?? {};
+  const cfKonto = cf.konto_id ?? v.cloudflare.match(/konto_id *= "([^"]+)"/)?.[1];
+  const r2Bucket = cf.bilder_bucket ?? `werkverzeichnis-bilder-${seite}`;
 
   return { w, vorlagen: v, schritte: [
     {
@@ -104,9 +111,9 @@ export async function einrichtung({ seite, projekt, adresse }) {
     },
     {
       titel: "Anmeldung mit Google",
-      erledigt: google.wert?.enabled === true && !!host && (config.wert?.authorizedDomains ?? []).includes(host),
+      erledigt: google.wert?.enabled === true && !!host && zugelassen(host, config.wert?.authorizedDomains),
       text: google.fehler?.startsWith("404") ? "Google ist nicht aktiviert." : google.fehler ? NICHT_LESBAR : [google.wert?.enabled ? "" : "Google ist nicht aktiviert.",
-        host && config.wert && !(config.wert.authorizedDomains ?? []).includes(host) ? `${host} fehlt bei den Authorized domains.` : ""]
+        host && config.wert && !zugelassen(host, config.wert.authorizedDomains) ? `${host} fehlt bei den Authorized domains.` : ""]
         .filter(Boolean).join(" "),
       aktion: { link: `${firebaseKonsole}/providers`, text: "Authentication → Google aktivieren, Settings → Authorized domains" },
     },
@@ -115,7 +122,19 @@ export async function einrichtung({ seite, projekt, adresse }) {
       erledigt: secrets.every(x => (x.wert?.versions ?? []).length > 0),
       text: secrets.some(x => x.fehler) ? NICHT_LESBAR
         : SECRETS.filter((_, i) => !(secrets[i].wert?.versions ?? []).length).map(n => `${n} hat keinen Wert`).join(", "),
-      aktion: { hinweis: "Mit Terraform (#112, seiten_projekt in cloudflare.tfvars) oder von Hand, BOOTSTRAP.md §4." },
+      aktion: {
+        hinweis: "Zwei Tokens in Cloudflare (der Wert erscheint nur einmal; Seite offen lassen, bis er eingetragen ist): "
+          + "1. Account API Token → Custom token, eine Policy: Entire account → „Pages Write“ (früher „Cloudflare Pages · Edit“) → cloudflare-pages-token. "
+          + `2. R2-Token, „Object Read & Write“, nur Bucket ${r2Bucket}; davon Access Key ID → r2-access-key-id, `
+          + "Secret Access Key → r2-secret-access-key. Dann der Befehl (fragt die drei Werte nacheinander). "
+          + "Ohne Handarbeit: seiten_projekt in cloudflare.tfvars (#143).",
+        links: cfKonto ? [
+          { link: `https://dash.cloudflare.com/${cfKonto}/api-tokens`, text: "Account API Tokens" },
+          { link: `https://dash.cloudflare.com/${cfKonto}/r2/api-tokens`, text: "R2-Tokens" },
+        ] : undefined,
+        befehl: `P=${p}; for s in r2-access-key-id r2-secret-access-key cloudflare-pages-token; do read -rsp "$s: " T; echo; `
+          + `printf %s "$T" | gcloud secrets versions add $s --project=$P --data-file=-; done; unset T`,
+      },
     },
     {
       titel: "Regeln und Funktionen",

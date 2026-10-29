@@ -68,13 +68,18 @@ resource "google_firebase_project" "projekt" {
 }
 
 resource "google_firestore_database" "datenbank" {
-  name                    = var.firestore_datenbank
-  location_id             = var.region
-  type                    = "FIRESTORE_NATIVE"
-  database_edition        = "ENTERPRISE"
-  delete_protection_state = "DELETE_PROTECTION_ENABLED"
-  deletion_policy         = "ABANDON"
-  depends_on              = [google_project_service.api]
+  name             = var.firestore_datenbank
+  location_id      = var.region
+  type             = "FIRESTORE_NATIVE"
+  database_edition = "ENTERPRISE"
+  # Neue Enterprise-Datenbanken kommen mit MongoDB-Zugriff und ohne Firestore-API
+  # und Echtzeit-Updates; die Seite braucht beides (#148). Wie bei Kutscher.
+  firestore_data_access_mode          = "DATA_ACCESS_MODE_ENABLED"
+  mongodb_compatible_data_access_mode = "DATA_ACCESS_MODE_DISABLED"
+  realtime_updates_mode               = "REALTIME_UPDATES_MODE_ENABLED"
+  delete_protection_state             = "DELETE_PROTECTION_ENABLED"
+  deletion_policy                     = "ABANDON"
+  depends_on                          = [google_project_service.api]
 }
 
 # Originale. Die Bildfunktion erzeugt daraus die Webversionen in R2.
@@ -166,6 +171,33 @@ resource "google_project_iam_member" "gcs_ereignisse" {
   project = var.projekt_id
   role    = "roles/pubsub.publisher"
   member  = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
+}
+
+# Was Firebase beim Deployen der Funktionen sonst selbst setzen will und
+# ohne Owner-Rechte daran scheitert (#157); bei Kutscher von Hand gesetzt.
+resource "google_project_service_identity" "pubsub" {
+  provider = google-beta
+  service  = "pubsub.googleapis.com"
+}
+
+# Sonst legt ihn erst der erste Deploy an, und seine Rechte wirken dann noch
+# nicht (#169). Die Rolle eventarc.serviceAgent vergibt Google selbst.
+resource "google_project_service_identity" "eventarc" {
+  provider = google-beta
+  service  = "eventarc.googleapis.com"
+}
+
+resource "google_project_iam_member" "pubsub_token" {
+  project = var.projekt_id
+  role    = "roles/iam.serviceAccountTokenCreator"
+  member  = google_project_service_identity.pubsub.member
+}
+
+resource "google_project_iam_member" "compute_ereignisse" {
+  for_each = toset(["roles/run.invoker", "roles/eventarc.eventReceiver"])
+  project  = var.projekt_id
+  role     = each.key
+  member   = "serviceAccount:${data.google_project.projekt.number}-compute@developer.gserviceaccount.com"
 }
 
 # --- Secrets (Werte: gcloud secrets versions add, siehe BOOTSTRAP.md) --------
@@ -335,4 +367,14 @@ resource "google_service_account_iam_member" "deploy_als_compute" {
 resource "google_pubsub_topic" "cloud_builds" {
   name       = "cloud-builds"
   depends_on = [google_project_service.api]
+}
+
+# firebase-tools legt das Topic eines Pub/Sub-Triggers beim ersten Deploy immer
+# an und nimmt nur „gibt es schon“ hin, nicht „keine Berechtigung“ (#172).
+# pubsub.topics.create gibt es nur projektweit; eine eigene Rolle dafür darf
+# infra-manager@ nicht anlegen (kein iam.roleAdmin), also die vordefinierte.
+resource "google_project_iam_member" "deploy_topics" {
+  project = var.projekt_id
+  role    = "roles/pubsub.editor"
+  member  = local.konten["werkverzeichnis-deploy"]
 }
