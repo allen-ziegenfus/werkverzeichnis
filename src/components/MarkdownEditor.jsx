@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import "@mdxeditor/editor/style.css";
 import {
   BlockTypeSelect, BoldItalicUnderlineToggles, CreateLink, DiffSourceToggleWrapper, diffSourcePlugin,
@@ -17,6 +18,9 @@ import {
  * einen eigenen `key` geben.
  */
 export default function MarkdownEditor({ markdown, onAenderung, nurLesen }) {
+  // Beim Laden schreibt der Editor das Markdown um (Leerzeilen, Listenzeichen …).
+  // Solange der Text dieser Fassung entspricht, gilt der ursprüngliche (#132).
+  const geladen = useRef();
   return (
     <div className="border rounded markdown-editor">
       <style>{`
@@ -31,7 +35,10 @@ export default function MarkdownEditor({ markdown, onAenderung, nurLesen }) {
       `}</style>
       <MDXEditor
         markdown={markdown}
-        onChange={onAenderung}
+        onChange={(text, beimLaden) => {
+          if (beimLaden) { geladen.current = text; return; }
+          onAenderung(text === geladen.current ? markdown : text);
+        }}
         readOnly={nurLesen}
         contentEditableClassName="md-content"
         plugins={[

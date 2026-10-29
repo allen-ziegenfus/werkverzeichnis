@@ -26,6 +26,14 @@ export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const zeit = t => t?.toMillis() ?? Infinity;   // noch ohne Serverzeit: gerade eben
 export const SEITENFELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
+// Seitentexte so, wie die Website sie zeigt: mehrere Leerzeilen und Leerraum am
+// Anfang und Ende machen keinen Unterschied; der Editor schreibt sie beim Laden um
+// (#132). Leerzeichen am Zeilenende bleiben, zwei davon sind ein Zeilenumbruch.
+const textKern = t => (t ?? "").replace(/\n[ \t]+(?=\n)/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+/** Die Felder, in denen sich zwei Fassungen einer Seite sichtbar unterscheiden. */
+export const seitenUnterschiede = (a, b) => Object.keys(SEITENFELDER)
+  .filter(k => k === "text" ? textKern(a[k]) !== textKern(b[k]) : a[k] !== b[k]);
+export const seitenGleich = (a, b) => (!a && !b) || (!!a && !!b && !seitenUnterschiede(a, b).length);
 
 /**
  * Was netto seit der letzten Veröffentlichung geändert ist (#67): je Werk der
@@ -56,11 +64,9 @@ export function netto(history, seitenverlauf) {
     s.t = e.at;
     seiten.set(e.seite, s);
   }
-  const gleich = (a, b) => (!a && !b) || (a && b && Object.keys(SEITENFELDER).every(k => a[k] === b[k]));
-
   return {
     werke: [...werke.values()].filter(w => Object.keys(w.felder).length),
-    seiten: [...seiten.values()].filter(s => !gleich(s.vorher, s.nachher)),
+    seiten: [...seiten.values()].filter(s => !seitenGleich(s.vorher, s.nachher)),
   };
 }
 
@@ -292,7 +298,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
           ? <a className="underline" href={`/verwaltung/seiten/?seite=${encodeURIComponent(s.seite)}`}>Seite „{s.nachher.titel}“</a>
           : <>Seite „{s.nachher?.titel ?? s.vorher?.titel ?? s.seite}“</>}
         {" "}{!s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
-          : Object.keys(SEITENFELDER).filter(k => s.vorher[k] !== s.nachher[k]).map(k => SEITENFELDER[k]).join(", ")}
+          : seitenUnterschiede(s.vorher, s.nachher).map(k => SEITENFELDER[k]).join(", ")}
         {" "}· {von(s.von)}
       </> })),
     ...aenderungen.werkgruppen.slice(0, HOECHSTENS).map(g => ({ id: "g" + g.id, t: g.updatedAt,

@@ -7,6 +7,7 @@ import { client, SCHLUESSEL, zielSuchen } from "./abfragen.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
+import { seitenUnterschiede, SEITENFELDER } from "./Veroeffentlichen.jsx";
 
 // Der Editor ist groß; erst laden, wenn eine Seite geöffnet wird.
 const MarkdownEditor = lazy(() => import("./MarkdownEditor.jsx"));
@@ -26,7 +27,6 @@ const ordnung = (a, b) => a.kategorie.localeCompare(b.kategorie) * -1 || a.reihe
 const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
 const neuesteZuerst = (a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0);
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) ?? "gerade eben";
-const FELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
 
 export default function SeitenSeite() {
   return <Zugang berechtigung="seiten.bearbeiten" kinder={({ nutzer, wer }) =>
@@ -246,7 +246,7 @@ function Fassungen({ eintraege, bearbeitbar, laden }) {
                 <span className="text-gray-600">{wann(e.at)}</span> · {e.by} ·{" "}
                 {!e.vorher ? "angelegt"
                   : !e.nachher ? "gelöscht"
-                  : Object.keys(FELDER).filter(k => e.vorher[k] !== e.nachher[k]).map(k => FELDER[k]).join(", ") || "nichts geändert"}
+                  : seitenUnterschiede(e.vorher, e.nachher).map(k => SEITENFELDER[k]).join(", ") || "nichts geändert"}
                 {i === 0 && e.nachher && <span className="text-gray-600"> (aktuell)</span>}
               </span>
               {bearbeitbar && e.nachher && i > 0 && (

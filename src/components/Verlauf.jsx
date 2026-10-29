@@ -4,7 +4,7 @@ import {
 } from "firebase/firestore";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
-import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
+import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
@@ -24,7 +24,6 @@ const knopf = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opac
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
-const gleich = (a, b) => (!a && !b) || (!!a && !!b && Object.keys(SEITENFELDER).every(k => a[k] === b[k]));
 
 export default function VerlaufSeite() {
   return <Zugang berechtigung="veroeffentlichen" kinder={({ nutzer, wer }) =>
@@ -170,7 +169,7 @@ async function seiteZuruecksetzen(kuenstlerId, ich, s) {
   return runTransaction(db, async tx => {
     const jetzt = await tx.get(ref);
     const ist = jetzt.exists() ? fassung(jetzt.data()) : null;
-    if (!gleich(ist, s.nachher)) return false;
+    if (!seitenGleich(ist, s.nachher)) return false;
     if (!s.vorher) {
       // Feste Kennung, damit die Regeln den Eintrag zum Löschen finden.
       const eintrag = doc(verlauf, "geloescht-" + (jetzt.get("lastChange") ?? s.seite));
@@ -234,7 +233,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
     ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).join(", "), [...w.von].join(", ")]),
     ...n.seiten.map(s => ["s" + s.seite, `Seite „${seitenName(s)}“`,
       !s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
-        : Object.keys(SEITENFELDER).filter(k => s.vorher[k] !== s.nachher[k]).map(k => SEITENFELDER[k]).join(", "),
+        : seitenUnterschiede(s.vorher, s.nachher).map(k => SEITENFELDER[k]).join(", "),
       [...s.von].join(", ")]),
     ...a.werkgruppen.map(g => ["g" + g.id, `Werkgruppe „${g.titel || g.id}“`, ohneVerlauf, ""]),
     ...a.medien.map(m => ["m" + m.id, "Bild verarbeitet", m.original?.split("/").pop() ?? m.id, ""]),
