@@ -361,3 +361,13 @@ resource "google_pubsub_topic" "cloud_builds" {
   name       = "cloud-builds"
   depends_on = [google_project_service.api]
 }
+
+# firebase-tools legt das Topic eines Pub/Sub-Triggers beim ersten Deploy immer
+# an und nimmt nur „gibt es schon“ hin, nicht „keine Berechtigung“ (#172).
+# pubsub.topics.create gibt es nur projektweit; eine eigene Rolle dafür darf
+# infra-manager@ nicht anlegen (kein iam.roleAdmin), also die vordefinierte.
+resource "google_project_iam_member" "deploy_topics" {
+  project = var.projekt_id
+  role    = "roles/pubsub.editor"
+  member  = local.konten["werkverzeichnis-deploy"]
+}
