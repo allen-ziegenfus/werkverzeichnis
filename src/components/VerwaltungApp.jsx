@@ -15,9 +15,9 @@ import VerwaltungKopf from "./VerwaltungKopf.jsx";
 // Scheitert es gleich danach wieder, liegt es nicht daran: Fehler zeigen.
 const nachladen = laden => lazy(() => laden().catch(e => {
   let zuletzt = 0;
-  try { zuletzt = Number(sessionStorage.getItem("verwaltung-neu-geladen")) || 0; } catch {}
+  try { zuletzt = Number(sessionStorage.getItem("verwaltung-neu-geladen")) || 0; } catch { throw e; }
   if (Date.now() - zuletzt < 30_000) throw e;
-  try { sessionStorage.setItem("verwaltung-neu-geladen", String(Date.now())); } catch {}
+  try { sessionStorage.setItem("verwaltung-neu-geladen", String(Date.now())); } catch { throw e; }
   location.reload();
   return new Promise(() => {});
 }));
