@@ -241,6 +241,7 @@ resource "google_cloudbuild_trigger" "backend" {
 
   substitutions = {
     _FIRESTORE_DATABASE = var.firestore_datenbank
+    _ARTIST             = var.kuenstler # für gcf/.env (#109)
   }
 }
 
