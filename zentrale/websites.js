@@ -67,10 +67,13 @@ async function letzteVeroeffentlichung(w) {
   return d && felder(d.fields);
 }
 
-/** Der letzte Build eines Triggers der Seite: Seite (Push oder Veröffentlichen) oder Backend (#98). */
-async function letzterBuild(w, trigger = w.trigger) {
+/**
+ * Der letzte Build eines Triggers der Seite: Seite (Push oder Veröffentlichen)
+ * oder Backend (#98); mit `nurErfolg` der letzte erfolgreiche (#146).
+ */
+export async function letzterBuild(w, trigger = w.trigger, nurErfolg = false) {
   // Nach dem Namen filtern; trigger_id bräuchte zusätzlich das Recht, Trigger zu lesen.
-  const filter = encodeURIComponent(`substitutions.TRIGGER_NAME="${trigger}"`);
+  const filter = encodeURIComponent(`substitutions.TRIGGER_NAME="${trigger}"${nurErfolg ? ' AND status="SUCCESS"' : ""}`);
   const { builds = [] } = await api(
     `https://cloudbuild.googleapis.com/v1/projects/${w.projekt}/locations/${REGION}/builds?pageSize=1&filter=${filter}`);
   const b = builds[0];

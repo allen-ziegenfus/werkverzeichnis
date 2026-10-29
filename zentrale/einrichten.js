@@ -1,6 +1,6 @@
 import { api, projekt as infraProjekt } from "./gcp.js";
 import { deployments } from "./terraform.js";
-import { stand, websites } from "./websites.js";
+import { letzterBuild, stand, websites } from "./websites.js";
 
 /**
  * Die Schritte, bis eine neue Website läuft (#111, Option B in #13), und ob
@@ -59,7 +59,7 @@ export async function einrichtung({ seite, projekt, adresse }) {
     trigger: "werkverzeichnis-main", backendTrigger: "werkverzeichnis-backend-main", deployments: [],
   };
   const p = w.projekt;
-  const [projektInfo, rechnung, firebase, google, config, secrets, s] = await Promise.all([
+  const [projektInfo, rechnung, firebase, google, config, secrets, s, erfolg, backendErfolg] = await Promise.all([
     versuch(lesen(w, `https://cloudresourcemanager.googleapis.com/v3/projects/${p}`)),
     versuch(lesen(w, `https://cloudbilling.googleapis.com/v1/projects/${p}/billingInfo`)),
     versuch(lesen(w, `https://firebase.googleapis.com/v1beta1/projects/${p}`)),
@@ -68,6 +68,9 @@ export async function einrichtung({ seite, projekt, adresse }) {
     Promise.all(SECRETS.map(n => versuch(lesen(w,
       `https://secretmanager.googleapis.com/v1/projects/${p}/secrets/${n}/versions?filter=${encodeURIComponent("state:ENABLED")}`)))),
     bekannt ? stand(w) : Promise.resolve({}),
+    // Erledigt, sobald je ein Build geklappt hat, auch wenn gerade einer läuft (#146).
+    bekannt ? letzterBuild(w, w.trigger, true).catch(() => null) : null,
+    bekannt ? letzterBuild(w, w.backendTrigger, true).catch(() => null) : null,
   ]);
   const deployment = schicht => ds.find(d => d.name === `${seite}-${schicht}`);
   const vorbild = ds.find(d => d.name.endsWith("-gcp") && d.name !== `${seite}-gcp`);
@@ -116,7 +119,7 @@ export async function einrichtung({ seite, projekt, adresse }) {
     },
     {
       titel: "Regeln und Funktionen",
-      erledigt: fertig(s.backend),
+      erledigt: fertig(s.backend) || !!backendErfolg,
       text: buildText(s.backend) || "Noch kein Build.",
       aktion: konsole("cloud-build/triggers;region=europe-west3", `${w.backendTrigger} einmal ausführen`),
     },
@@ -128,7 +131,7 @@ export async function einrichtung({ seite, projekt, adresse }) {
     },
     {
       titel: "Erster Build",
-      erledigt: fertig(s.build),
+      erledigt: fertig(s.build) || !!erfolg,
       text: buildText(s.build) || "Noch kein Build; der Push nach dem Merge oder Veröffentlichen baut.",
       aktion: w.adresse ? { link: w.adresse, text: "Website öffnen" } : undefined,
     },
