@@ -105,6 +105,8 @@ function testdaten(datei: string): [Katalog, Map<string, string>] {
 
 /** Validierung ist der Preis einer schemalosen Quelle. Laut scheitern, nie eine Lücke zeigen. */
 const probleme: string[] = [];
+// Was auffällt, aber den Build nicht aufhält (auch nicht mit STRICT, #182).
+const hinweise: string[] = [];
 
 async function bauen() {
   const [katalog, md5s] = TESTDATEN ? testdaten(TESTDATEN)
@@ -165,8 +167,11 @@ async function bauen() {
       Number(a.InventoryNumber) - Number(b.InventoryNumber) || a.Slug.localeCompare(b.Slug));
     suchMetadaten.InvNrs.push(...eintraege.map(e => e.InvNr));
 
-    if (!gruppe.cover) probleme.push(`no cover image for Werkgruppe ${gruppe.slug}`);
-    const titelbild = gruppe.cover ? webBild(gruppe.cover, gruppe.slug) ?? PLATZHALTER : PLATZHALTER;
+    // Ohne Titelbild das erste Bild der Werkgruppe, sonst der Platzhalter (#182):
+    // Titelbilder lassen sich in der Verwaltung noch nicht setzen (#180).
+    const erstesBild = eintraege.map(e => e.Bilder[0]).find(b => b !== PLATZHALTER && !b.video);
+    if (!gruppe.cover) hinweise.push(`Werkgruppe ${gruppe.slug}: kein Titelbild, ${erstesBild ? "nehme das erste Werk" : "Platzhalter"}`);
+    const titelbild = gruppe.cover ? webBild(gruppe.cover, gruppe.slug) ?? PLATZHALTER : erstesBild ?? PLATZHALTER;
 
     werkgruppen.push({
       Titel: gruppe.titel,
@@ -197,6 +202,10 @@ async function bauen() {
   const anzahlWerke = werkgruppen.reduce((n, w) => n + w.Records.length, 0);
   console.log(`\n${werkgruppen.length} Werkgruppen, ${anzahlWerke} works, ${seiten.length} pages`);
 
+  if (hinweise.length) {
+    console.log(`\n${hinweise.length} Hinweis(e):`);
+    for (const h of hinweise.slice(0, 40)) console.log(`  · ${h}`);
+  }
   if (probleme.length) {
     console.error(`\n${probleme.length} problem(s) in the data:`);
     for (const p of probleme.slice(0, 40)) console.error(`  ! ${p}`);
