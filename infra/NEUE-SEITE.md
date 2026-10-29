@@ -73,8 +73,10 @@ Zwei Tokens in Cloudflare. Ihr Wert erscheint nur einmal; die Seite offen
 lassen, bis er eingetragen ist.
 
 1. **Pages-Token**, für den Build: Manage Account → Account API Tokens →
-   *Create Token* → *Custom token*, Recht **Account · Cloudflare Pages · Edit**,
-   nur dieses Konto. Wird `cloudflare-pages-token`.
+   *Create Token* → *Custom token*, genau eine Policy: *Entire account* →
+   **Pages Write** (in der alten Oberfläche *Account · Cloudflare Pages · Edit*).
+   Eine Vorlage wie „Edit Cloudflare Workers“ bringt mehr mit; alles außer
+   *Pages Write* entfernen. Wird `cloudflare-pages-token`.
 2. **R2-Token**, für die Bildfunktion: R2 Object Storage → *Manage API tokens* →
    *Create API token*, **Object Read & Write**, nur der Bucket der Seite
    (`werkverzeichnis-bilder-<seite>`). Davon die *Access Key ID* wird

@@ -121,7 +121,7 @@ export async function einrichtung({ seite, projekt, adresse }) {
         : SECRETS.filter((_, i) => !(secrets[i].wert?.versions ?? []).length).map(n => `${n} hat keinen Wert`).join(", "),
       aktion: {
         hinweis: "Zwei Tokens in Cloudflare (der Wert erscheint nur einmal; Seite offen lassen, bis er eingetragen ist): "
-          + "1. Account API Token → Custom token, Recht „Account · Cloudflare Pages · Edit“, nur dieses Konto → cloudflare-pages-token. "
+          + "1. Account API Token → Custom token, eine Policy: Entire account → „Pages Write“ (früher „Cloudflare Pages · Edit“) → cloudflare-pages-token. "
           + `2. R2-Token, „Object Read & Write“, nur Bucket ${r2Bucket}; davon Access Key ID → r2-access-key-id, `
           + "Secret Access Key → r2-secret-access-key. Dann der Befehl (fragt die drei Werte nacheinander). "
           + "Ohne Handarbeit: seiten_projekt in cloudflare.tfvars (#143).",

@@ -119,8 +119,8 @@ der Verbindung aus der Konsole; das Token dafür legt `bootstrap.sh infra` als
 Sonst die Werte der Secrets von Hand, im Projekt der Seite (nach einem neuen Apply leer).
 Dafür zwei Tokens in Cloudflare (#166):
 
-- `cloudflare-pages-token`: Account API Token, Recht *Account · Cloudflare Pages ·
-  Edit*, nur dieses Konto;
+- `cloudflare-pages-token`: Account API Token, eine Policy *Entire account* →
+  *Pages Write* (alte Oberfläche: *Account · Cloudflare Pages · Edit*);
 - `r2-access-key-id`, `r2-secret-access-key`: R2-Token (*Manage API tokens*),
   *Object Read & Write*, nur der Bucket der Seite; davon Access Key ID und Secret
   Access Key.
