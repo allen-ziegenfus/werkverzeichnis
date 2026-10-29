@@ -13,6 +13,7 @@ resource "google_project_iam_member" "terraform" {
   for_each = toset([
     "roles/config.admin",  # Vorschauen und Deployments anlegen, Pläne lesen
     "roles/storage.admin", # die Quellen in den Staging-Bucket von Infrastructure Manager laden
+    "roles/cloudbuild.builds.viewer", # auf ältere Läufe warten (alle.sh, #131)
     "roles/logging.logWriter",
     "roles/serviceusage.serviceUsageConsumer",
   ])

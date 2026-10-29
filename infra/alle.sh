@@ -44,6 +44,43 @@ else
   unset VORSCHAU ERWARTET LOESCHEN BUILDER_OUTPUT
 fi
 
+# Nacheinander (#131): Gleichzeitige Läufe sperren sich gegenseitig die
+# Deployments. Erst warten, bis kein älterer Build der beiden Terraform-Trigger
+# mehr läuft; Vorschauen zählen mit, sie sperren auch. Ein ganzer Lauf nach
+# einem Merge entfällt, wenn ein neuerer schon wartet: der wendet ohnehin alles
+# an. Ohne BUILD_ID (von Hand) oder ohne Leserechte geht es gleich los.
+warten() {
+  [ -n "${BUILD_ID:-}" ] || return 0
+  local region=${INFRA_LOCATION:-europe-west3} zeit='date("%Y-%m-%dT%H:%M:%S.%f")'
+  local eigen laufend aeltere neuere bis=$((SECONDS + 2700)) gemeldet=""
+  if ! eigen=$(gcloud builds describe "$BUILD_ID" --project="$INFRA_PROJECT" --region="$region" \
+      --format="value(createTime.$zeit)" 2>/dev/null); then
+    echo "Hinweis: Builds nicht lesbar, warte nicht auf ältere Läufe."; return 0
+  fi
+  while :; do
+    if ! laufend=$(gcloud builds list --project="$INFRA_PROJECT" --region="$region" --ongoing \
+        --format="csv[no-heading](id,createTime.$zeit,substitutions.TRIGGER_NAME,substitutions._BEFEHL,substitutions._ZIEL)" 2>/dev/null); then
+      echo "Hinweis: Builds nicht lesbar, warte nicht auf ältere Läufe."; return 0
+    fi
+    laufend=$(awk -F, -v id="$BUILD_ID" '$1 != id && ($3 == "terraform-anwenden" || $3 == "terraform-vorschau")' <<<"$laufend")
+    aeltere=$(awk -F, -v e="$eigen" 'NF && $2 < e { print $1 " (" $3 ")" }' <<<"$laufend")
+    neuere=$(awk -F, -v e="$eigen" 'NF && $2 > e && $3 == "terraform-anwenden" && $4 == "apply" && $5 == ""' <<<"$laufend")
+    if [ "$befehl" = apply ] && [ -z "$nur" ] && [ -n "$neuere" ]; then
+      echo "Ein neuerer Lauf nach einem Merge wartet schon und wendet alles an; dieser entfällt."
+      exit 0
+    fi
+    [ -z "$aeltere" ] && return 0
+    if [ "$SECONDS" -ge "$bis" ]; then
+      echo "!!! Seit 45 Minuten laufen noch ältere Terraform-Läufe:"; echo "$aeltere"; exit 1
+    fi
+    if [ "$aeltere" != "$gemeldet" ]; then
+      echo "Warte auf ältere Terraform-Läufe:"; echo "$aeltere"; gemeldet=$aeltere
+    fi
+    sleep 20
+  done
+}
+warten
+
 fehler=0
 zusammenfassung=()   # je Deployment eine Zeile fürs Ende (#159)
 for ziel in "${ziele[@]}"; do

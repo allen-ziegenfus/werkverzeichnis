@@ -25,5 +25,7 @@ steps:
       - ERWARTET=${_ERWARTET}
       - LOESCHEN=${_LOESCHEN}
       - WER=${_WER}
+      - BUILD_ID=$BUILD_ID
 
-timeout: 3600s
+# Wartet zu Beginn auf ältere Läufe (alle.sh, #131), daher reichlich.
+timeout: 7200s
