@@ -48,7 +48,7 @@ fehler=0
 for ziel in "${ziele[@]}"; do
   echo; echo "=== $ziel ==="
   # shellcheck disable=SC2086 # Schicht und Seite als zwei Argumente
-  "$hier/apply.sh" preview $ziel
+  ausgabe=$("$hier/apply.sh" preview $ziel | tee /dev/stderr)
   ergebnis=$?
   if [ $ergebnis -eq 3 ] && [ -n "$nur" ] && [ "${LOESCHEN:-}" = ja ]; then
     echo "Löschen bestätigt."
@@ -61,6 +61,15 @@ for ziel in "${ziele[@]}"; do
   elif [ $ergebnis -ne 0 ]; then
     echo "!!! Vorschau für $ziel gescheitert."
     fehler=1; continue
+  fi
+  # Ein leerer Plan braucht kein Apply (#155); nur wenn das Deployment nach
+  # einem gescheiterten Lauf FAILED steht, damit der Status wieder stimmt.
+  read -r schicht seite <<<"$ziel"
+  if [ "$befehl" = apply ] && grep -q "^Plan: 0 anlegen, 0 ändern, 0 löschen" <<<"$ausgabe" \
+    && [ "$(gcloud infra-manager deployments describe "${seite:+$seite-}$schicht" --project="$INFRA_PROJECT" \
+         --location="${INFRA_LOCATION:-europe-west3}" --format='value(state)' 2>/dev/null)" = ACTIVE ]; then
+    echo "Nichts zu tun."
+    continue
   fi
   if [ "$befehl" = apply ]; then
     # shellcheck disable=SC2086
