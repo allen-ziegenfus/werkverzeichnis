@@ -59,10 +59,11 @@ variable "cloudflare_konto_id" {
 
 variable "web_schluessel" {
   description = <<-EOT
-    ID des Web-Schlüssels, den Firebase beim Anlegen der Web-App erzeugt hat
-    (der apiKey in firebaseClient.js; nachschlagen mit gcloud services api-keys
-    lookup <apiKey>). Gesetzt: Terraform schränkt ihn ein (#43), nach einem
-    Import in sites/<seite>/gcp-imports.tf.
+    ID des Web-Schlüssels der Verwaltung (der apiKey in firebaseClient.js). Bei
+    einer neuen Seite eine beliebige, z. B. "web": Terraform legt ihn an (#110).
+    Hat Firebase schon einen angelegt (Web-App in der Console), seine ID
+    (gcloud services api-keys lookup <apiKey>) und ein Import in
+    sites/<seite>/gcp-imports.tf. Terraform schränkt ihn ein (#43).
   EOT
   type        = string
   default     = null

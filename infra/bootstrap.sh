@@ -7,12 +7,16 @@
 #       Cloudflare-Token für Terraform
 #   infra/bootstrap.sh add-site <infra-projekt> <seiten-projekt>
 #       erlaubt diesem Servicekonto, das Projekt einer Seite zu verwalten
+#   infra/bootstrap.sh neue-seite <infra-projekt> <seiten-projekt> <rechnungskonto> [<seite>]
+#       legt das Projekt einer neuen Seite an (mit dem eigenen Login: ein
+#       Servicekonto darf ohne Organisation keine Projekte anlegen, #13),
+#       verknüpft das Rechnungskonto, dann wie add-site; zeigt die nächsten Schritte
 #   infra/bootstrap.sh zentrale <infra-projekt>
 #       erlaubt ihm, die Zentrale im Infra-Projekt einzurichten, und legt das
 #       Secret mit den Adressen an, die hinein dürfen
 set -euo pipefail
 
-befehl=${1:?infra, add-site or zentrale}
+befehl=${1:?infra, add-site, neue-seite or zentrale}
 INFRA=${2:?infra project id}
 KONTO=infra-manager@$INFRA.iam.gserviceaccount.com
 
@@ -65,10 +69,44 @@ add-site)
     roles/iam.serviceAccountAdmin roles/iam.serviceAccountUser roles/iam.workloadIdentityPoolAdmin \
     roles/storage.admin roles/secretmanager.admin roles/datastore.owner roles/pubsub.admin \
     roles/cloudbuild.builds.editor roles/cloudbuild.connectionAdmin roles/firebase.admin; do
-    gcloud projects add-iam-policy-binding "$SEITE" --member="serviceAccount:$KONTO" \
+    # Ein eben angelegtes Projekt ist ebenfalls erst nach einigen Sekunden überall bekannt.
+    wiederholen gcloud projects add-iam-policy-binding "$SEITE" --member="serviceAccount:$KONTO" \
       --role="$rolle" --condition=None >/dev/null
   done
   echo "$KONTO may now manage $SEITE."
+  ;;
+
+neue-seite)
+  SEITE=${3:?site project id}
+  RECHNUNG=${4:?billing account id (gcloud billing accounts list)}
+  NAME=${5:-$SEITE}
+  if ! gcloud projects describe "$SEITE" >/dev/null 2>&1; then
+    gcloud projects create "$SEITE" --name="Werkverzeichnis $NAME"
+  fi
+  gcloud billing projects link "$SEITE" --billing-account="$RECHNUNG" >/dev/null
+  "$0" add-site "$INFRA" "$SEITE"
+  cat <<WEITER
+
+Projekt $SEITE ist angelegt. Weiter (BOOTSTRAP.md §3):
+
+1. GitHub-Verbindung für Cloud Build (Name werkverzeichnis, Region europe-west3,
+   die App nur für das Repository; das Repository nicht verknüpfen):
+   https://console.cloud.google.com/cloud-build/repositories/2nd-gen?project=$SEITE
+
+2. infra/sites/$NAME/ als PR, z. B. von infra/sites/kutscher kopiert, ohne die
+   *-imports.tf. In gcp.tfvars:
+     projekt_id        = "$SEITE"
+     kuenstler         = "$NAME"
+     github_verbindung = "werkverzeichnis"
+     web_schluessel    = "web"   # Terraform legt den Schlüssel an
+   Nach dem Merge wendet terraform-anwenden an (auch Firebase für das Projekt).
+
+3. Danach in der Firebase-Console Authentication starten, Google aktivieren und
+   unter Settings → Authorized domains die Adresse der Seite eintragen:
+   https://console.firebase.google.com/project/$SEITE/authentication/providers
+
+4. Die Secrets (BOOTSTRAP.md §4) und das erste Backend-Deploy (§5).
+WEITER
   ;;
 
 zentrale)

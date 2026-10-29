@@ -50,24 +50,27 @@ infra/bootstrap.sh infra $INFRA_PROJECT <rechnungskonto-id>
 
 ## 3. Ein Seiten-Projekt
 
-Bei einem **vorhandenen** Projekt (vollrad-werkverzeichnis) direkt zum letzten
-Befehl. Für eine **neue** Seite einmal von Hand, in der Konsole:
+Eine **neue** Seite: Projekt-ID wählen (weltweit eindeutig), dann mit dem
+eigenen Login (ein Servicekonto darf ohne Organisation keine Projekte anlegen):
 
-1. Das Projekt anlegen und das Rechnungskonto verknüpfen.
-2. Firebase-Konsole → Projekt hinzufügen → es auswählen. Authentication →
-   Sign-in method → Google. Eine Web-App hinzufügen; ihre Konfiguration kommt in
-   `src/components/firebaseClient.js`.
-3. Cloud Build → Repositories (2nd gen) → Create host connection: GitHub, Region
+```sh
+infra/bootstrap.sh neue-seite $INFRA_PROJECT <seiten-projekt> <rechnungskonto-id> <seite>
+```
+
+Das legt das Projekt an, verknüpft das Rechnungskonto, erlaubt Terraform, es zu
+verwalten, und zeigt die übrigen Schritte mit Links:
+
+1. Cloud Build → Repositories (2nd gen) → Create host connection: GitHub, Region
    europe-west3, die App nur für das Repository installieren. Das Repository nicht
    verknüpfen; das macht Terraform.
-4. `infra/sites/kutscher` nach `infra/sites/<seite>` kopieren, beide `.tfvars`
-   anpassen, die `*-imports.tf` löschen. Den Web-Schlüssel der Web-App schränkt
-   Terraform ein (#43): seine ID mit `gcloud services api-keys lookup <apiKey>
-   --project=<seiten-projekt>` nachschlagen, als `web_schluessel` in `gcp.tfvars`
-   eintragen und wie in `kutscher/gcp-imports.tf` importieren (geht erst, wenn
-   ein erstes Apply die API Keys eingeschaltet hat).
+2. `infra/sites/kutscher` nach `infra/sites/<seite>` kopieren, beide `.tfvars`
+   anpassen, die `*-imports.tf` löschen; `web_schluessel = "web"`, Terraform legt
+   den Web-Schlüssel an und schränkt ihn ein (#43, #110). Als PR; der Merge
+   wendet an und fügt dem Projekt auch Firebase hinzu.
+3. Firebase-Console → Authentication → Get started, Sign-in method → Google
+   aktivieren, unter Settings → Authorized domains die Adresse der Seite.
 
-Dann übernimmt Terraform:
+Ein **vorhandenes** Projekt (vollrad-werkverzeichnis) braucht nur die Rechte:
 
 ```sh
 infra/bootstrap.sh add-site $INFRA_PROJECT <seiten-projekt>
