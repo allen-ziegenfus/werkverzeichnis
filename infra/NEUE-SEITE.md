@@ -56,9 +56,16 @@ speichern; der Merge wendet Terraform an und fügt dem Projekt Firebase hinzu.
 
 ## Anmeldung mit Google
 
-Firebase-Console → Authentication → *Get started*, unter *Sign-in method*
-Google aktivieren und unter *Settings → Authorized domains* die Adresse der
-Seite eintragen. Das geht nur in der Console.
+In der Firebase-Console (Project shortcuts → Authentication); das geht nur dort:
+
+1. [Sign-in method](https://console.firebase.google.com/project/{{project-id}}/authentication/providers):
+   *Get started*, dann Google aktivieren.
+2. [Settings → Authorized domains](https://console.firebase.google.com/project/{{project-id}}/authentication/settings):
+   *Add domain* für jede Adresse der Seite, ohne `https://`, z. B.
+   `<pages-projekt>.pages.dev` und `main.<pages-projekt>.pages.dev`. Dieselben
+   Adressen stehen in `web_adressen` in `gcp.tfvars` (dort mit `https://` und `/*`).
+
+Eine Web-App in Firebase braucht es nicht; den Schlüssel legt Terraform an.
 
 ## Fertig
 
