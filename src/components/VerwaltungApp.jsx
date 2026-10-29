@@ -1,4 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useState } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { client } from "./abfragen.js";
 import { BEREICHE } from "./bereiche.js";
 import Skelett from "./Skelett.jsx";
 import VerwaltungKopf from "./VerwaltungKopf.jsx";
@@ -79,7 +81,7 @@ export default function VerwaltungApp({ kuenstlerName }) {
   useEffect(() => { document.title = `${titel} · Verwaltung · ${kuenstlerName}`; }, [titel, kuenstlerName]);
 
   return (
-    <>
+    <QueryClientProvider client={client}>
       <VerwaltungKopf kuenstlerName={kuenstlerName} aktiv={ort.pfad === "/verwaltung/" ? undefined : ort.pfad} />
       <main className="max-w-5xl mx-auto px-4 py-6">
         <h1 className="text-2xl mb-4">{titel}</h1>
@@ -90,6 +92,6 @@ export default function VerwaltungApp({ kuenstlerName }) {
           </Suspense>
         </Fehlergrenze>
       </main>
-    </>
+    </QueryClientProvider>
   );
 }
