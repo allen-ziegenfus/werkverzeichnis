@@ -3,6 +3,7 @@ import { collection, doc, getDocs, runTransaction, serverTimestamp, updateDoc } 
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 /** Die Werkgruppen der Künstler:in dieser Website: Titel, Kurztitel, Reihenfolge. */
@@ -65,14 +66,15 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
   return (
     <div className="space-y-2">
       {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
-      <table className="text-sm w-full">
+      {!gruppen && !fehler && <Skelett />}
+      {gruppen && <table className="text-sm w-full">
         <thead>
           <tr className="text-left text-gray-600">
             <th className="w-16">Reihe</th><th>Titel</th><th>Kurztitel</th><th>Kennung</th>
           </tr>
         </thead>
         <tbody>
-          {(gruppen ?? []).map(g => (
+          {gruppen.map(g => (
             <tr key={g.id} className={g.id === ziel ? "bg-yellow-100" : ""}>
               <td>
                 <input type="number" className="border p-1 w-14 disabled:bg-gray-100" disabled={!bearbeitbar} defaultValue={g.reihenfolge}
@@ -94,7 +96,7 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table>}
       {bearbeitbar && (
         <>
           <p className="text-xs text-gray-600">Änderungen werden beim Verlassen des Feldes gespeichert.</p>

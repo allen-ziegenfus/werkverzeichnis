@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Component, lazy, Suspense, useEffect, useState } from "react";
 import { BEREICHE } from "./bereiche.js";
+import Skelett from "./Skelett.jsx";
 import VerwaltungKopf from "./VerwaltungKopf.jsx";
 
 /**
@@ -9,14 +10,41 @@ import VerwaltungKopf from "./VerwaltungKopf.jsx";
  * Veröffentlichung neu zu laden. Die Bereiche werden erst bei Bedarf geladen.
  */
 
+// Nach einem Deploy gibt es die Dateien eines älteren Stands nicht mehr; ein
+// Tab, der noch offen war, lädt dann einmal neu statt leer zu bleiben (#107).
+// Scheitert es gleich danach wieder, liegt es nicht daran: Fehler zeigen.
+const nachladen = laden => lazy(() => laden().catch(e => {
+  let zuletzt = 0;
+  try { zuletzt = Number(sessionStorage.getItem("verwaltung-neu-geladen")) || 0; } catch {}
+  if (Date.now() - zuletzt < 30_000) throw e;
+  try { sessionStorage.setItem("verwaltung-neu-geladen", String(Date.now())); } catch {}
+  location.reload();
+  return new Promise(() => {});
+}));
+
+/** Statt einer leeren Seite: was schiefging, und Neuladen. */
+class Fehlergrenze extends Component {
+  state = {};
+  static getDerivedStateFromError(fehler) { return { fehler }; }
+  render() {
+    if (!this.state.fehler) return this.props.children;
+    return (
+      <div className="space-y-2">
+        <p className="text-red-700">Dieser Bereich konnte nicht geladen werden: {this.state.fehler.message}</p>
+        <button className="px-3 py-1 border rounded" onClick={() => location.reload()}>Neu laden</button>
+      </div>
+    );
+  }
+}
+
 const KOMPONENTEN = {
-  "/verwaltung/": lazy(() => import("./Verwaltung.jsx")),
-  "/verwaltung/werke/": lazy(() => import("./WerkEditor.jsx")),
-  "/verwaltung/werkgruppen/": lazy(() => import("./Werkgruppen.jsx")),
-  "/verwaltung/seiten/": lazy(() => import("./Seiten.jsx")),
-  "/verwaltung/einstellungen/": lazy(() => import("./Einstellungen.jsx")),
-  "/verwaltung/verlauf/": lazy(() => import("./Verlauf.jsx")),
-  "/verwaltung/personen/": lazy(() => import("./Personen.jsx")),
+  "/verwaltung/": nachladen(() => import("./Verwaltung.jsx")),
+  "/verwaltung/werke/": nachladen(() => import("./WerkEditor.jsx")),
+  "/verwaltung/werkgruppen/": nachladen(() => import("./Werkgruppen.jsx")),
+  "/verwaltung/seiten/": nachladen(() => import("./Seiten.jsx")),
+  "/verwaltung/einstellungen/": nachladen(() => import("./Einstellungen.jsx")),
+  "/verwaltung/verlauf/": nachladen(() => import("./Verlauf.jsx")),
+  "/verwaltung/personen/": nachladen(() => import("./Personen.jsx")),
 };
 const TITEL = { "/verwaltung/": "Übersicht", ...Object.fromEntries(BEREICHE.map(b => [b.pfad, b.titel])) };
 
@@ -55,10 +83,12 @@ export default function VerwaltungApp({ kuenstlerName }) {
       <VerwaltungKopf kuenstlerName={kuenstlerName} aktiv={ort.pfad === "/verwaltung/" ? undefined : ort.pfad} />
       <main className="max-w-5xl mx-auto px-4 py-6">
         <h1 className="text-2xl mb-4">{titel}</h1>
-        <Suspense fallback={<p>…</p>}>
-          {/* Neu aufbauen bei jedem Wechsel, auch ?werk=…: Die Bereiche lesen die Adresse beim Start. */}
-          {Bereich ? <Bereich key={ort.pfad + ort.suche} /> : <p>Diesen Bereich gibt es nicht.</p>}
-        </Suspense>
+        {/* Neu aufbauen bei jedem Wechsel, auch ?werk=…: Die Bereiche lesen die Adresse beim Start. */}
+        <Fehlergrenze key={ort.pfad + ort.suche}>
+          <Suspense fallback={<Skelett />}>
+            {Bereich ? <Bereich /> : <p>Diesen Bereich gibt es nicht.</p>}
+          </Suspense>
+        </Fehlergrenze>
       </main>
     </>
   );

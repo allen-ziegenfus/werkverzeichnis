@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { ROLLEN_NAMEN, ROLLEN } from "../werkverzeichnis/permissions.js";
 import { kuenstler } from "./firebaseClient.js";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 /** Wer bei der Künstler:in dieser Website was darf (artists/{a}.roles). Speichert nur die Rollen. */
@@ -39,7 +40,7 @@ function Personen({ ich }) {
     }
   }
 
-  if (!rollen) return fehler ? <p className="text-red-700">{fehler}</p> : <p>…</p>;
+  if (!rollen) return fehler ? <p className="text-red-700">{fehler}</p> : <Skelett />;
 
   return (
     <div className="space-y-3">

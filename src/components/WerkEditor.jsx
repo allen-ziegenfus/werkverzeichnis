@@ -3,6 +3,7 @@ import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { kuenstler, db } from "./firebaseClient.js";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -163,6 +164,7 @@ function WerkEditor({ nutzer }) {
     <div className="space-y-4">
       {fehler && <p className="text-red-700">{fehler}</p>}
 
+      {!gruppen && !fehler && <Skelett zeilen={1} />}
       {gruppen && (
         <select className="border p-1 w-full" value={gruppe} onChange={e => setGruppe(e.target.value)}>
           <option value="">Werkgruppe wählen…</option>
@@ -170,6 +172,7 @@ function WerkEditor({ nutzer }) {
         </select>
       )}
 
+      {gruppe && !werke && !fehler && <Skelett />}
       {werke && !werk && (
         <>
           <input className="border p-1 w-full" placeholder="Inv. Nr. oder Titel"
