@@ -169,7 +169,7 @@ async function bauen() {
 
     // Ohne Titelbild das erste Bild der Werkgruppe, sonst der Platzhalter (#182):
     // Titelbilder lassen sich in der Verwaltung noch nicht setzen (#180).
-    const erstesBild = eintraege.map(e => e.Bilder[0]).find(b => b !== PLATZHALTER);
+    const erstesBild = eintraege.map(e => e.Bilder[0]).find(b => b !== PLATZHALTER && !b.video);
     if (!gruppe.cover) hinweise.push(`Werkgruppe ${gruppe.slug}: kein Titelbild, ${erstesBild ? "nehme das erste Werk" : "Platzhalter"}`);
     const titelbild = gruppe.cover ? webBild(gruppe.cover, gruppe.slug) ?? PLATZHALTER : erstesBild ?? PLATZHALTER;
 
