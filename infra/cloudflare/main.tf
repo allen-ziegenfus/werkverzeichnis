@@ -33,10 +33,19 @@ locals {
   tokens = var.seiten_projekt == null ? toset([]) : toset(["pages", "r2"])
 }
 
-data "cloudflare_account_api_token_permission_groups_list" "recht" {
-  for_each   = { for k, v in { pages = "Pages Write", r2 = "Workers R2 Storage Bucket Item Write" } : k => v if contains(local.tokens, k) }
+# Alle Rechtegruppen, ausgewählt nach Namen hier statt mit dem Filter der API
+# (dessen Kodierung ist uneindeutig).
+data "cloudflare_account_api_token_permission_groups_list" "rechte" {
+  count      = var.seiten_projekt == null ? 0 : 1
   account_id = var.konto_id
-  name       = urlencode(each.value)
+  max_items  = 1000
+}
+
+locals {
+  recht = var.seiten_projekt == null ? {} : {
+    for k, name in { pages = "Pages Write", r2 = "Workers R2 Storage Bucket Item Write" } :
+    k => one([for g in data.cloudflare_account_api_token_permission_groups_list.rechte[0].result : g.id if g.name == name])
+  }
 }
 
 # Der Build deployt nach Pages; die Bildfunktion schreibt nur in den Bucket der Seite.
@@ -46,7 +55,7 @@ resource "cloudflare_account_token" "token" {
   name       = "${var.pages_projekt} ${each.key} (Terraform)"
   policies = [{
     effect            = "allow"
-    permission_groups = [{ id = data.cloudflare_account_api_token_permission_groups_list.recht[each.key].result[0].id }]
+    permission_groups = [{ id = local.recht[each.key] }]
     resources = jsonencode(each.key == "pages"
       ? { "com.cloudflare.api.account.${var.konto_id}" = "*" }
     : { "com.cloudflare.edge.r2.bucket.${var.konto_id}_default_${cloudflare_r2_bucket.bilder.name}" = "*" })
