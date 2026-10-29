@@ -161,9 +161,11 @@ service cloud.firestore {
     match /artists/{kuenstler}/seitenverlauf/{eintrag} {
       allow read: if darf(kuenstler, "lesen");
       // Nur zusammen mit der Änderung, die er beschreibt, und `vorher` ist der
-      // tatsächliche Stand davor.
+      // tatsächliche Stand davor. `rueckgaengig` nennt den Eintrag, den er
+      // zurücknimmt (#133).
       allow create: if darf(kuenstler, "seiten.bearbeiten")
-        && request.resource.data.keys().hasOnly(["seite", "by", "at", "vorher", "nachher"])
+        && request.resource.data.keys().hasOnly(["seite", "by", "at", "vorher", "nachher", "rueckgaengig"])
+        && (!("rueckgaengig" in request.resource.data) || request.resource.data.rueckgaengig is string)
         && request.resource.data.seite is string
         && request.resource.data.by == emailAdresse()
         && request.resource.data.at == request.time
