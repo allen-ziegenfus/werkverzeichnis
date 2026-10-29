@@ -80,6 +80,10 @@ def main(name):
         print(f"  {'+'.join(aktionen):15} {r['address']}")
         zeilen.append(f"{'+'.join(aktionen)} {r['address']}")
     print(f"Plan: {zaehler['create']} anlegen, {zaehler['update']} ändern, {zaehler['delete']} löschen")
+    # Auch nur geänderte Ausgaben brauchen ein Apply (alle.sh, #155).
+    ausgaben = [n for n, o in plan.get("output_changes", {}).items() if o.get("actions") not in (["no-op"], None)]
+    if ausgaben:
+        print(f"Ausgaben ändern sich: {', '.join(sorted(ausgaben))}")
     fingerabdruck = hashlib.sha256("\n".join(sorted(zeilen)).encode()).hexdigest()[:16]
     print(f"Fingerabdruck: {fingerabdruck}")
     if os.environ.get("BUILDER_OUTPUT"):
