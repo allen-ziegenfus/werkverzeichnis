@@ -21,11 +21,23 @@ erlauben, es zu verwalten:
 infra/bootstrap.sh neue-seite werkverzeichnis-infra <seiten-projekt> <rechnungskonto> <seite>
 ```
 
-Das Skript gibt am Ende die nächsten Schritte mit Links aus.
+Das Skript gibt am Ende die nächsten Schritte mit Links aus. Es schaltet auch
+Cloud Build und Secret Manager ein, die die GitHub-Verbindung braucht.
 
 ## GitHub-Verbindung
 
-In Cloud Build → Repositories (2nd gen) → *Create host connection*:
+Das neue Projekt auswählen:
+
+<walkthrough-project-setup></walkthrough-project-setup>
+
+Falls Cloud Build und Secret Manager noch aus sind (etwa bei einem Projekt, das
+nicht mit `neue-seite` angelegt wurde):
+
+<walkthrough-enable-apis apis="cloudbuild.googleapis.com,secretmanager.googleapis.com"></walkthrough-enable-apis>
+
+Dann in
+[Cloud Build → Repositories (2nd gen)](https://console.cloud.google.com/cloud-build/repositories/2nd-gen?project={{project-id}})
+→ *Create host connection*:
 
 - GitHub, Region europe-west3, Name **werkverzeichnis**;
 - die App nur für das Repository installieren;

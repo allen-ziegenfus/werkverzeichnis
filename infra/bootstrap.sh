@@ -111,6 +111,9 @@ neue-seite)
     gcloud projects create "$SEITE" --name="${anzeige:0:30}"
   fi
   gcloud billing projects link "$SEITE" --billing-account="$RECHNUNG" >/dev/null
+  # Für die GitHub-Verbindung, die vor Terraform kommt (sie legt ihr Token in
+  # Secret Manager ab); alles andere schaltet Terraform ein.
+  gcloud services enable --project="$SEITE" cloudbuild.googleapis.com secretmanager.googleapis.com
   "$0" add-site "$INFRA" "$SEITE"
   # Damit die Zentrale den ersten Schritt schon vor Terraform sieht (#111);
   # nur, wenn es sie gibt (bootstrap.sh zentrale).
