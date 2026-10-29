@@ -46,22 +46,29 @@ fi
 
 # Nacheinander (#131): Gleichzeitige Läufe sperren sich gegenseitig die
 # Deployments. Erst warten, bis kein älterer Build der beiden Terraform-Trigger
-# mehr läuft; Vorschauen zählen mit, sie sperren auch. Eine Vorschau entfällt,
-# wenn für denselben PR schon eine neuere wartet (sie wendet nichts an). Ohne
+# mehr läuft; Vorschauen zählen mit, sie sperren auch. Eine Vorschau bricht ab
+# (rot, nicht grün: ein Retry kann einen älteren Commit haben, der Check gälte
+# sonst ohne Vorschau), wenn für denselben PR schon eine neuere wartet. Ohne
 # BUILD_ID (von Hand) oder ohne Leserechte geht es gleich los.
 warten() {
   [ -n "${BUILD_ID:-}" ] || return 0
   local region=${INFRA_LOCATION:-europe-west3} zeit='date("%Y-%m-%dT%H:%M:%S.%f")'
   local eigen pr laufend aeltere bis=$((SECONDS + 2700)) gemeldet=""
-  eigen=$(gcloud builds describe "$BUILD_ID" --project="$INFRA_PROJECT" --region="$region" \
-    --format="csv[no-heading](createTime.$zeit,substitutions._PR_NUMBER)" 2>/dev/null)
+  local versuch
+  for versuch in 1 2 3; do
+    eigen=$(gcloud builds describe "$BUILD_ID" --project="$INFRA_PROJECT" --region="$region" \
+      --format="csv[no-heading](createTime.$zeit,substitutions._PR_NUMBER)" 2>/dev/null) && break
+    sleep 5
+  done
   IFS=, read -r eigen pr <<<"$eigen"
   if [ -z "$eigen" ]; then
     echo "Hinweis: Builds nicht lesbar, warte nicht auf ältere Läufe."; return 0
   fi
   while :; do
     if [ "$SECONDS" -ge "$bis" ]; then
-      echo "!!! Seit 45 Minuten laufen noch ältere Terraform-Läufe:"; echo "$aeltere"; exit 1
+      if [ -n "$aeltere" ]; then echo "!!! Seit 45 Minuten laufen noch ältere Terraform-Läufe:"; echo "$aeltere"
+      else echo "!!! Seit 45 Minuten sind die Builds nicht lesbar."; fi
+      exit 1
     fi
     # Fehler beim Lesen (Netz, Kontingent): später noch einmal, nicht einfach los.
     if ! laufend=$(gcloud builds list --project="$INFRA_PROJECT" --region="$region" --ongoing \
@@ -69,9 +76,11 @@ warten() {
       echo "Builds gerade nicht lesbar; neuer Versuch in 20 s."; sleep 20; continue
     fi
     laufend=$(awk -F, -v id="$BUILD_ID" 'NF && $1 != id && ($3 == "terraform-anwenden" || $3 == "terraform-vorschau")' <<<"$laufend")
-    if [ -n "$pr" ] && awk -F, -v e="$eigen" -v pr="$pr" '$2 > e && $3 == "terraform-vorschau" && $4 == pr { f = 1 } END { exit !f }' <<<"$laufend"; then
-      echo "Für PR #$pr wartet schon eine neuere Vorschau; diese entfällt."
-      exit 0
+    local neuere=""
+    [ -n "$pr" ] && neuere=$(awk -F, -v e="$eigen" -v pr="$pr" '$2 > e && $3 == "terraform-vorschau" && $4 == pr { print $1 }' <<<"$laufend")
+    if [ -n "$neuere" ]; then
+      echo "!!! Überholt: Für PR #$pr wartet schon eine neuere Vorschau ($neuere); diese bricht ab."
+      exit 1
     fi
     aeltere=$(awk -F, -v e="$eigen" 'NF && $2 < e { print $1 " (" $3 ")" }' <<<"$laufend")
     [ -z "$aeltere" ] && return 0
