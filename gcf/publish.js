@@ -17,14 +17,18 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { logger } from "firebase-functions";
 
-const PROJEKT = "vollrad-werkverzeichnis";
+const PROJEKT = process.env.GCLOUD_PROJECT;
 const REGION = "europe-west3";
 const SERVICEKONTO = `publish-function@${PROJEKT}.iam.gserviceaccount.com`;
 
-/** Welcher Trigger und welcher Branch die Seite welcher Künstler:in bauen. */
-const SEITEN = {
-  kutscher: { trigger: "werkverzeichnis-main", branch: "main" },
-};
+/**
+ * Welcher Trigger und welcher Branch die Seite welcher Künstler:in bauen: Jedes
+ * Projekt hat eine Seite (infra/gcp); cloudbuild-backend.yaml schreibt ihre
+ * Künstler:in und ihren Branch nach gcf/.env (#109).
+ */
+const SEITEN = process.env.KUENSTLER ? {
+  [process.env.KUENSTLER]: { trigger: `werkverzeichnis-${process.env.BRANCH}`, branch: process.env.BRANCH },
+} : {};
 
 const ENDE = { SUCCESS: "fertig", FAILURE: "fehler", INTERNAL_ERROR: "fehler", TIMEOUT: "fehler",
   CANCELLED: "fehler", EXPIRED: "fehler" };

@@ -55,8 +55,8 @@ Befehl. Für eine **neue** Seite einmal von Hand, in der Konsole:
 
 1. Das Projekt anlegen und das Rechnungskonto verknüpfen.
 2. Firebase-Konsole → Projekt hinzufügen → es auswählen. Authentication →
-   Sign-in method → Google. Eine Web-App hinzufügen; ihre Konfiguration kommt in
-   `src/components/firebaseClient.js`.
+   Sign-in method → Google. Eine Web-App hinzufügen; ihre Konfiguration setzt
+   der Trigger beim Bauen (#109).
 3. Cloud Build → Repositories (2nd gen) → Create host connection: GitHub, Region
    europe-west3, die App nur für das Repository installieren. Das Repository nicht
    verknüpfen; das macht Terraform.
@@ -129,8 +129,10 @@ gcloud builds triggers run werkverzeichnis-backend-<branch> --region=europe-west
 Von Hand, mit den eigenen Zugangsdaten, geht es weiterhin:
 
 ```sh
+export FIRESTORE_PROJECT=<seiten-projekt>
 node tools/rules_deploy.mjs                     # Firestore-Regeln (vorher die Tests)
-(cd gcf && npm ci) && firebase deploy --only functions --project <seiten-projekt>
+printf 'KUENSTLER=<kuenstler>\nBRANCH=<branch>\n' > gcf/.env   # welche Seite veröffentlicht wird
+(cd gcf && npm ci) && firebase deploy --only functions --project $FIRESTORE_PROJECT
 node tools/super_admin.mjs grant <deine-email>  # Notschlüssel; sonst in der Zentrale (§6)
 ```
 
@@ -218,9 +220,3 @@ Wer hinein darf, ändert eine neue Version des Secrets, dann wieder
 printf 'name@gmail.com\nandere@gmail.com\n' | gcloud secrets versions add zentrale-zugang \
   --project=$INFRA_PROJECT --data-file=-
 ```
-
-## Noch nicht je Seite
-
-Diese Stellen nennen noch die Kutscher-Seite im Code: `gcf/index.js` und
-`gcf/publish.js` (Projekt, Trigger), `src/components/firebaseClient.js` und die
-Vorgaben in `tools/*`.

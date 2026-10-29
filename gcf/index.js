@@ -11,7 +11,8 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { logger } from "firebase-functions";
 import { kuenstlerVon, originalVerarbeiten, r2Client } from "./process.js";
 
-const PROJEKT = "vollrad-werkverzeichnis";
+// Setzt die Firebase CLI beim Deployen und in der Funktion (#109).
+const PROJEKT = process.env.GCLOUD_PROJECT;
 const BUCKET = `${PROJEKT}.firebasestorage.app`;
 
 initializeApp();

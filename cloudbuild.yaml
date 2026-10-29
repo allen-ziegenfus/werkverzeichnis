@@ -28,6 +28,10 @@ steps:
       - FIRESTORE_DATABASE=${_FIRESTORE_DATABASE}
       - ARTIST_ID=${_ARTIST}
       - STRICT=1
+      # Für firebaseClient.js (#109).
+      - PUBLIC_FIREBASE_PROJECT=$PROJECT_ID
+      - PUBLIC_FIREBASE_API_KEY=${_FIREBASE_API_KEY}
+      - PUBLIC_KUENSTLER=${_ARTIST}
 
   - id: deploy
     name: node:24

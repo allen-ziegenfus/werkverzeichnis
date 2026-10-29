@@ -27,8 +27,10 @@ steps:
     entrypoint: bash
     args:
       - -c
+      # Die Funktionen lesen daraus, welche Seite sie veröffentlichen (#109).
       - >-
-        (cd gcf && npm ci)
+        printf 'KUENSTLER=%s\nBRANCH=%s\n' '${_ARTIST}' '$BRANCH_NAME' > gcf/.env
+        && (cd gcf && npm ci)
         && npx --yes firebase-tools@15.34.1 deploy --only functions
         --project $PROJECT_ID --non-interactive --force
 
