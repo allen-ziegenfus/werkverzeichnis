@@ -180,6 +180,13 @@ resource "google_project_service_identity" "pubsub" {
   service  = "pubsub.googleapis.com"
 }
 
+# Sonst legt ihn erst der erste Deploy an, und seine Rechte wirken dann noch
+# nicht (#169). Die Rolle eventarc.serviceAgent vergibt Google selbst.
+resource "google_project_service_identity" "eventarc" {
+  provider = google-beta
+  service  = "eventarc.googleapis.com"
+}
+
 resource "google_project_iam_member" "pubsub_token" {
   project = var.projekt_id
   role    = "roles/iam.serviceAccountTokenCreator"
