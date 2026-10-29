@@ -3,6 +3,7 @@ import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestam
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 // Der Editor ist groß; erst laden, wenn eine Seite geöffnet wird.
@@ -63,6 +64,7 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
   return (
     <div className="space-y-2">
       {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
+      {!seiten && !fehler && <Skelett />}
       <ul className="divide-y text-sm">
         {(seiten ?? []).map(s => (
           <li key={s.id}>

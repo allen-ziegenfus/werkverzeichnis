@@ -5,6 +5,7 @@ import {
 import { darf } from "../werkverzeichnis/permissions.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -60,7 +61,7 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
     e => setFehler(meldung(e))), [kuenstlerId]);
 
   if (fehler) return <p className="text-red-700 text-sm">{fehler}</p>;
-  if (!anfragen) return <p className="text-sm text-gray-600">Lädt…</p>;
+  if (!anfragen) return <Skelett />;
   const builds = nachBuild(anfragen);
   if (!builds.length) return <p className="text-sm">Noch nie veröffentlicht.</p>;
 

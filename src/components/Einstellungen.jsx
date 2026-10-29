@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { kuenstler } from "./firebaseClient.js";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -49,7 +50,7 @@ function Einstellungen() {
     }
   }
 
-  if (!entwurf) return fehler ? <p className="text-red-700">{fehler}</p> : <p>…</p>;
+  if (!entwurf) return fehler ? <p className="text-red-700">{fehler}</p> : <Skelett />;
 
   return (
     <div className="space-y-3">
