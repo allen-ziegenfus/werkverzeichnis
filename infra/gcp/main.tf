@@ -286,6 +286,13 @@ resource "google_cloudbuild_trigger" "seite" {
   location        = var.region
   filename        = "cloudbuild.yaml"
   service_account = google_service_account.konto["werkverzeichnis-build"].id
+  # Ein Push baut nur, wenn sich etwas für die Seite ändert (#194). Veröffentlichen
+  # startet den Trigger direkt und ist davon nicht betroffen.
+  ignored_files = [
+    "infra/**", "zentrale/**", "gcf/**", "firestore.rules", "docs/**", "**/*.md",
+    ".github/**", ".macroscope/**",
+    "cloudbuild-terraform.yaml", "cloudbuild-zentrale.yaml", "cloudbuild-backend.yaml",
+  ]
 
   repository_event_config {
     repository = google_cloudbuildv2_repository.repo.id
