@@ -214,6 +214,9 @@ resource "google_cloudbuild_trigger" "seite" {
     _FIRESTORE_DATABASE    = var.firestore_datenbank
     _PAGES_PROJECT         = var.pages_projekt
     _CLOUDFLARE_ACCOUNT_ID = var.cloudflare_konto_id
+
+    # Für firebaseClient.js; öffentlich, eingeschränkt auf die Adressen der Seite (#43, #109).
+    _FIREBASE_API_KEY = var.web_schluessel == null ? "" : google_apikeys_key.web[0].key_string
   }
 }
 
