@@ -110,6 +110,10 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
     : fassung(seite));
   const [geladen, setGeladen] = useState(0);   // zählt geladene Fassungen; der Editor liest sein Markdown nur einmal
   const [geladenAm, setGeladenAm] = useState(seite.updatedAt);
+  // Die gespeicherte Fassung, gegen die das Formular als geändert gilt.
+  const [gespeichert, setGespeichert] = useState(() => istNeu ? null : fassung(seite));
+  const geaendert = !gespeichert
+    || seitenUnterschiede({ ...entwurf, reihenfolge: Number(entwurf.reihenfolge) }, gespeichert).length > 0;
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
@@ -131,7 +135,14 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
     setHinweis(`Fassung vom ${wann(t)} geladen; Speichern stellt sie wieder her.`);
   }
 
-  async function speichern() {
+  const speichern = () =>
+    schreiben(fassung({ ...entwurf, reihenfolge: Math.trunc(Number(entwurf.reihenfolge)) }), {}, "Gespeichert.");
+
+  /**
+   * Schreibt die Fassung `neu` mit einem Verlaufseintrag; `extra` kommt in den
+   * Eintrag (etwa `rueckgaengig`).
+   */
+  async function schreiben(neu, extra, text) {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(sammlung, id);
     const eintrag = doc(verlauf);
@@ -143,22 +154,41 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
         if (!istNeu && jetzt.data()?.updatedAt?.toMillis() !== geladenAm?.toMillis()) {
           throw new Error("Inzwischen von jemand anderem geändert. Bitte neu öffnen.");
         }
-        const neu = fassung({ ...entwurf, reihenfolge: Math.trunc(Number(entwurf.reihenfolge)) });
         tx.set(eintrag, { seite: id, by: ich, at: serverTimestamp(),
-          vorher: jetzt.exists() ? fassung(jetzt.data()) : null, nachher: neu });
+          vorher: jetzt.exists() ? fassung(jetzt.data()) : null, nachher: neu, ...extra });
         tx.set(ref, { ...neu, updatedAt: serverTimestamp(), lastChange: eintrag.id });
       });
       if (istNeu) return onSchliessen();
       client.invalidateQueries({ queryKey: SCHLUESSEL.seiten });
       const frisch = (await getDoc(ref)).data();
       setGeladenAm(frisch.updatedAt);
-      setHinweis("Gespeichert.");
+      setGespeichert(neu);
+      if (extra.rueckgaengig) { setEntwurf(neu); setGeladen(n => n + 1); }
+      setHinweis(text);
       await verlaufLaden();
     } catch (e) {
       setFehler(meldung(e));
     } finally {
       setSpeichert(false);
     }
+  }
+
+  /**
+   * Nimmt einen Verlaufseintrag zurück, als neue Änderung (der Verlauf bleibt
+   * vollständig), wie bei Werken: nur Felder, die seitdem niemand mehr geändert
+   * hat; die anderen bleiben, wie sie sind.
+   */
+  function rueckgaengig(e) {
+    const { zurueck, geblieben } = zuruecksetzbar(e, gespeichert);
+    const text = [
+      "Zurücksetzen:",
+      ...zurueck.map(k => k === "text" ? "  Text: auf die Fassung davor"
+        : `  ${SEITENFELDER[k]}: „${e.nachher[k]}“ → „${e.vorher[k]}“`),
+      ...(geblieben.length ? ["", "Bleibt (inzwischen erneut geändert): " + geblieben.map(k => SEITENFELDER[k]).join(", ")] : []),
+    ].join("\n");
+    if (!window.confirm(text)) return;
+    const neu = { ...gespeichert, ...Object.fromEntries(zurueck.map(k => [k, e.vorher[k]])) };
+    schreiben(neu, { rueckgaengig: e.id }, `Rückgängig gemacht (${zurueck.map(k => SEITENFELDER[k]).join(", ")}).`);
   }
 
   async function loeschen() {
@@ -212,7 +242,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
 
       {bearbeitbar && (
         <div className="flex gap-2 items-center">
-          <button className={knopf} disabled={speichert || !entwurf.titel.trim() || !id} onClick={speichern}>
+          <button className={knopf} disabled={speichert || !geaendert || !entwurf.titel.trim() || !id} onClick={speichern}>
             {speichert ? "Speichere…" : istNeu ? "Anlegen" : "Speichern"}
           </button>
           {!istNeu && <button className={knopf + " text-red-700"} onClick={loeschen}>Löschen</button>}
@@ -222,38 +252,71 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
       )}
       {!bearbeitbar && fehler && <p className="text-red-700 text-sm">{fehler}</p>}
 
-      {!istNeu && <Fassungen eintraege={eintraege} bearbeitbar={bearbeitbar} laden={fassungLaden} />}
+      {!istNeu && <Fassungen eintraege={eintraege} bearbeitbar={bearbeitbar} laden={fassungLaden}
+                             gespeichert={gespeichert} gesperrt={speichert || geaendert} rueckgaengig={rueckgaengig} />}
     </div>
   );
 }
 
 /**
- * Die Einträge einer Seite: wann, wer, was sich geändert hat; jede Fassung lässt
- * sich ins Formular laden. Ganz unten der Stand vor dem ersten Eintrag, falls die
- * Seite älter ist als der Verlauf.
+ * Welche Felder eines Verlaufseintrags sich zurücknehmen lassen: geändert im
+ * Eintrag und seitdem unverändert (`ist` ist die gespeicherte Fassung).
  */
-function Fassungen({ eintraege, bearbeitbar, laden }) {
+function zuruecksetzbar(e, ist) {
+  if (!e.vorher || !e.nachher || !ist) return { zurueck: [], geblieben: [] };
+  const seitdem = seitenUnterschiede(ist, e.nachher);
+  const felder = seitenUnterschiede(e.vorher, e.nachher);
+  return { zurueck: felder.filter(k => !seitdem.includes(k)), geblieben: felder.filter(k => seitdem.includes(k)) };
+}
+
+/**
+ * Der Verlauf einer Seite, wie bei Werken: wann, wer, was sich geändert hat, mit
+ * „Rückgängig“ je Eintrag (#133); jede Fassung lässt sich auch ganz ins Formular
+ * laden. Ganz unten der Stand vor dem ersten Eintrag, falls die Seite älter ist
+ * als der Verlauf.
+ */
+function Fassungen({ eintraege, bearbeitbar, laden, gespeichert, gesperrt, rueckgaengig }) {
   if (!eintraege) return <p className="text-sm text-gray-600">Verlauf lädt…</p>;
   const aeltester = eintraege.at(-1);
   return (
     <div className="pt-4">
-      <h3 className="font-bold text-sm">Frühere Fassungen</h3>
-      {!eintraege.length ? <p className="text-sm text-gray-600">Noch keine; der Verlauf beginnt mit dem nächsten Speichern.</p> : (
+      <h3 className="font-bold text-sm">Verlauf</h3>
+      {!eintraege.length ? <p className="text-sm text-gray-600">Noch keine Änderungen; der Verlauf beginnt mit dem nächsten Speichern.</p> : (
         <ul className="divide-y text-sm">
-          {eintraege.map((e, i) => (
-            <li key={e.id} className="py-1 flex gap-2 items-center flex-wrap">
-              <span className="flex-1">
-                <span className="text-gray-600">{wann(e.at)}</span> · {e.by} ·{" "}
-                {!e.vorher ? "angelegt"
-                  : !e.nachher ? "gelöscht"
-                  : seitenUnterschiede(e.vorher, e.nachher).map(k => SEITENFELDER[k]).join(", ") || "nichts geändert"}
-                {i === 0 && e.nachher && <span className="text-gray-600"> (aktuell)</span>}
-              </span>
-              {bearbeitbar && e.nachher && i > 0 && (
-                <button className={knopf} onClick={() => laden(e.nachher, e.at)}>Laden</button>
-              )}
-            </li>
-          ))}
+          {eintraege.map((e, i) => {
+            const felder = e.vorher && e.nachher ? seitenUnterschiede(e.vorher, e.nachher) : [];
+            const kannZurueck = zuruecksetzbar(e, gespeichert).zurueck.length > 0;
+            const ursprung = e.rueckgaengig && eintraege.find(x => x.id === e.rueckgaengig);
+            return (
+              <li key={e.id} className="py-1.5 space-y-0.5">
+                <div className="flex gap-2 items-center flex-wrap">
+                  <span className="flex-1">
+                    <span className="text-gray-600">{wann(e.at)} · {e.by}</span>
+                    {" "}· {!e.vorher ? "angelegt" : !e.nachher ? "gelöscht"
+                      : felder.map(k => SEITENFELDER[k]).join(", ") || "nichts geändert"}
+                    {i === 0 && e.nachher && <span className="text-gray-600"> (aktuell)</span>}
+                    {e.rueckgaengig && <span className="text-gray-600">
+                      {" "}· ↶ macht {ursprung ? `die Änderung vom ${wann(ursprung.at)}` : "eine Änderung"} rückgängig</span>}
+                    {eintraege.some(x => x.rueckgaengig === e.id) && <span className="text-gray-600"> · rückgängig gemacht</span>}
+                  </span>
+                  {bearbeitbar && felder.length > 0 && (
+                    <button className={knopf} disabled={gesperrt || !kannZurueck}
+                            title={gesperrt ? "Erst speichern oder die Seite neu öffnen."
+                              : !kannZurueck ? "Alle Felder wurden inzwischen erneut geändert." : undefined}
+                            onClick={() => rueckgaengig(e)}>Rückgängig</button>
+                  )}
+                  {bearbeitbar && e.nachher && i > 0 && (
+                    <button className={knopf} onClick={() => laden(e.nachher, e.at)}>Laden</button>
+                  )}
+                </div>
+                {felder.filter(k => k !== "text").map(k => (
+                  <div key={k} className="pl-3">
+                    <b>{SEITENFELDER[k]}</b>: <s className="text-gray-500">{String(e.vorher[k] ?? "∅")}</s> → {String(e.nachher[k] ?? "∅")}
+                  </div>
+                ))}
+              </li>
+            );
+          })}
           {aeltester?.vorher && (
             <li className="py-1 flex gap-2 items-center flex-wrap">
               <span className="flex-1 text-gray-600">Stand vor dem {wann(aeltester.at)}</span>
