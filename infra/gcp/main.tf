@@ -173,6 +173,26 @@ resource "google_project_iam_member" "gcs_ereignisse" {
   member  = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
 }
 
+# Was Firebase beim Deployen der Funktionen sonst selbst setzen will und
+# ohne Owner-Rechte daran scheitert (#157); bei Kutscher von Hand gesetzt.
+resource "google_project_service_identity" "pubsub" {
+  provider = google-beta
+  service  = "pubsub.googleapis.com"
+}
+
+resource "google_project_iam_member" "pubsub_token" {
+  project = var.projekt_id
+  role    = "roles/iam.serviceAccountTokenCreator"
+  member  = google_project_service_identity.pubsub.member
+}
+
+resource "google_project_iam_member" "compute_ereignisse" {
+  for_each = toset(["roles/run.invoker", "roles/eventarc.eventReceiver"])
+  project  = var.projekt_id
+  role     = each.key
+  member   = "serviceAccount:${data.google_project.projekt.number}-compute@developer.gserviceaccount.com"
+}
+
 # --- Secrets (Werte: gcloud secrets versions add, siehe BOOTSTRAP.md) --------
 
 resource "google_secret_manager_secret" "geheimnis" {
