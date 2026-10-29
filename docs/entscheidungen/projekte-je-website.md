@@ -1,7 +1,7 @@
 # Ein Google-Cloud-Projekt je Website
 
 Stand: 29.10.2026. Diskussion in #13, Umsetzung in #109–#112 und #137. Noch offen:
-die Rücksprache mit Horst (unten).
+die Rücksprache mit den Verantwortlichen des Projekts (unten).
 
 ## Entscheidung
 
@@ -63,7 +63,7 @@ Künstler:in sind heute schon Parameter.
 
 ## Offen
 
-- **Mit Horst:** Wie wichtig sind eigene Abrechnung und Übergabe für die
-  Seiten, die er sich vorstellt?
+- **Mit den Verantwortlichen des Projekts:** Wie wichtig sind eigene Abrechnung und Übergabe für die
+  Seiten, die geplant sind?
 - Versionen je Seite, damit Änderungen im Code nicht alle Seiten zugleich
   treffen (#158).
