@@ -16,6 +16,29 @@ Infrastruktur: `infra/BOOTSTRAP.md`, Regeln fürs Review: `.macroscope/correctne
 - Die PR-Beschreibung sagt, was sich ändert, was geprüft ist und was nicht, und
   endet mit `Closes #<issue>`.
 
+## Vor dem PR
+
+Fehler sollen vor dem Push auffallen, nicht erst im PR.
+
+1. **Lokal prüfen** wie `.github/workflows/pruefen.yml`, je nach Änderung:
+   - Website und Verwaltung: `TESTDATEN=tools/testdaten/katalog.json yarn data`,
+     dann `SITE=https://example.org npx astro build`.
+   - `firestore.rules`: `node tools/rules_test.mjs`.
+   - `infra/`: `terraform fmt -check -recursive infra` und je Schicht
+     `terraform init -backend=false && terraform validate`; Skripte mit `bash -n`.
+   - Oberfläche: selbst ansehen und Screenshots (siehe unten).
+2. **Review durch eine zweite Claude-Session**: Anfrage mit Branch, Issue und
+   Schwerpunkten per SendMessage. Die Reviewer-Session liest nur
+   (`git diff main...<branch>`, `git show <branch>:<pfad>`), ändert, committet und
+   postet nichts und wechselt keinen Branch; am besten in einem eigenen Worktree.
+   Befunde mit Datei:Zeile, konkretem Fehlerfall und Vorschlag, Maßstab sind diese
+   Datei und `.macroscope/correctness/`.
+3. **Befunde beheben**, dann pushen und den PR öffnen. Macroscope prüft danach
+   weiter; seine Hinweise beheben und im PR beantworten.
+
+Änderungen unter `infra/` erst pushen, wenn kein Terraform-Lauf läuft (Vorschau
+oder Anwenden); gleichzeitige Läufe sperren sich die Deployments.
+
 ## Sprache
 
 Issues, Commits, PRs, Kommentare, Texte der Oberfläche und Bezeichner im Code
