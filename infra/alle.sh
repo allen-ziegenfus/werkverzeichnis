@@ -53,7 +53,7 @@ fi
 warten() {
   [ -n "${BUILD_ID:-}" ] || return 0
   local region=${INFRA_LOCATION:-europe-west3} zeit='date("%Y-%m-%dT%H:%M:%S.%f")'
-  local eigen pr laufend aeltere bis=$((SECONDS + 2700)) gemeldet=""
+  local eigen pr laufend aeltere="" bis=$((SECONDS + 2700)) gemeldet=""
   local versuch
   for versuch in 1 2 3; do
     eigen=$(gcloud builds describe "$BUILD_ID" --project="$INFRA_PROJECT" --region="$region" \
@@ -71,7 +71,8 @@ warten() {
       exit 1
     fi
     # Fehler beim Lesen (Netz, Kontingent): später noch einmal, nicht einfach los.
-    if ! laufend=$(gcloud builds list --project="$INFRA_PROJECT" --region="$region" --ongoing \
+    # Alle laufenden Builds, nicht nur die erste Seite (--limit).
+    if ! laufend=$(gcloud builds list --project="$INFRA_PROJECT" --region="$region" --ongoing --limit=1000 \
         --format="csv[no-heading](id,createTime.$zeit,substitutions.TRIGGER_NAME,substitutions._PR_NUMBER)" 2>/dev/null); then
       echo "Builds gerade nicht lesbar; neuer Versuch in 20 s."; sleep 20; continue
     fi
