@@ -46,33 +46,35 @@ fi
 
 # Nacheinander (#131): Gleichzeitige Läufe sperren sich gegenseitig die
 # Deployments. Erst warten, bis kein älterer Build der beiden Terraform-Trigger
-# mehr läuft; Vorschauen zählen mit, sie sperren auch. Ein ganzer Lauf nach
-# einem Merge entfällt, wenn ein neuerer schon wartet: der wendet ohnehin alles
-# an. Ohne BUILD_ID (von Hand) oder ohne Leserechte geht es gleich los.
+# mehr läuft; Vorschauen zählen mit, sie sperren auch. Eine Vorschau entfällt,
+# wenn für denselben PR schon eine neuere wartet (sie wendet nichts an). Ohne
+# BUILD_ID (von Hand) oder ohne Leserechte geht es gleich los.
 warten() {
   [ -n "${BUILD_ID:-}" ] || return 0
   local region=${INFRA_LOCATION:-europe-west3} zeit='date("%Y-%m-%dT%H:%M:%S.%f")'
-  local eigen laufend aeltere neuere bis=$((SECONDS + 2700)) gemeldet=""
-  if ! eigen=$(gcloud builds describe "$BUILD_ID" --project="$INFRA_PROJECT" --region="$region" \
-      --format="value(createTime.$zeit)" 2>/dev/null); then
+  local eigen pr laufend aeltere bis=$((SECONDS + 2700)) gemeldet=""
+  eigen=$(gcloud builds describe "$BUILD_ID" --project="$INFRA_PROJECT" --region="$region" \
+    --format="csv[no-heading](createTime.$zeit,substitutions._PR_NUMBER)" 2>/dev/null)
+  IFS=, read -r eigen pr <<<"$eigen"
+  if [ -z "$eigen" ]; then
     echo "Hinweis: Builds nicht lesbar, warte nicht auf ältere Läufe."; return 0
   fi
   while :; do
-    if ! laufend=$(gcloud builds list --project="$INFRA_PROJECT" --region="$region" --ongoing \
-        --format="csv[no-heading](id,createTime.$zeit,substitutions.TRIGGER_NAME,substitutions._BEFEHL,substitutions._ZIEL)" 2>/dev/null); then
-      echo "Hinweis: Builds nicht lesbar, warte nicht auf ältere Läufe."; return 0
-    fi
-    laufend=$(awk -F, -v id="$BUILD_ID" '$1 != id && ($3 == "terraform-anwenden" || $3 == "terraform-vorschau")' <<<"$laufend")
-    aeltere=$(awk -F, -v e="$eigen" 'NF && $2 < e { print $1 " (" $3 ")" }' <<<"$laufend")
-    neuere=$(awk -F, -v e="$eigen" 'NF && $2 > e && $3 == "terraform-anwenden" && $4 == "apply" && $5 == ""' <<<"$laufend")
-    if [ "$befehl" = apply ] && [ -z "$nur" ] && [ -n "$neuere" ]; then
-      echo "Ein neuerer Lauf nach einem Merge wartet schon und wendet alles an; dieser entfällt."
-      exit 0
-    fi
-    [ -z "$aeltere" ] && return 0
     if [ "$SECONDS" -ge "$bis" ]; then
       echo "!!! Seit 45 Minuten laufen noch ältere Terraform-Läufe:"; echo "$aeltere"; exit 1
     fi
+    # Fehler beim Lesen (Netz, Kontingent): später noch einmal, nicht einfach los.
+    if ! laufend=$(gcloud builds list --project="$INFRA_PROJECT" --region="$region" --ongoing \
+        --format="csv[no-heading](id,createTime.$zeit,substitutions.TRIGGER_NAME,substitutions._PR_NUMBER)" 2>/dev/null); then
+      echo "Builds gerade nicht lesbar; neuer Versuch in 20 s."; sleep 20; continue
+    fi
+    laufend=$(awk -F, -v id="$BUILD_ID" 'NF && $1 != id && ($3 == "terraform-anwenden" || $3 == "terraform-vorschau")' <<<"$laufend")
+    if [ -n "$pr" ] && awk -F, -v e="$eigen" -v pr="$pr" '$2 > e && $3 == "terraform-vorschau" && $4 == pr { f = 1 } END { exit !f }' <<<"$laufend"; then
+      echo "Für PR #$pr wartet schon eine neuere Vorschau; diese entfällt."
+      exit 0
+    fi
+    aeltere=$(awk -F, -v e="$eigen" 'NF && $2 < e { print $1 " (" $3 ")" }' <<<"$laufend")
+    [ -z "$aeltere" ] && return 0
     if [ "$aeltere" != "$gemeldet" ]; then
       echo "Warte auf ältere Terraform-Läufe:"; echo "$aeltere"; gemeldet=$aeltere
     fi
