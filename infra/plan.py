@@ -2,6 +2,10 @@
 """Zeigt den Plan einer Infrastructure-Manager-Vorschau kurz an.
 
     infra/plan.py projects/<p>/locations/<ort>/previews/<name>
+    infra/plan.py --fehler projects/<p>/locations/<ort>/deployments/<name>
+
+Mit --fehler: warum die letzte Revision eines Deployments gescheitert ist
+(apply.sh nach einem gescheiterten Apply, #159).
 
 Liest den Plan über :export (signierte URL, JSON) mit dem Token von gcloud.
 Exit 0: keine Löschungen; 3: der Plan löscht oder ersetzt etwas; 1: Vorschau
@@ -50,9 +54,29 @@ def ausgeben(ordner, fingerabdruck, zaehler, zeilen):
         json.dump(ergebnis, datei)
 
 
-def main(name):
-    token = holen(["gcloud", "auth", "print-access-token"]) \
+def token_holen():
+    return holen(["gcloud", "auth", "print-access-token"]) \
         or holen(["gcloud", "auth", "application-default", "print-access-token"])
+
+
+def fehler(deployment):
+    """Die Fehler der letzten Revision: Ressource und Meldung, Zustand, Log."""
+    token = token_holen()
+    d = anfrage(API + deployment, token)
+    name = d.get("latestRevision")
+    r = anfrage(API + name, token) if name else d
+    print(f"Revision {name.split('/')[-1] if name else '–'}: {r.get('state', '')} {r.get('errorCode', '')}")
+    if r.get("stateDetail"):
+        print(f"  {r['stateDetail'][:500]}")
+    for f in r.get("tfErrors", []):
+        print(f"  {f.get('resourceAddress', '')}: {' '.join(f.get('errorDescription', '').split())[:500]}")
+    if r.get("logs"):
+        print(f"  Log: {r['logs']}")
+    return 0
+
+
+def main(name):
+    token = token_holen()
     vorschau = anfrage(API + name, token)
     if vorschau.get("state") != "SUCCEEDED":
         print(f"Vorschau {vorschau.get('state')}: {vorschau.get('errorCode', '')}")
@@ -103,4 +127,6 @@ def main(name):
 
 
 if __name__ == "__main__":
+    if sys.argv[1] == "--fehler":
+        sys.exit(fehler(sys.argv[2]))
     sys.exit(main(sys.argv[1]))
