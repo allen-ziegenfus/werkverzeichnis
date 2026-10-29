@@ -30,8 +30,23 @@ variable "bucket" {
 }
 
 variable "github_verbindung" {
-  description = "GitHub-Verbindung von Cloud Build, angelegt in der Konsole (braucht eine Anmeldung im Browser)."
+  description = <<-EOT
+    Name der GitHub-Verbindung von Cloud Build. Ohne github_app_installation in
+    der Konsole angelegt (braucht eine Anmeldung im Browser), sonst von Terraform.
+  EOT
   type        = string
+}
+
+variable "github_app_installation" {
+  description = <<-EOT
+    Gesetzt: Terraform legt die GitHub-Verbindung selbst an (#112), mit dieser
+    Installation der Cloud-Build-App auf GitHub (dieselbe für alle Seiten;
+    steht bei jeder bestehenden Verbindung) und dem Token aus dem Secret
+    github-token des Infra-Projekts (bootstrap.sh infra). Es steht dann auch im
+    Terraform-State.
+  EOT
+  type        = number
+  default     = null
 }
 
 variable "github_repo" {

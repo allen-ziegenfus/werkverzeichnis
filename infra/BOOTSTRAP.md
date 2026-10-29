@@ -100,7 +100,16 @@ Falls Infrastructure Manager in europe-west3 nicht angeboten wird,
 `INFRA_LOCATION=europe-west1` davorsetzen (betrifft nur, wo der State liegt; die
 Ressourcen bleiben, wo die tfvars sagen).
 
-Dann die Werte der Secrets, im Projekt der Seite (nach einem neuen Apply leer):
+**Ohne Konsole und ohne Secrets von Hand (#112):** In `cloudflare.tfvars`
+`seiten_projekt = "<seiten-projekt>"` setzen, dann legt Terraform die
+Cloudflare-Tokens an und schreibt sie in die Secrets (das Cloudflare-Token für
+Terraform braucht dafür zusätzlich *Account API Tokens: Edit*; erst nach `gcp`
+anwenden, das die Secrets anlegt). In `gcp.tfvars`
+`github_app_installation = <id>` (steht bei jeder bestehenden Verbindung) statt
+der Verbindung aus der Konsole; das Token dafür legt `bootstrap.sh infra` als
+`github-token` ab. Beide Tokens stehen dann im Terraform-State.
+
+Sonst die Werte der Secrets von Hand, im Projekt der Seite (nach einem neuen Apply leer):
 
 ```sh
 P=<seiten-projekt>

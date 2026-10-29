@@ -54,6 +54,17 @@ infra)
     [ -n "$token" ] && printf %s "$token" | gcloud secrets versions add cloudflare-terraform-token \
       --project="$INFRA" --data-file=-
   fi
+  # GitHub-Token für die Verbindungen neuer Seiten (#112): ein klassisches Token
+  # mit repo und read:user (so verlangt es Cloud Build).
+  gcloud secrets describe github-token --project="$INFRA" >/dev/null 2>&1 \
+    || gcloud secrets create github-token --project="$INFRA" --replication-policy=automatic
+  wiederholen gcloud secrets add-iam-policy-binding github-token --project="$INFRA" \
+    --member="serviceAccount:$KONTO" --role=roles/secretmanager.secretAccessor --condition=None >/dev/null
+  if [ -z "$(gcloud secrets versions list github-token --project="$INFRA" --filter=state=enabled --format='value(name)')" ]; then
+    read -rsp "GitHub-Token für neue Seiten (leer = überspringen): " token; echo
+    [ -n "$token" ] && printf %s "$token" | gcloud secrets versions add github-token \
+      --project="$INFRA" --data-file=-
+  fi
   echo "Infra project $INFRA ready."
   ;;
 
