@@ -35,6 +35,9 @@ nicht mit `neue-seite` angelegt wurde):
 
 <walkthrough-enable-apis apis="cloudbuild.googleapis.com,secretmanager.googleapis.com"></walkthrough-enable-apis>
 
+oder über
+[diesen Link](https://console.cloud.google.com/flows/enableapi?apiid=cloudbuild.googleapis.com,secretmanager.googleapis.com&project={{project-id}}).
+
 Dann in
 [Cloud Build → Repositories (2nd gen)](https://console.cloud.google.com/cloud-build/repositories/2nd-gen?project={{project-id}})
 → *Create host connection*:
