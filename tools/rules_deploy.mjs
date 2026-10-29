@@ -3,13 +3,15 @@
  * bestanden hat. Die Firebase CLI täte dasselbe, braucht aber eine firebase.json
  * und eine eigene Anmeldung; dies nutzt deine gcloud Application Default Credentials.
  *
- *   node tools/rules_deploy.mjs
+ *   FIRESTORE_PROJECT=<seiten-projekt> node tools/rules_deploy.mjs
  */
 import fs from "fs";
 import { execFileSync } from "child_process";
 import { GoogleAuth } from "google-auth-library";
 
-const PROJEKT = process.env.FIRESTORE_PROJECT ?? "vollrad-werkverzeichnis";
+// Schreibt; mit mehreren Seiten-Projekten nie auf ein vorgegebenes (#109).
+const PROJEKT = process.env.FIRESTORE_PROJECT;
+if (!PROJEKT) throw new Error("FIRESTORE_PROJECT=<seiten-projekt> setzen");
 const DATENBANK = process.env.FIRESTORE_DATABASE ?? "werkverzeichnis";
 const api = `https://firebaserules.googleapis.com/v1/projects/${PROJEKT}`;
 
