@@ -56,7 +56,11 @@ preview)
   python3 "$hier/plan.py" "$vorschau"
   ;;
 apply)
-  gcloud infra-manager deployments apply "$deployment" "${argumente[@]}"
+  if ! gcloud infra-manager deployments apply "$deployment" "${argumente[@]}"; then
+    # gcloud sagt nur „terraform apply failed“; der Grund steht in der Revision (#159).
+    python3 "$hier/plan.py" --fehler "$deployment" || true
+    exit 1
+  fi
   ;;
 *)
   echo "unknown command: $befehl" >&2; exit 1 ;;

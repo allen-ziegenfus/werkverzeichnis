@@ -45,8 +45,11 @@ else
 fi
 
 fehler=0
+zusammenfassung=()   # je Deployment eine Zeile fürs Ende (#159)
 for ziel in "${ziele[@]}"; do
   echo; echo "=== $ziel ==="
+  read -r schicht seite <<<"$ziel"
+  dname=${seite:+$seite-}$schicht   # wie das Deployment heißt, z. B. kutscher-gcp
   # shellcheck disable=SC2086 # Schicht und Seite als zwei Argumente
   "$hier/apply.sh" preview $ziel
   ergebnis=$?
@@ -54,17 +57,31 @@ for ziel in "${ziele[@]}"; do
     echo "Löschen bestätigt."
   elif [ $ergebnis -eq 3 ]; then
     echo "!!! $ziel löscht oder ersetzt etwas; nicht automatisch anwenden."
+    zusammenfassung+=("$dname: ausgelassen, der Plan löscht oder ersetzt etwas")
     fehler=1; continue
   elif [ $ergebnis -eq 4 ]; then
     echo "!!! Der Plan für $ziel hat sich seit der Bestätigung geändert; nicht angewendet."
+    zusammenfassung+=("$dname: nicht angewendet, der Plan hat sich seit der Bestätigung geändert")
     fehler=1; continue
   elif [ $ergebnis -ne 0 ]; then
     echo "!!! Vorschau für $ziel gescheitert."
+    zusammenfassung+=("$dname: Vorschau gescheitert")
     fehler=1; continue
   fi
   if [ "$befehl" = apply ]; then
     # shellcheck disable=SC2086
-    "$hier/apply.sh" apply $ziel || { echo "!!! Anwenden für $ziel gescheitert."; fehler=1; }
+    if "$hier/apply.sh" apply $ziel; then
+      zusammenfassung+=("$dname: angewendet")
+    else
+      echo "!!! Anwenden für $ziel gescheitert."
+      zusammenfassung+=("$dname: Anwenden gescheitert, Grund oben")
+      fehler=1
+    fi
+  else
+    zusammenfassung+=("$dname: Vorschau in Ordnung")
   fi
 done
+
+echo; echo "=== Zusammenfassung ==="
+printf '%s\n' "${zusammenfassung[@]}"
 exit $fehler
