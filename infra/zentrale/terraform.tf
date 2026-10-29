@@ -30,6 +30,8 @@ resource "google_service_account_iam_member" "terraform_als_infra_manager" {
 
 locals {
   terraform_dateien = ["infra/**", "cloudbuild-terraform.yaml"]
+  # Doku und das Skript für die Einrichtung von Hand ändern keinen Plan (#155).
+  terraform_ignoriert = ["infra/**/*.md", "infra/bootstrap.sh"]
 }
 
 # Die Vorschau führt Terraform-Code aus dem PR mit den Rechten von infra-manager@
@@ -41,6 +43,7 @@ resource "google_cloudbuild_trigger" "terraform_vorschau" {
   filename        = "cloudbuild-terraform.yaml"
   service_account = google_service_account.terraform.id
   included_files  = local.terraform_dateien
+  ignored_files   = local.terraform_ignoriert
 
   repository_event_config {
     repository = google_cloudbuildv2_repository.repo.id
@@ -64,6 +67,7 @@ resource "google_cloudbuild_trigger" "terraform_anwenden" {
   filename        = "cloudbuild-terraform.yaml"
   service_account = google_service_account.terraform.id
   included_files  = local.terraform_dateien
+  ignored_files   = local.terraform_ignoriert
 
   repository_event_config {
     repository = google_cloudbuildv2_repository.repo.id
