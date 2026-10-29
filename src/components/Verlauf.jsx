@@ -11,7 +11,8 @@ import Zugang from "./Zugang.jsx";
  * Verlauf der Veröffentlichungen (#88): je Build, wer ihn wann angefordert hat,
  * mit welchem Ergebnis, und was er online gebracht hat. Das sind die Änderungen
  * zwischen dem, was der vorige erfolgreiche Build gelesen hat, und dem, was
- * dieser gelesen hat (`gelesen`, #67). Zurücknehmen setzt Werke und Seiten
+ * dieser gelesen hat (`gelesen`, #67; ältere Anfragen haben nur `gestartet`,
+ * das etwas zu früh liegt, #101). Zurücknehmen setzt Werke und Seiten
  * daraus auf den Stand davor zurück, als neue Änderungen; online geht das mit
  * der nächsten Veröffentlichung.
  */
@@ -44,7 +45,7 @@ function nachBuild(anfragen) {
   }
   return [...builds.values()].map(b => {
     const haupt = b.anfragen.find(a => !a.hinweis) ?? b.anfragen[0];
-    return { ...b, status: haupt.status, gelesen: haupt.gelesen, logUrl: haupt.logUrl, angefordert: haupt.angefordert,
+    return { ...b, status: haupt.status, gelesen: haupt.gelesen ?? haupt.gestartet, ungefaehr: !haupt.gelesen, logUrl: haupt.logUrl, angefordert: haupt.angefordert,
       meldung: haupt.meldung };
   }).sort((x, y) => (y.angefordert?.toMillis() ?? Infinity) - (x.angefordert?.toMillis() ?? Infinity));
 }
@@ -65,7 +66,7 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
 
   // Der Zeitraum eines erfolgreichen Builds beginnt, wo der vorige erfolgreiche aufhörte.
   const erfolgreich = builds.filter(b => b.status === "fertig" && b.gelesen);
-  const vorher = b => erfolgreich[erfolgreich.indexOf(b) + 1]?.gelesen;
+  const davor = b => erfolgreich[erfolgreich.indexOf(b) + 1];
 
   return (
     <div className="space-y-2 text-sm">
@@ -83,7 +84,8 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
         </thead>
         <tbody>
           {builds.map(b => (
-            <Build key={b.id} b={b} seit={erfolgreich.includes(b) ? vorher(b) : undefined} kuenstlerId={kuenstlerId}
+            <Build key={b.id} b={b} seit={erfolgreich.includes(b) ? davor(b)?.gelesen : undefined}
+                   ungefaehr={b.ungefaehr || davor(b)?.ungefaehr} kuenstlerId={kuenstlerId}
                    ich={ich} darfWerke={darfWerke} darfSeiten={darfSeiten} />
           ))}
         </tbody>
@@ -92,12 +94,13 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
   );
 }
 
-function Build({ b, seit, kuenstlerId, ich, darfWerke, darfSeiten }) {
+function Build({ b, seit, ungefaehr, kuenstlerId, ich, darfWerke, darfSeiten }) {
   const [auf, setAuf] = useState(false);
   const erfolgreich = b.status === "fertig" && b.gelesen;
   const hinweise = <>
     {b.meldung && <div className="text-red-700">{b.meldung}</div>}
     {b.status === "fehler" && <div className="text-gray-600">Nichts online gegangen; die Änderungen kommen mit der nächsten Veröffentlichung.</div>}
+    {erfolgreich && seit && ungefaehr && <div className="text-gray-600">Zeitraum ungefähr: Was kurz nach dem Start gespeichert wurde, kann schon mit diesem Build online gegangen sein.</div>}
     {erfolgreich && !seit && <div className="text-gray-600">Was davor lag, ist hier nicht mehr abgegrenzt.</div>}
   </>;
   return (
@@ -118,7 +121,7 @@ function Build({ b, seit, kuenstlerId, ich, darfWerke, darfSeiten }) {
           ))}
           {hinweise}
         </td>
-        <td className={zelle + " text-right"}>
+        <td className={zelle + " text-right whitespace-nowrap"}>
           {erfolgreich && seit && (
             <button className="underline" aria-expanded={auf} onClick={() => setAuf(!auf)}>
               {auf ? "Zuklappen" : "Was ging online?"}
