@@ -173,12 +173,16 @@ service cloud.firestore {
     match /artists/{kuenstler}/works/{werk} {
       allow read: if darf(kuenstler, "lesen");
 
-      // Anlegen (#179): in einer vorhandenen Werkgruppe, mit Inv. Nr., und wie
-      // beim Bearbeiten nur zusammen mit dem Verlaufseintrag. Die Kennung leitet
-      // die Verwaltung aus der Inv. Nr. ab; gibt es sie schon, ist es ein Update.
+      // Anlegen (#179): in einer vorhandenen Werkgruppe, und wie beim Bearbeiten
+      // nur zusammen mit dem Verlaufseintrag. Die Kennung ist die klein
+      // geschriebene Inv. Nr.; so kann es jede Inv. Nr. nur einmal geben (wer
+      // eine vorhandene Kennung schreibt, macht ein Update). Neue Inv. Nr. nur
+      // aus Buchstaben, Ziffern, Punkt und Bindestrich, damit Kennung und
+      // slugify (catalog.ts) übereinstimmen.
       allow create: if darf(kuenstler, "werke.bearbeiten")
         && request.resource.data.InvNr is string
-        && request.resource.data.InvNr.size() > 0 && request.resource.data.InvNr.size() <= 100
+        && request.resource.data.InvNr.matches('[A-Za-z0-9.-]{1,100}')
+        && werk == request.resource.data.InvNr.lower()
         && request.resource.data.werkgruppe is string
         && exists(/databases/$(database)/documents/artists/$(kuenstler)/werkgruppen/$(request.resource.data.werkgruppe))
         && request.resource.data.updatedAt == request.time

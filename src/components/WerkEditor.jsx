@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
-import { slugify } from "../werkverzeichnis/slugify";
 import { client, SCHLUESSEL, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
@@ -29,7 +28,8 @@ const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Mate
  * erneut geändert; die bleiben.
  */
 function zuruecksetzbar(v, daten) {
-  const felder = Object.entries(v.changes ?? {});
+  // Die Inv. Nr. ändert sich nie; beim Anlegen steht sie mit from: null im Verlauf (#179).
+  const felder = Object.entries(v.changes ?? {}).filter(([f]) => f !== "InvNr");
   const gleich = ([f, c]) => (daten[f] ?? null) === (c.to ?? null);
   return { zurueck: felder.filter(gleich), geblieben: felder.filter(x => !gleich(x)).map(([f]) => f) };
 }
@@ -46,7 +46,8 @@ function WerkEditor({ nutzer }) {
   // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
   const ziel = useRef(new URLSearchParams(location.search).get("werk"));
   const [gruppe, setGruppeRoh] = useState(() => ziel.current ? "" : letzteGruppe);
-  const setGruppe = g => { letzteGruppe = g; setGruppeRoh(g); };
+  const aktuelleGruppe = useRef(gruppe);
+  const setGruppe = g => { letzteGruppe = g; aktuelleGruppe.current = g; setGruppeRoh(g); };
   const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
   const werkeAbfrage = useWerke(gruppe);
   const { data: werke, error: werkeFehler } = werkeAbfrage;
@@ -130,8 +131,14 @@ function WerkEditor({ nutzer }) {
    */
   async function anlegen() {
     const invNr = neu.InvNr.trim(), titel = neu.Titel.trim();
-    const id = slugify(invNr, { lower: true });
-    if (!id) { setFehler("Die Inv. Nr. fehlt."); return; }
+    // Wie die Regeln: Kennung = Inv. Nr. klein; dann stimmt sie auch mit slugify (catalog.ts).
+    if (!/^[A-Za-z0-9.-]{1,100}$/.test(invNr)) {
+      setFehler("Die Inv. Nr. darf nur Buchstaben, Ziffern, Punkt und Bindestrich enthalten.");
+      return;
+    }
+    const id = invNr.toLowerCase();
+    // Wohin die Ansicht während des Anlegens wechselt, soll nicht überschrieben werden.
+    const startGruppe = gruppe, startOffen = offen.current;
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(kuenstler, "works", id);
     const eintrag = doc(collection(kuenstler, "history"));
@@ -146,7 +153,7 @@ function WerkEditor({ nutzer }) {
       const w = { id, data: (await getDoc(ref)).data() };
       client.invalidateQueries({ queryKey: SCHLUESSEL.werke(gruppe) });
       setNeu(undefined);
-      await oeffnen(w);
+      if (aktuelleGruppe.current === startGruppe && offen.current === startOffen) await oeffnen(w);
       setHinweis(`Angelegt (${invNr}).`);
     } catch (e) {
       setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
