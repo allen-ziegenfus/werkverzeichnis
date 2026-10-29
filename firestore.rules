@@ -178,10 +178,12 @@ service cloud.firestore {
       // geschriebene Inv. Nr.; so kann es jede Inv. Nr. nur einmal geben (wer
       // eine vorhandene Kennung schreibt, macht ein Update). Neue Inv. Nr. nur
       // aus Buchstaben, Ziffern, Punkt und Bindestrich, damit Kennung und
-      // slugify (catalog.ts) übereinstimmen.
+      // slugify (catalog.ts) übereinstimmen. Bindestriche nur einzeln und innen,
+      // sonst fasst slugify sie zusammen oder kürzt sie.
       allow create: if darf(kuenstler, "werke.bearbeiten")
         && request.resource.data.InvNr is string
-        && request.resource.data.InvNr.matches('[A-Za-z0-9.-]{1,100}')
+        && request.resource.data.InvNr.size() <= 100
+        && request.resource.data.InvNr.matches('[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*')
         && werk == request.resource.data.InvNr.lower()
         && request.resource.data.werkgruppe is string
         && exists(/databases/$(database)/documents/artists/$(kuenstler)/werkgruppen/$(request.resource.data.werkgruppe))

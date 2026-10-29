@@ -132,8 +132,9 @@ function WerkEditor({ nutzer }) {
   async function anlegen() {
     const invNr = neu.InvNr.trim(), titel = neu.Titel.trim();
     // Wie die Regeln: Kennung = Inv. Nr. klein; dann stimmt sie auch mit slugify (catalog.ts).
-    if (!/^[A-Za-z0-9.-]{1,100}$/.test(invNr)) {
-      setFehler("Die Inv. Nr. darf nur Buchstaben, Ziffern, Punkt und Bindestrich enthalten.");
+    // Bindestriche nur einzeln und innen: slugify fasst sie sonst zusammen oder kürzt sie.
+    if (invNr.length > 100 || !/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(invNr)) {
+      setFehler("Die Inv. Nr. darf nur Buchstaben, Ziffern, Punkt und einzelne Bindestriche (nicht am Anfang oder Ende) enthalten.");
       return;
     }
     const id = invNr.toLowerCase();
