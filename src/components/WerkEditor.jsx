@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
+import { client, SCHLUESSEL, useWerke, useWerkgruppen } from "./abfragen.js";
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
@@ -32,15 +33,22 @@ function zuruecksetzbar(v, daten) {
   return { zurueck: felder.filter(gleich), geblieben: felder.filter(x => !gleich(x)).map(([f]) => f) };
 }
 
+// Die zuletzt gewählte Werkgruppe, für die Rückkehr aus einem anderen Bereich.
+let letzteGruppe = "";
+
 export default function WerkEditorSeite() {
   return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer }) => <WerkEditor nutzer={nutzer} />} />;
 }
 
 function WerkEditor({ nutzer }) {
   const [fehler, setFehler] = useState();
-  const [gruppen, setGruppen] = useState();
-  const [gruppe, setGruppe] = useState("");
-  const [werke, setWerke] = useState();
+  // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
+  const ziel = useRef(new URLSearchParams(location.search).get("werk"));
+  const [gruppe, setGruppeRoh] = useState(() => ziel.current ? "" : letzteGruppe);
+  const setGruppe = g => { letzteGruppe = g; setGruppeRoh(g); };
+  const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
+  const { data: werke, error: werkeFehler } = useWerke(gruppe);
+  const ladefehler = gruppenFehler ?? werkeFehler;
   const [suche, setSuche] = useState("");
   const [werk, setWerk] = useState();               // {id, data} wie geladen
   const [entwurf, setEntwurf] = useState({});
@@ -50,38 +58,23 @@ function WerkEditor({ nutzer }) {
   const offen = useRef();
   const [speichert, setSpeichert] = useState(false);
   const [hinweis, setHinweis] = useState();
-  // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
-  const ziel = useRef(new URLSearchParams(location.search).get("werk"));
 
+  // Das Werk aus ?werk=: erst seine Werkgruppe wählen, dann öffnen, sobald sie geladen ist.
   useEffect(() => {
-    if (!nutzer) return;
-    setFehler(undefined);
-    getDocs(collection(kuenstler, "werkgruppen"))
-      .then(async s => {
-        setGruppen(s.docs.map(d => ({ id: d.id, ...d.data() })));
-        if (!ziel.current) return;
-        const w = await getDoc(doc(kuenstler, "works", ziel.current));
+    if (!ziel.current || gruppe) return;
+    getDoc(doc(kuenstler, "works", ziel.current))
+      .then(w => {
         if (w.exists()) setGruppe(w.get("werkgruppe"));
         else { setFehler(`Werk „${ziel.current}“ nicht gefunden.`); ziel.current = null; }
       })
-      .catch(e => setFehler(e.code === "permission-denied"
-        ? `Kein Zugriff mit ${nutzer.email}.` : e.message));
-  }, [nutzer]);
-
-  useEffect(() => {
-    if (!gruppe) return;
-    setWerke(undefined); setWerk(undefined);
-    getDocs(query(collection(kuenstler, "works"), where("werkgruppe", "==", gruppe)))
-      .then(s => {
-        const liste = s.docs.map(d => ({ id: d.id, data: d.data() }))
-          .sort((a, b) => Number(a.data.InvNr.replace(/\D/g, "")) - Number(b.data.InvNr.replace(/\D/g, "")));
-        setWerke(liste);
-        const w = liste.find(x => x.id === ziel.current);
-        ziel.current = null;
-        if (w) return oeffnen(w);
-      })
       .catch(e => setFehler(e.message));
-  }, [gruppe]);
+  }, []);
+  useEffect(() => {
+    if (!ziel.current || !werke) return;
+    const w = werke.find(x => x.id === ziel.current);
+    ziel.current = null;
+    if (w) oeffnen(w);
+  }, [werke]);
 
   async function oeffnen(w) {
     offen.current = w.id;
@@ -122,7 +115,7 @@ function WerkEditor({ nutzer }) {
       });
       const frisch = await getDoc(ref);
       const w = { id: werk.id, data: frisch.data() };
-      setWerke(ws => ws.map(x => x.id === w.id ? w : x));
+      client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
       setHinweis(meldung);
     } catch (e) {
@@ -163,16 +156,19 @@ function WerkEditor({ nutzer }) {
   return (
     <div className="space-y-4">
       {fehler && <p className="text-red-700">{fehler}</p>}
+      {ladefehler && <p className="text-red-700">{ladefehler.code === "permission-denied"
+        ? `Kein Zugriff mit ${nutzer.email}.` : ladefehler.message}</p>}
 
-      {!gruppen && !fehler && <Skelett zeilen={1} />}
+      {!gruppen && !ladefehler && <Skelett zeilen={1} />}
       {gruppen && (
-        <select className="border p-1 w-full" value={gruppe} onChange={e => setGruppe(e.target.value)}>
+        <select className="border p-1 w-full" value={gruppe}
+                onChange={e => { setGruppe(e.target.value); setWerk(undefined); }}>
           <option value="">Werkgruppe wählen…</option>
           {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
         </select>
       )}
 
-      {gruppe && !werke && !fehler && <Skelett />}
+      {gruppe && !werke && !ladefehler && <Skelett />}
       {werke && !werk && (
         <>
           <input className="border p-1 w-full" placeholder="Inv. Nr. oder Titel"

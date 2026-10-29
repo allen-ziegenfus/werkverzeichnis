@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { collection, doc, getDocs, runTransaction, serverTimestamp, updateDoc } from "firebase/firestore";
+import { collection, doc, runTransaction, serverTimestamp, updateDoc } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
+import { client, SCHLUESSEL, useWerkgruppen } from "./abfragen.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
@@ -18,7 +19,7 @@ export default function WerkgruppenSeite() {
 }
 
 function Werkgruppen({ kuenstlerId, bearbeitbar }) {
-  const [gruppen, setGruppen] = useState();
+  const { data: gruppen, error: ladefehler } = useWerkgruppen();
   const [titel, setTitel] = useState("");
   const [fehler, setFehler] = useState();
   const sammlung = collection(db, "artists", kuenstlerId, "werkgruppen");
@@ -30,11 +31,7 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
     zielFeld.current?.focus();
   }, [gruppen === undefined]);
 
-  async function laden() {
-    const snap = await getDocs(sammlung);
-    setGruppen(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.reihenfolge - b.reihenfolge));
-  }
-  useEffect(() => { laden().catch(e => setFehler(meldung(e))); }, [kuenstlerId]);
+  const laden = () => client.invalidateQueries({ queryKey: SCHLUESSEL.werkgruppen });
 
   async function hinzufuegen() {
     setFehler(undefined);
@@ -66,7 +63,8 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
   return (
     <div className="space-y-2">
       {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
-      {!gruppen && !fehler && <Skelett />}
+      {ladefehler && !gruppen && <p className="text-red-700 text-sm">{meldung(ladefehler)}</p>}
+      {!gruppen && !ladefehler && <Skelett />}
       {gruppen && <table className="text-sm w-full">
         <thead>
           <tr className="text-left text-gray-600">
