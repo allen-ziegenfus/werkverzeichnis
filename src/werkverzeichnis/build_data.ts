@@ -221,6 +221,8 @@ async function bauen() {
   fs.writeFileSync(`${PUBLIC}/site.json`, JSON.stringify(katalog.kuenstler));
   fs.writeFileSync(`${PUBLIC}/werkgruppen.json`, JSON.stringify(werkgruppen));
   fs.writeFileSync(`${PUBLIC}/searchData.json`, JSON.stringify(suchDaten));
+  // Ohne ein einziges Jahr bleiben sonst MAX_VALUE/MIN_VALUE stehen (#185).
+  if (suchMetadaten.MinYear > suchMetadaten.MaxYear) Object.assign(suchMetadaten, { MinYear: null, MaxYear: null });
   fs.writeFileSync(`${PUBLIC}/searchMetadata.json`, JSON.stringify(suchMetadaten));
   fs.writeFileSync(`${PUBLIC}/pages.json`, JSON.stringify(seiten));
   fs.writeFileSync(`${PUBLIC}/robots.txt`,
