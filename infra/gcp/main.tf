@@ -5,7 +5,7 @@
 # mit cloudbuild-backend.yaml (#3), jeweils über einen eigenen Trigger.
 
 locals {
-  bucket = coalesce(var.bucket, "${var.projekt_id}.firebasestorage.app")
+  bucket = coalesce(var.bucket, "${var.projekt_id}-originale")
   konten = { for k, v in google_service_account.konto : k => "serviceAccount:${v.email}" }
 }
 
@@ -271,6 +271,7 @@ resource "google_cloudbuild_trigger" "seite" {
 
     # Für firebaseClient.js; öffentlich, eingeschränkt auf die Adressen der Seite (#43, #109).
     _FIREBASE_API_KEY = var.web_schluessel == null ? "" : google_apikeys_key.web[0].key_string
+    _BUCKET           = local.bucket # für den Build (#137)
   }
 }
 
@@ -296,6 +297,8 @@ resource "google_cloudbuild_trigger" "backend" {
   substitutions = {
     _FIRESTORE_DATABASE = var.firestore_datenbank
     _ARTIST             = var.kuenstler # für gcf/.env (#109)
+    _BUCKET             = local.bucket  # für gcf/.env (#137)
+    _R2_BUCKET          = var.bilder_bucket
   }
 }
 
