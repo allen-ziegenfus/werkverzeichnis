@@ -68,13 +68,18 @@ resource "google_firebase_project" "projekt" {
 }
 
 resource "google_firestore_database" "datenbank" {
-  name                    = var.firestore_datenbank
-  location_id             = var.region
-  type                    = "FIRESTORE_NATIVE"
-  database_edition        = "ENTERPRISE"
-  delete_protection_state = "DELETE_PROTECTION_ENABLED"
-  deletion_policy         = "ABANDON"
-  depends_on              = [google_project_service.api]
+  name             = var.firestore_datenbank
+  location_id      = var.region
+  type             = "FIRESTORE_NATIVE"
+  database_edition = "ENTERPRISE"
+  # Neue Enterprise-Datenbanken kommen mit MongoDB-Zugriff und ohne Firestore-API
+  # und Echtzeit-Updates; die Seite braucht beides (#148). Wie bei Kutscher.
+  firestore_data_access_mode          = "DATA_ACCESS_MODE_ENABLED"
+  mongodb_compatible_data_access_mode = "DATA_ACCESS_MODE_DISABLED"
+  realtime_updates_mode               = "REALTIME_UPDATES_MODE_ENABLED"
+  delete_protection_state             = "DELETE_PROTECTION_ENABLED"
+  deletion_policy                     = "ABANDON"
+  depends_on                          = [google_project_service.api]
 }
 
 # Originale. Die Bildfunktion erzeugt daraus die Webversionen in R2.
