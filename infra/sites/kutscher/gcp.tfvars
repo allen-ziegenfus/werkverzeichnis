@@ -8,3 +8,5 @@ pages_projekt       = "werkverzeichnis"
 cloudflare_konto_id = "cf3fa9a06c8f2e93e24fa3eeaa80b783"
 web_schluessel      = "6749c332-7e98-4606-b3b4-3f0f1de60138"
 web_adressen        = ["https://werkverzeichnis-c25.pages.dev/*", "https://*.werkverzeichnis-c25.pages.dev/*"]
+bucket              = "vollrad-werkverzeichnis.firebasestorage.app"
+bilder_bucket       = "werkverzeichnis-bilder"

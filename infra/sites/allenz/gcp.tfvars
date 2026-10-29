@@ -8,3 +8,4 @@ pages_projekt       = "werkverzeichnis-allenz"
 cloudflare_konto_id = "cf3fa9a06c8f2e93e24fa3eeaa80b783"
 web_schluessel      = "web"
 web_adressen        = ["https://werkverzeichnis-allenz.pages.dev/*"]
+bilder_bucket       = "werkverzeichnis-bilder-allenz"

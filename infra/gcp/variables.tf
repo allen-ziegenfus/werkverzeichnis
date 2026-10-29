@@ -24,9 +24,17 @@ variable "firestore_datenbank" {
 }
 
 variable "bucket" {
-  description = "Bucket der Originale. Null: <projekt>.firebasestorage.app, den Firebase anlegt."
+  description = <<-EOT
+    Bucket der Originale. Null: <projekt>-originale. Namen auf
+    .firebasestorage.app kann nur Firebase anlegen (#137); Kutscher hat so einen.
+  EOT
   type        = string
   default     = null
+}
+
+variable "bilder_bucket" {
+  description = "R2-Bucket der Webversionen, wie in cloudflare.tfvars; die Bildfunktion schreibt hinein (#137)."
+  type        = string
 }
 
 variable "github_verbindung" {

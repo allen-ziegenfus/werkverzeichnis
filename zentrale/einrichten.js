@@ -35,6 +35,7 @@ pages_projekt       = "${pages}"
 cloudflare_konto_id = "${e.cloudflare_konto_id ?? "<konto-id>"}"
 web_schluessel      = "web"
 web_adressen        = ["${w.adresse.replace(/\/$/, "")}/*"]
+bilder_bucket       = "werkverzeichnis-bilder-${w.seite}"
 `;
   const cloudflare = `konto_id           = "${e.cloudflare_konto_id ?? "<konto-id>"}"
 pages_projekt      = "${pages}"
