@@ -116,7 +116,14 @@ anwenden, das die Secrets anlegt). In `gcp.tfvars`
 der Verbindung aus der Konsole; das Token dafür legt `bootstrap.sh infra` als
 `github-token` ab. Beide Tokens stehen dann im Terraform-State.
 
-Sonst die Werte der Secrets von Hand, im Projekt der Seite (nach einem neuen Apply leer):
+Sonst die Werte der Secrets von Hand, im Projekt der Seite (nach einem neuen Apply leer).
+Dafür zwei Tokens in Cloudflare (#166):
+
+- `cloudflare-pages-token`: Account API Token, Recht *Account · Cloudflare Pages ·
+  Edit*, nur dieses Konto;
+- `r2-access-key-id`, `r2-secret-access-key`: R2-Token (*Manage API tokens*),
+  *Object Read & Write*, nur der Bucket der Seite; davon Access Key ID und Secret
+  Access Key.
 
 ```sh
 P=<seiten-projekt>
