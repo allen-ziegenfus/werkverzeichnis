@@ -110,6 +110,9 @@ Projekt $SEITE ist angelegt. Weiter (BOOTSTRAP.md §3):
      kuenstler         = "$NAME"
      github_verbindung = "werkverzeichnis"
      web_schluessel    = "web"   # Terraform legt den Schlüssel an
+   Und alles, was sonst noch die kopierte Seite nennt: in gcp.tfvars
+   seiten_url, pages_projekt, web_adressen; in cloudflare.tfvars
+   pages_projekt und bilder_bucket.
    Nach dem Merge wendet terraform-anwenden an (auch Firebase für das Projekt).
 
 3. Danach in der Firebase-Console Authentication starten, Google aktivieren und

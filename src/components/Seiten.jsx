@@ -2,7 +2,10 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
+import { useQuery } from "@tanstack/react-query";
+import { client, SCHLUESSEL, zielSuchen } from "./abfragen.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 // Der Editor ist groß; erst laden, wenn eine Seite geöffnet wird.
@@ -33,27 +36,28 @@ export default function SeitenSeite() {
 function Seiten({ kuenstlerId, ich, bearbeitbar }) {
   const sammlung = collection(db, "artists", kuenstlerId, "seiten");
   const verlauf = collection(db, "artists", kuenstlerId, "seitenverlauf");
-  const [seiten, setSeiten] = useState();
-  const [geloescht, setGeloescht] = useState([]);   // je gelöschte Seite der letzte Löscheintrag
+  // seiten: die Seiten; geloescht: je gelöschte Seite der letzte Löscheintrag.
+  const abfrage = useQuery({
+    queryKey: SCHLUESSEL.seiten,
+    queryFn: async () => {
+      const [snap, weg] = await Promise.all([getDocs(sammlung), getDocs(query(verlauf, where("nachher", "==", null)))]);
+      const seiten = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(ordnung);
+      const geloescht = weg.docs.map(d => ({ id: d.id, ...d.data() })).sort(neuesteZuerst)
+        .filter((e, i, alle) => !seiten.some(s => s.id === e.seite) && alle.findIndex(x => x.seite === e.seite) === i);
+      return { seiten, geloescht };
+    },
+  });
+  const { data, error } = abfrage;
+  const seiten = data?.seiten;
+  const geloescht = data?.geloescht ?? [];
+  const fehler = error && meldung(error);
   const [offen, setOffen] = useState();   // eine Seite, oder { id: "" } für eine neue
-  const [fehler, setFehler] = useState();
+  const laden = () => client.invalidateQueries({ queryKey: SCHLUESSEL.seiten });
 
   // ?seite=<Kennung> (aus der Werkzeugleiste) öffnet diese Seite direkt, einmal.
   const ziel = useRef(new URLSearchParams(location.search).get("seite"));
-
-  async function laden() {
-    const snap = await getDocs(sammlung);
-    const liste = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(ordnung);
-    setSeiten(liste);
-    const weg = (await getDocs(query(verlauf, where("nachher", "==", null)))).docs
-      .map(d => ({ id: d.id, ...d.data() })).sort(neuesteZuerst)
-      .filter((e, i, alle) => !liste.some(s => s.id === e.seite) && alle.findIndex(x => x.seite === e.seite) === i);
-    setGeloescht(weg);
-    const s = liste.find(x => x.id === ziel.current);
-    ziel.current = null;
-    if (s) setOffen(s);
-  }
-  useEffect(() => { laden().catch(e => setFehler(meldung(e))); }, [kuenstlerId]);
+  useEffect(() => zielSuchen(ziel, abfrage, d => d.seiten.find(x => x.id === ziel.current), setOffen),
+    [seiten, abfrage.isFetching]);
 
   if (offen) return (
     <Seite sammlung={sammlung} verlauf={verlauf} ich={ich} seite={offen} bearbeitbar={bearbeitbar} seiten={seiten}
@@ -63,6 +67,7 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
   return (
     <div className="space-y-2">
       {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
+      {!seiten && !fehler && <Skelett />}
       <ul className="divide-y text-sm">
         {(seiten ?? []).map(s => (
           <li key={s.id}>
@@ -144,6 +149,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
         tx.set(ref, { ...neu, updatedAt: serverTimestamp(), lastChange: eintrag.id });
       });
       if (istNeu) return onSchliessen();
+      client.invalidateQueries({ queryKey: SCHLUESSEL.seiten });
       const frisch = (await getDoc(ref)).data();
       setGeladenAm(frisch.updatedAt);
       setHinweis("Gespeichert.");

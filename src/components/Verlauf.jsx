@@ -5,6 +5,7 @@ import {
 import { darf } from "../werkverzeichnis/permissions.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -50,17 +51,20 @@ function nachBuild(anfragen) {
   }).sort((x, y) => (y.angefordert?.toMillis() ?? Infinity) - (x.angefordert?.toMillis() ?? Infinity));
 }
 
+// Die zuletzt gesehenen Veröffentlichungen, bis der Listener die neuen bringt (#122).
+let zuletzt;
+
 function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
-  const [anfragen, setAnfragen] = useState();
+  const [anfragen, setAnfragen] = useState(zuletzt);
   const [fehler, setFehler] = useState();
 
   useEffect(() => onSnapshot(
     query(collection(db, "artists", kuenstlerId, "veroeffentlichungen"), orderBy("angefordert", "desc"), limit(ANZAHL)),
-    snap => setAnfragen(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    snap => setAnfragen(zuletzt = snap.docs.map(d => ({ id: d.id, ...d.data() }))),
     e => setFehler(meldung(e))), [kuenstlerId]);
 
   if (fehler) return <p className="text-red-700 text-sm">{fehler}</p>;
-  if (!anfragen) return <p className="text-sm text-gray-600">Lädt…</p>;
+  if (!anfragen) return <Skelett />;
   const builds = nachBuild(anfragen);
   if (!builds.length) return <p className="text-sm">Noch nie veröffentlicht.</p>;
 

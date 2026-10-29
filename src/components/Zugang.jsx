@@ -3,6 +3,7 @@ import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup } from "firebas
 import { getDoc } from "firebase/firestore";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { auth, kuenstler } from "./firebaseClient.js";
+import Skelett from "./Skelett.jsx";
 
 /**
  * Wer angemeldet ist und was er bei der Künstler:in dieser Website darf.
@@ -73,7 +74,7 @@ export default function Zugang({ berechtigung = "lesen", kinder }) {
     </div>
   );
 
-  if (nutzer === undefined || (nutzer && wer === undefined)) return <p>…</p>;
+  if (nutzer === undefined || (nutzer && wer === undefined)) return <Skelett />;
 
   if (!nutzer) return (
     <div className="space-y-2">

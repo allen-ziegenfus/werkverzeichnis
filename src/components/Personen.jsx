@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { serverTimestamp, updateDoc } from "firebase/firestore";
 import { ROLLEN_NAMEN, ROLLEN } from "../werkverzeichnis/permissions.js";
+import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
 import { kuenstler } from "./firebaseClient.js";
+import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 /** Wer bei der Künstler:in dieser Website was darf (artists/{a}.roles). Speichert nur die Rollen. */
@@ -22,14 +24,16 @@ function Personen({ ich }) {
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
 
-  useEffect(() => {
-    getDoc(kuenstler).then(d => setRollen(d.get("roles") ?? {})).catch(e => setFehler(meldung(e)));
-  }, []);
+  // Aus dem Cache, wenn schon geladen; neuere Daten ersetzen nur, was noch nicht geändert ist.
+  const { data, error } = useKuenstler();
+  useEffect(() => { if (data && !geaendert) setRollen(data.roles ?? {}); }, [data]);
+  useEffect(() => { if (error) setFehler(meldung(error)); }, [error]);
 
   async function speichern() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     try {
       await updateDoc(kuenstler, { roles: rollen, updatedAt: serverTimestamp() });
+      client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, roles: rollen });
       setGeaendert(false);
       setHinweis("Gespeichert.");
     } catch (e) {
@@ -39,7 +43,7 @@ function Personen({ ich }) {
     }
   }
 
-  if (!rollen) return fehler ? <p className="text-red-700">{fehler}</p> : <p>…</p>;
+  if (!rollen) return fehler ? <p className="text-red-700">{fehler}</p> : <Skelett />;
 
   return (
     <div className="space-y-3">
