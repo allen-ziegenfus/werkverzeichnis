@@ -118,6 +118,8 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
   const setze = (k, v) => setEntwurf(e => ({ ...e, [k]: v }));
+  const aktuellerEntwurf = useRef(entwurf);   // für Schreibvorgänge, die länger dauern
+  aktuellerEntwurf.current = entwurf;
   const id = alt ? alt.id : istNeu ? zuKennung(entwurf.titel) : seite.id;
 
   // Frühere Fassungen dieser Seite, neueste zuerst.
@@ -143,6 +145,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
    * Eintrag (etwa `rueckgaengig`).
    */
   async function schreiben(neu, extra, text) {
+    const start = entwurf;
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(sammlung, id);
     const eintrag = doc(verlauf);
@@ -163,7 +166,9 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
       const frisch = (await getDoc(ref)).data();
       setGeladenAm(frisch.updatedAt);
       setGespeichert(neu);
-      if (extra.rueckgaengig) { setEntwurf(neu); setGeladen(n => n + 1); }
+      // Das Formular zeigt danach die neue Fassung, außer jemand hat inzwischen
+      // darin weitergearbeitet; dann bleibt das und gilt als ungespeichert.
+      if (extra.rueckgaengig && aktuellerEntwurf.current === start) { setEntwurf(neu); setGeladen(n => n + 1); }
       setHinweis(text);
       await verlaufLaden();
     } catch (e) {
