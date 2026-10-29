@@ -51,3 +51,6 @@ zeigen die Vorschau, der Merge wendet sie an (`cloudbuild-terraform.yaml`), einz
 auch aus der Zentrale. Firestore-Regeln und
 Funktionen (`gcf/`) deployt ein zweiter Trigger mit `cloudbuild-backend.yaml`, nur wenn
 sich auf dem Branch etwas daran ändert.
+
+Jede Website hat ihr eigenes Google-Cloud-Projekt; warum, steht in
+`docs/entscheidungen/projekte-je-website.md`.
