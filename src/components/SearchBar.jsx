@@ -74,9 +74,9 @@ export default function Suche() {
         const suchDaten = await (await fetch("/searchData.json")).json();
         setEintraege(suchDaten);
         const suchMetadaten = await (await fetch("/searchMetadata.json")).json();
-        // Ohne Jahre (noch keine Werke mit Jahr) gibt es keinen Regler (#185).
+        // Ohne Jahre (noch keine Werke mit Jahr) oder mit nur einem gibt es keinen Regler (#185, #191).
         const von = Number(suchMetadaten.MinYear), bis = Number(suchMetadaten.MaxYear);
-        const spanne = suchMetadaten.MinYear != null && von > 0 && von <= bis ? [von, bis] : null;
+        const spanne = suchMetadaten.MinYear != null && von > 0 && von < bis ? [von, bis] : null;
         setJahresSpanne(spanne);
         setGewaehlteJahre(spanne ?? [-Infinity, Infinity]);
         const alle = { value: "all", label: "Alle" };
@@ -102,8 +102,13 @@ export default function Suche() {
 
   useEffect(() => {
     try {
+      // Nur innerhalb der aktuellen Spanne; ältere Daten können anderes hinterlassen haben (#191).
       const jahre = JSON.parse(sessionStorage.getItem("gewaehlteJahre"));
-      if (jahre) setGewaehlteJahre(jahre);
+      if (Array.isArray(jahre) && jahresSpanne) {
+        const [min, max] = jahresSpanne;
+        const [von, bis] = jahre.map(j => Math.min(max, Math.max(min, Number(j))));
+        if (von <= bis) setGewaehlteJahre([von, bis]);
+      }
       const werkgruppe = JSON.parse(sessionStorage.getItem("gewaehlteWerkgruppe"));
       if (werkgruppe) setGewaehlteWerkgruppe(werkgruppe);
       const bild = sessionStorage.getItem("bildVorhanden");
