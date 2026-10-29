@@ -67,7 +67,30 @@ In der Firebase-Console (Project shortcuts → Authentication); das geht nur dor
 
 Eine Web-App in Firebase braucht es nicht; den Schlüssel legt Terraform an.
 
+## Cloudflare-Tokens als Secrets
+
+Zwei Tokens in Cloudflare. Ihr Wert erscheint nur einmal; die Seite offen
+lassen, bis er eingetragen ist.
+
+1. **Pages-Token**, für den Build: Manage Account → Account API Tokens →
+   *Create Token* → *Custom token*, genau eine Policy: *Entire account* →
+   **Pages Write** (in der alten Oberfläche *Account · Cloudflare Pages · Edit*).
+   Eine Vorlage wie „Edit Cloudflare Workers“ bringt mehr mit; alles außer
+   *Pages Write* entfernen. Wird `cloudflare-pages-token`.
+2. **R2-Token**, für die Bildfunktion: R2 Object Storage → *Manage API tokens* →
+   *Create API token*, **Object Read & Write**, nur der Bucket der Seite
+   (`werkverzeichnis-bilder-<seite>`). Davon die *Access Key ID* wird
+   `r2-access-key-id`, der *Secret Access Key* wird `r2-secret-access-key`.
+
+Dann eintragen; der Befehl fragt die drei Werte nacheinander:
+
+```sh
+P=<seiten-projekt>
+for s in r2-access-key-id r2-secret-access-key cloudflare-pages-token; do
+  read -rsp "$s: " T; echo; printf %s "$T" | gcloud secrets versions add $s --project=$P --data-file=-
+done; unset T
+```
+
 ## Fertig
 
-Die übrigen Schritte (Secrets, erstes Backend-Deploy, Künstler:in und erste
-Admin) zeigt die Zentrale mit Haken, sobald sie erledigt sind.
+Die übrigen Schritte (erstes Backend-Deploy, Künstler:in und erste Admin) zeigt die Zentrale mit Haken, sobald sie erledigt sind.
