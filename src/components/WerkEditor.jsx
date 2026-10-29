@@ -8,7 +8,7 @@ import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
 /**
- * Der Werk-Editor (Firestore). Nur bearbeiten, eine Künstler:in.
+ * Der Werk-Editor (Firestore): bearbeiten und anlegen (#179), eine Künstler:in.
  *
  * Wer was darf, entscheidet firestore.rules, nicht diese Datei: die Berechtigung
  * werke.bearbeiten, die Inv. Nr. bleibt, und jede Änderung muss ihren
@@ -28,7 +28,8 @@ const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Mate
  * erneut geändert; die bleiben.
  */
 function zuruecksetzbar(v, daten) {
-  const felder = Object.entries(v.changes ?? {});
+  // Die Inv. Nr. ändert sich nie; beim Anlegen steht sie mit from: null im Verlauf (#179).
+  const felder = Object.entries(v.changes ?? {}).filter(([f]) => f !== "InvNr");
   const gleich = ([f, c]) => (daten[f] ?? null) === (c.to ?? null);
   return { zurueck: felder.filter(gleich), geblieben: felder.filter(x => !gleich(x)).map(([f]) => f) };
 }
@@ -45,7 +46,8 @@ function WerkEditor({ nutzer }) {
   // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
   const ziel = useRef(new URLSearchParams(location.search).get("werk"));
   const [gruppe, setGruppeRoh] = useState(() => ziel.current ? "" : letzteGruppe);
-  const setGruppe = g => { letzteGruppe = g; setGruppeRoh(g); };
+  const aktuelleGruppe = useRef(gruppe);
+  const setGruppe = g => { letzteGruppe = g; aktuelleGruppe.current = g; setGruppeRoh(g); };
   const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
   const werkeAbfrage = useWerke(gruppe);
   const { data: werke, error: werkeFehler } = werkeAbfrage;
@@ -59,6 +61,7 @@ function WerkEditor({ nutzer }) {
   const offen = useRef();
   const [speichert, setSpeichert] = useState(false);
   const [hinweis, setHinweis] = useState();
+  const [neu, setNeu] = useState();   // { InvNr, Titel }, solange das Formular für ein neues Werk offen ist
 
   // Das Werk aus ?werk=: erst seine Werkgruppe wählen, dann öffnen, sobald sie geladen ist.
   useEffect(() => {
@@ -122,6 +125,44 @@ function WerkEditor({ nutzer }) {
     }
   }
 
+  /**
+   * Legt ein Werk in der gewählten Werkgruppe an, mit Verlaufseintrag wie jede
+   * Änderung. Die Kennung kommt aus der Inv. Nr., wie beim Import (catalog.ts).
+   */
+  async function anlegen() {
+    const invNr = neu.InvNr.trim(), titel = neu.Titel.trim();
+    // Wie die Regeln: Kennung = Inv. Nr. klein; dann stimmt sie auch mit slugify (catalog.ts).
+    // Bindestriche nur einzeln und innen: slugify fasst sie sonst zusammen oder kürzt sie.
+    if (invNr.length > 100 || !/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(invNr)) {
+      setFehler("Die Inv. Nr. darf nur Buchstaben, Ziffern, Punkt und einzelne Bindestriche (nicht am Anfang oder Ende) enthalten.");
+      return;
+    }
+    const id = invNr.toLowerCase();
+    // Wohin die Ansicht während des Anlegens wechselt, soll nicht überschrieben werden.
+    const startGruppe = gruppe, startOffen = offen.current;
+    setSpeichert(true); setFehler(undefined); setHinweis(undefined);
+    const ref = doc(kuenstler, "works", id);
+    const eintrag = doc(collection(kuenstler, "history"));
+    const felder = { InvNr: invNr, ...(titel && { Titel: titel }) };
+    try {
+      await runTransaction(db, async (tx) => {
+        if ((await tx.get(ref)).exists()) throw new Error(`Die Inv. Nr. „${invNr}“ gibt es schon.`);
+        tx.set(eintrag, { work: id, by: nutzer.email, at: serverTimestamp(),
+          changes: Object.fromEntries(Object.entries(felder).map(([f, wert]) => [f, { from: null, to: wert }])) });
+        tx.set(ref, { ...felder, werkgruppe: gruppe, updatedAt: serverTimestamp(), lastChange: eintrag.id });
+      });
+      const w = { id, data: (await getDoc(ref)).data() };
+      client.invalidateQueries({ queryKey: SCHLUESSEL.werke(gruppe) });
+      setNeu(undefined);
+      if (aktuelleGruppe.current === startGruppe && offen.current === startOffen) await oeffnen(w);
+      setHinweis(`Angelegt (${invNr}).`);
+    } catch (e) {
+      setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+    } finally {
+      setSpeichert(false);
+    }
+  }
+
   const speichern = () => schreiben(Object.fromEntries(geaendert.map(f => [f, entwurf[f]])), {},
     `Gespeichert (${geaendert.join(", ")}).`);
 
@@ -159,7 +200,7 @@ function WerkEditor({ nutzer }) {
       {!gruppen && !ladefehler && <Skelett zeilen={1} />}
       {gruppen && (
         <select className="border p-1 w-full" value={gruppe}
-                onChange={e => { setGruppe(e.target.value); setWerk(undefined); }}>
+                onChange={e => { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); }}>
           <option value="">Werkgruppe wählen…</option>
           {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
         </select>
@@ -168,6 +209,22 @@ function WerkEditor({ nutzer }) {
       {gruppe && !werke && !ladefehler && <Skelett />}
       {werke && !werk && (
         <>
+          {neu ? (
+            <div className="flex gap-2 flex-wrap items-center">
+              <input className="border p-1 w-32" placeholder="Inv. Nr." autoFocus value={neu.InvNr}
+                     onChange={e => setNeu({ ...neu, InvNr: e.target.value })} />
+              <input className="border p-1 flex-1 min-w-40" placeholder="Titel" value={neu.Titel}
+                     onChange={e => setNeu({ ...neu, Titel: e.target.value })}
+                     onKeyDown={e => e.key === "Enter" && neu.InvNr.trim() && anlegen()} />
+              <button className={knopf} disabled={speichert || !neu.InvNr.trim()} onClick={anlegen}>
+                {speichert ? "Lege an…" : "Anlegen"}
+              </button>
+              <button className={knopf} disabled={speichert} onClick={() => setNeu(undefined)}>Abbrechen</button>
+            </div>
+          ) : (
+            <button className={knopf} onClick={() => { setNeu({ InvNr: "", Titel: "" }); setFehler(undefined); }}>Neues Werk</button>
+          )}
+          {werke.length === 0 && !neu && <p className="text-sm text-gray-600">Noch keine Werke in dieser Werkgruppe.</p>}
           <input className="border p-1 w-full" placeholder="Inv. Nr. oder Titel"
                  value={suche} onChange={e => setSuche(e.target.value)} />
           <ul className="divide-y">

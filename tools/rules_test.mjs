@@ -79,6 +79,10 @@ const welt = [
   { function: "exists", args: [{ anyValue: {} }], result: { value: false } },
 ];
 
+// Die Werkgruppe objekte gibt es (für das Anlegen von Werken).
+const werkgruppeDa = [{ function: "exists", args: [{ exactValue: `${wurzel}/artists/kutscher/werkgruppen/objekte` }],
+  result: { value: true } }];
+
 function fall(name, erwartung, auth, methode, pfad, { daten, vorhanden, mocks = [] } = {}) {
   return {
     name,
@@ -223,6 +227,32 @@ const faelle = [
     { daten: { art: "bild" } }),
   fall("niemand löscht den Seitenverlauf", "DENY", als(SUPER), "delete", "artists/kutscher/seitenverlauf/s1",
     { vorhanden: { seite: "kontakt", by: EDITOR, at: FRUEHER, vorher: null, nachher: null } }),
+  // Werk anlegen (#179); die Werkgruppe objekte gibt es, andere nicht.
+  fall("Werk anlegen", "ALLOW", als(EDITOR), "create", "artists/kutscher/works/ob1",
+    { daten: { ...werk, updatedAt: JETZT, lastChange: "h1" }, mocks: werkgruppeDa }),
+  fall("Werk anlegen ohne Verlaufseintrag", "DENY", als(EDITOR), "create", "artists/kutscher/works/ob1",
+    { daten: { ...werk, updatedAt: JETZT, lastChange: "h2" }, mocks: werkgruppeDa }),
+  fall("Werk anlegen in unbekannter Werkgruppe", "DENY", als(EDITOR), "create", "artists/kutscher/works/ob1",
+    { daten: { ...werk, werkgruppe: "gibts-nicht", updatedAt: JETZT, lastChange: "h1" }, mocks: werkgruppeDa }),
+  fall("Werk anlegen ohne Inv. Nr.", "DENY", als(EDITOR), "create", "artists/kutscher/works/ob1",
+    { daten: { ...werk, InvNr: "", updatedAt: JETZT, lastChange: "h1" }, mocks: werkgruppeDa }),
+  fall("Werk anlegen mit eigenem Zeitstempel", "DENY", als(EDITOR), "create", "artists/kutscher/works/ob1",
+    { daten: { ...werk, updatedAt: FRUEHER, lastChange: "h1" }, mocks: werkgruppeDa }),
+  fall("Fremde legt kein Werk an", "DENY", als(FREMDE), "create", "artists/kutscher/works/ob1",
+    { daten: { ...werk, updatedAt: JETZT, lastChange: "h1" }, mocks: werkgruppeDa }),
+  fall("Werk anlegen unter fremder Kennung", "DENY", als(EDITOR), "create", "artists/kutscher/works/anderes",
+    { daten: { ...werk, updatedAt: JETZT, lastChange: "h1" }, mocks: [...werkgruppeDa, { function: "getAfter",
+      args: [{ exactValue: `${wurzel}/artists/kutscher/history/h1` }], result: { value: { data: { work: "anderes" } } } }] }),
+  fall("Werk anlegen mit Leerzeichen in der Inv. Nr.", "DENY", als(EDITOR), "create", "artists/kutscher/works/ob 1",
+    { daten: { ...werk, InvNr: "OB 1", updatedAt: JETZT, lastChange: "h1" }, mocks: werkgruppeDa }),
+  fall("Werk anlegen mit doppeltem Bindestrich", "DENY", als(EDITOR), "create", "artists/kutscher/works/ob--1",
+    { daten: { ...werk, InvNr: "OB--1", updatedAt: JETZT, lastChange: "h1" }, mocks: werkgruppeDa }),
+  fall("Werk anlegen mit Bindestrich am Ende", "DENY", als(EDITOR), "create", "artists/kutscher/works/ob1-",
+    { daten: { ...werk, InvNr: "OB1-", updatedAt: JETZT, lastChange: "h1" }, mocks: werkgruppeDa }),
+  fall("Werk anlegen mit Bindestrich und Punkt", "ALLOW", als(EDITOR), "create", "artists/kutscher/works/ob-1.2",
+    { daten: { ...werk, InvNr: "OB-1.2", updatedAt: JETZT, lastChange: "h3" }, mocks: [...werkgruppeDa,
+      { function: "getAfter", args: [{ exactValue: `${wurzel}/artists/kutscher/history/h3` }],
+        result: { value: { data: { work: "ob-1.2" } } } }] }),
   fall("Inv. Nr. bleibt", "DENY", als(EDITOR), "update", "artists/kutscher/works/ob1",
     { daten: { ...werk, InvNr: "OB2", updatedAt: JETZT, lastChange: "h1" }, vorhanden: werk }),
   fall("Änderung ohne Verlaufseintrag", "DENY", als(EDITOR), "update", "artists/kutscher/works/ob1",
