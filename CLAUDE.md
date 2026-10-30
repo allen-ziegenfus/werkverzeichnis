@@ -11,10 +11,18 @@ Infrastruktur: `infra/BOOTSTRAP.md`, Regeln fürs Review: `.macroscope/correctne
 - Branch `<issue>-<thema>` von `main`, z. B. `25-veroeffentlichen-aufklappen`.
 - Commit-Betreff endet mit `(#<issue>)`, dazu höchstens ein paar Zeilen Text.
 - Änderungen gehen als PR nach `main`, nie direkt. Vor jedem Push fragen.
+- Gruppen: Zusammengehörige Issues sind Unter-Issues eines Gruppen-Issues. Die
+  Gruppe hat einen Branch `<gruppe>-<thema>` von `main`; jedes Unter-Issue geht
+  als eigener PR (eigene Beschreibung, eigene Screenshots) in den
+  Gruppen-Branch. Ist die Gruppe fertig, geht der Gruppen-Branch als ein PR nach
+  `main`, mit `Closes` je Issue und Links auf die Unter-PRs. Kleine Einzelstücke
+  ohne Gruppe gehen weiter direkt nach `main`.
 - Keine gestapelten PRs: Branches werden nach dem Merge nicht gelöscht, ein PR
-  auf einem anderen PR-Branch landet sonst dort statt in `main`.
+  auf einem anderen PR-Branch landet sonst dort statt in `main`. Gruppen-Branches
+  sind keine PR-Branches; Unter-PRs zielen auf sie, solange die Gruppe offen ist.
 - Die PR-Beschreibung sagt, was sich ändert, was geprüft ist und was nicht, und
-  endet mit `Closes #<issue>`.
+  endet mit `Closes #<issue>` (Unter-PRs: `Teil von #<gruppe>`; `Closes` wirkt
+  nur auf `main`).
 
 ## Vor dem PR
 
@@ -33,8 +41,12 @@ Fehler sollen vor dem Push auffallen, nicht erst im PR.
    postet nichts und wechselt keinen Branch; am besten in einem eigenen Worktree.
    Befunde mit Datei:Zeile, konkretem Fehlerfall und Vorschlag, Maßstab sind diese
    Datei und `.macroscope/correctness/`.
-3. **Befunde beheben**, dann pushen und den PR öffnen. Macroscope prüft danach
-   weiter; seine Hinweise beheben und im PR beantworten.
+3. **Befunde beheben**, dann pushen und den PR öffnen.
+4. **Macroscope** läuft nur von Hand und kostet je Prüfung mindestens 0,50 $,
+   auch für einen kleinen Folge-Push. Darum einmal je PR nach `main` (bei
+   Gruppen nur der Gruppen-PR), nach Rückfrage, mit dem Kommentar
+   `@macroscope-app review`. Seine Hinweise in einem Push beheben, ohne erneute
+   Prüfung, und im PR beantworten.
 
 Änderungen unter `infra/` erst pushen, wenn kein Terraform-Lauf läuft (Vorschau
 oder Anwenden); gleichzeitige Läufe sperren sich die Deployments.
@@ -79,8 +91,10 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
   denselben Trigger je Deployment, nach Bestätigung des Plans. Von Hand
   (`node tools/rules_deploy.mjs`, `infra/apply.sh`) nur durch die
   Repo-Eigentümer:in, nicht ohne ausdrückliche Bitte.
-  Lehnen die alten Regeln neuen Code ab, die Regeln vor dem Merge von Hand
-  deployen und das im PR sagen.
+  Regeln und Seite gehen nach dem Merge gleichzeitig live, in beliebiger
+  Reihenfolge. Darum neue Pflichten (z. B. ein Verlaufseintrag) zuerst nur
+  erlauben, sodass alter und neuer Code mit alten und neuen Regeln gehen; erst
+  ein späterer PR verlangt sie. Kein Deploy von Hand vor dem Merge.
 - Keine Zugangsdaten, Tokens oder Schlüssel in Repo, Issues, PRs oder Logs.
 - Die alte Website im Repo `allen-ziegenfus.github.io` (Branch `master`, GitHub
   Pages) ist noch live und wird nicht angefasst.

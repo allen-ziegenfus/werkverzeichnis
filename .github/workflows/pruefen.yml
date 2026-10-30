@@ -1,11 +1,10 @@
-# Prüft jeden PR auf main ohne Zugangsdaten (#59): Terraform und den Bau der
-# Seite mit Testdaten (#68). Was GCP braucht (Regeltests über die Rules API,
-# Terraform-Vorschau), läuft in Cloud Build.
+# Prüft jeden PR ohne Zugangsdaten (#59), auch Unter-PRs auf Gruppen-Branches
+# (#214): Terraform und den Bau der Seite mit Testdaten (#68). Was GCP braucht
+# (Regeltests über die Rules API, Terraform-Vorschau), läuft in Cloud Build.
 name: Prüfen
 
 on:
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
