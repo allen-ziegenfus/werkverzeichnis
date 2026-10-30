@@ -73,7 +73,7 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
   // Eigene Verlaufseinträge: deren Speichern ist kein fremdes.
   const eigene = useRef(new Set());
   const aktuell = useRef();
-  aktuell.current = { stand, entwurf, geaendert, uebernehmen, wer, konflikte, fremd };
+  aktuell.current = { stand, entwurf, geaendert, uebernehmen, wer, konflikte, fremd, schluessel };
 
   // Für Felder mit offenem Konflikt gilt die Basis vor dem ersten fremden
   // Speichern; sonst sähe ein erneutes Zusammenführen (auch nach dem Neuladen)
@@ -146,6 +146,8 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
      */
     async nachKonflikt({ ruecknahme = false } = {}) {
       const snap = await getDoc(ref);
+      // Inzwischen ein anderes Dokument geöffnet (Werk-Editor): nichts übernehmen.
+      if (aktuell.current.schluessel !== schluessel) return;
       if (!snap.exists()) { setFremd({ geloescht: true }); return; }
       if (ruecknahme) {
         aktuell.current.uebernehmen(snap.data());
