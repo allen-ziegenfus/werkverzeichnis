@@ -8,6 +8,7 @@ import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
+import { werkFeld } from "./werkFeld.js";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -25,8 +26,6 @@ const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Te
   "Ausstellung", "Literatur", "Bibliographie"];
 const BEARBEITBAR = FELDER.filter(f => f !== "InvNr");
 const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Material"];
-// Namen im Verlauf für Felder, die nicht im Formular stehen.
-const NAMEN = { ausgeblendet: "Ausgeblendet" };
 
 /**
  * Was sich von einem Verlaufseintrag zurücksetzen lässt: Felder, deren heutiger
@@ -210,7 +209,8 @@ function WerkEditor({ nutzer }) {
    */
   function ausblenden(an) {
     if (an && !window.confirm(`Werk ${werk.data.InvNr} auf der Website ausblenden?\n\n`
-      + "Es bleibt in der Verwaltung und lässt sich wieder einblenden. Von der Website verschwindet es mit der nächsten Veröffentlichung.")) return;
+      + "Es bleibt in der Verwaltung und lässt sich wieder einblenden. Von der Website verschwindet es mit der nächsten Veröffentlichung; "
+      + "Links darauf, etwa in Seitentexten, führen dann ins Leere. Die Bilder bleiben unter ihren Adressen erreichbar.")) return;
     schreiben({ ausgeblendet: an || null }, {}, an ? "Ausgeblendet; von der Website verschwindet es mit der nächsten Veröffentlichung."
       : "Eingeblendet; auf der Website erscheint es mit der nächsten Veröffentlichung.");
   }
@@ -342,7 +342,7 @@ function WerkEditor({ nutzer }) {
           {!verlauf && <p className="text-sm text-gray-600">Lädt…</p>}
           {verlauf?.length === 0 && <p className="text-sm text-gray-600">Noch keine Änderungen.</p>}
           {verlauf?.length > 0 && !alles && (
-            <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={f => NAMEN[f] ?? f}
+            <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={werkFeld}
                           lang={f => LANG.includes(f)} bearbeitbar zuruecknehmen={zuruecknehmen}
                           gesperrt={speichert ? "Speichert…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
           )}

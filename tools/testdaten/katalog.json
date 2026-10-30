@@ -20,6 +20,8 @@
       "images": ["artists/test/ob2a.jpg", "artists/test/ob2b.jpg"] },
     { "slug": "ob3", "werkgruppe": "objekte", "InvNr": "OB3", "Titel": "Ohne Bild", "Jahr": "1980, 1985",
       "Beschreibung": "-" },
+    { "slug": "ob4", "werkgruppe": "objekte", "InvNr": "OB4", "Titel": "Ausgeblendet", "ausgeblendet": true,
+      "Beschreibung": "Steht nicht auf der Website (#181)." },
     { "slug": "fivi1", "werkgruppe": "filme-und-video", "InvNr": "FiVi1", "Titel": "Ein Film", "Jahr": "1990",
       "Technik": "16 mm, s/w, 12 min", "images": ["artists/test/fivi1.mp4"] }
   ],
