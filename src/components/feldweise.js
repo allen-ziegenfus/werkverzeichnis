@@ -1,4 +1,4 @@
-import { deleteField, FieldPath, runTransaction, serverTimestamp } from "firebase/firestore";
+import { deleteField, doc, FieldPath, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
 
 /**
@@ -14,13 +14,15 @@ import { db } from "./firebaseClient.js";
  * - Ein fehlender Wert (null/undefined) heißt entfernt.
  * - ergaenzen: Felder, die im Dokument ganz fehlen, mit dem Wert von hier
  *   mitschreiben (ältere Dokumente; die Regeln verlangen alle Felder).
+ * - verlauf: { sammlung, eintrag(vorher, nachher) }: im selben Schreibvorgang
+ *   einen Verlaufseintrag anlegen, auf den `lastChange` zeigt (#106).
  *
  * Ergebnis: { stand, formular, konflikte, fremd } – fremd: ob andere
  * inzwischen etwas anderes geändert haben.
  */
 const w = v => v ?? null;
 
-export async function feldweiseSpeichern({ ref, stand, mein, lesen, pfad = k => k, ergaenzen = false }) {
+export async function feldweiseSpeichern({ ref, stand, mein, lesen, pfad = k => k, ergaenzen = false, verlauf }) {
   const schluessel = [...new Set([...Object.keys(stand), ...Object.keys(mein)])];
   const geaendert = schluessel.filter(k => w(stand[k]) !== w(mein[k]));
   const ergebnis = await runTransaction(db, async tx => {
@@ -32,8 +34,16 @@ export async function feldweiseSpeichern({ ref, stand, mein, lesen, pfad = k => 
     const schreiben = [...new Set([...geaendert,
       ...(ergaenzen ? Object.keys(mein).filter(k => !(k in roh)) : [])])];
     if (!konflikte.length && schreiben.length) {
+      const zusatz = [];
+      if (verlauf) {
+        const nachher = { ...jetzt };
+        for (const k of schreiben) { if (w(mein[k]) === null) delete nachher[k]; else nachher[k] = mein[k]; }
+        const e = doc(verlauf.sammlung);
+        tx.set(e, verlauf.eintrag(jetzt, nachher));
+        zusatz.push("lastChange", e.id);
+      }
       tx.update(ref, ...schreiben.flatMap(k => [pfad(k), w(mein[k]) ?? deleteField()]),
-        "updatedAt", serverTimestamp());
+        "updatedAt", serverTimestamp(), ...zusatz);
     }
     return { jetzt, konflikte, fremd };
   });

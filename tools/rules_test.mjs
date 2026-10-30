@@ -79,6 +79,29 @@ const welt = [
   { function: "exists", args: [{ anyValue: {} }], result: { value: false } },
 ];
 
+// Verlauf für Einstellungen und Werkgruppen (#106).
+const einstellungen = d => Object.fromEntries(["titel", "websiteTitel", "titelZeile1", "titelZeile2", "copyright"]
+  .map(k => [k, d[k] ?? ""]));
+const kutscherNeu = { ...kutscher, titel: "Neu", lastChange: "e1" };
+const KUENSTLER = `${wurzel}/artists/kutscher`;
+const einstellungsEintrag = nachher => [{ function: "getAfter",
+  args: [{ exactValue: `${wurzel}/artists/kutscher/einstellungsverlauf/e1` }], result: { value: { data: { nachher } } } }];
+const kuenstlerDanach = d => [{ function: "getAfter", args: [{ exactValue: KUENSTLER }], result: { value: { data: d } } }];
+const einstellungsVerlauf = (vorher, nachher) => ({ by: "admin@example.org", at: JETZT, vorher, nachher });
+const werkgruppenFassung = ({ titel, kurztitel = null, reihenfolge, cover = null }) => ({ titel, kurztitel, reihenfolge, cover });
+const gruppeNeu = { ...gruppe, titel: "Fotos", lastChange: "g1" };
+const FOTOGRAFIE = `${wurzel}/artists/kutscher/werkgruppen/fotografie`;
+const werkgruppenEintrag = nachher => [{ function: "getAfter",
+  args: [{ exactValue: `${wurzel}/artists/kutscher/werkgruppenverlauf/g1` }],
+  result: { value: { data: { werkgruppe: "fotografie", nachher } } } }];
+const werkgruppeDavor = d => d
+  ? [{ function: "exists", args: [{ exactValue: FOTOGRAFIE }], result: { value: true } },
+     { function: "get", args: [{ exactValue: FOTOGRAFIE }], result: { value: { data: d } } }]
+  : [{ function: "exists", args: [{ exactValue: FOTOGRAFIE }], result: { value: false } }];
+const werkgruppeDanach = d => [{ function: "existsAfter", args: [{ exactValue: FOTOGRAFIE }], result: { value: true } },
+  { function: "getAfter", args: [{ exactValue: FOTOGRAFIE }], result: { value: { data: d } } }];
+const werkgruppenVerlauf = (vorher, nachher) => ({ werkgruppe: "fotografie", by: "admin@example.org", at: JETZT, vorher, nachher });
+
 // Die Werkgruppe objekte gibt es (für das Anlegen von Werken).
 const werkgruppeDa = [{ function: "exists", args: [{ exactValue: `${wurzel}/artists/kutscher/werkgruppen/objekte` }],
   result: { value: true } }];
@@ -278,6 +301,52 @@ const faelle = [
     { vorhanden: { von: ADMIN, angefordert: FRUEHER, status: "fertig" } }),
   fall("Verlaufseintrag im Namen einer anderen", "DENY", als(EDITOR), "create", "artists/kutscher/history/h1",
     { daten: { work: "ob1", by: ADMIN, at: JETZT, changes: {} } }),
+
+  // Verlauf für Einstellungen und Werkgruppen (#106); noch nicht verlangt.
+  fall("Einstellungen mit Verlaufseintrag", "ALLOW", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherNeu, updatedAt: JETZT }, vorhanden: kutscher, mocks: einstellungsEintrag(einstellungen(kutscherNeu)) }),
+  fall("Einstellungen mit lastChange ohne Eintrag", "DENY", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherNeu, lastChange: "e9", updatedAt: JETZT }, vorhanden: kutscher }),
+  fall("Einstellungen mit Eintrag einer anderen Fassung", "DENY", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherNeu, updatedAt: JETZT }, vorhanden: kutscher, mocks: einstellungsEintrag(einstellungen(kutscher)) }),
+  fall("Einstellungsverlauf beim Speichern", "ALLOW", als(ADMIN), "create", "artists/kutscher/einstellungsverlauf/e1",
+    { daten: einstellungsVerlauf(einstellungen(kutscher), einstellungen(kutscherNeu)), mocks: kuenstlerDanach(kutscherNeu) }),
+  fall("Einstellungsverlauf mit falschem vorher", "DENY", als(ADMIN), "create", "artists/kutscher/einstellungsverlauf/e1",
+    { daten: einstellungsVerlauf(einstellungen(kutscherNeu), einstellungen(kutscherNeu)), mocks: kuenstlerDanach(kutscherNeu) }),
+  fall("Einstellungsverlauf ohne passendes lastChange", "DENY", als(ADMIN), "create", "artists/kutscher/einstellungsverlauf/e2",
+    { daten: einstellungsVerlauf(einstellungen(kutscher), einstellungen(kutscherNeu)), mocks: kuenstlerDanach(kutscherNeu) }),
+  fall("Einstellungsverlauf im Namen einer anderen", "DENY", als(ADMIN), "create", "artists/kutscher/einstellungsverlauf/e1",
+    { daten: { ...einstellungsVerlauf(einstellungen(kutscher), einstellungen(kutscherNeu)), by: EDITOR }, mocks: kuenstlerDanach(kutscherNeu) }),
+  fall("Bearbeiter:in schreibt keinen Einstellungsverlauf", "DENY", als(EDITOR), "create", "artists/kutscher/einstellungsverlauf/e1",
+    { daten: { ...einstellungsVerlauf(einstellungen(kutscher), einstellungen(kutscherNeu)), by: EDITOR }, mocks: kuenstlerDanach(kutscherNeu) }),
+  fall("Werkgruppe mit Verlaufseintrag", "ALLOW", als(ADMIN), "update", "artists/kutscher/werkgruppen/fotografie",
+    { daten: gruppeNeu, vorhanden: gruppe, mocks: werkgruppenEintrag(werkgruppenFassung(gruppeNeu)) }),
+  fall("Werkgruppe mit lastChange ohne Eintrag", "DENY", als(ADMIN), "update", "artists/kutscher/werkgruppen/fotografie",
+    { daten: { ...gruppeNeu, lastChange: "g9" }, vorhanden: gruppe }),
+  fall("Werkgruppe ohne lastChange (Übergang)", "ALLOW", als(ADMIN), "update", "artists/kutscher/werkgruppen/fotografie",
+    { daten: { ...gruppe, titel: "Neu" }, vorhanden: gruppe }),
+  fall("Werkgruppenverlauf beim Ändern", "ALLOW", als(ADMIN), "create", "artists/kutscher/werkgruppenverlauf/g1",
+    { daten: werkgruppenVerlauf(werkgruppenFassung(gruppe), werkgruppenFassung(gruppeNeu)),
+      mocks: [...werkgruppeDavor(gruppe), ...werkgruppeDanach(gruppeNeu)] }),
+  fall("Werkgruppenverlauf beim Anlegen", "ALLOW", als(ADMIN), "create", "artists/kutscher/werkgruppenverlauf/g1",
+    { daten: werkgruppenVerlauf(null, werkgruppenFassung(gruppeNeu)),
+      mocks: [...werkgruppeDavor(null), ...werkgruppeDanach(gruppeNeu)] }),
+  fall("Werkgruppenverlauf mit falschem vorher", "DENY", als(ADMIN), "create", "artists/kutscher/werkgruppenverlauf/g1",
+    { daten: werkgruppenVerlauf({ ...werkgruppenFassung(gruppe), titel: "erfunden" }, werkgruppenFassung(gruppeNeu)),
+      mocks: [...werkgruppeDavor(gruppe), ...werkgruppeDanach(gruppeNeu)] }),
+  fall("Werkgruppenverlauf ohne Änderung der Werkgruppe", "DENY", als(ADMIN), "create", "artists/kutscher/werkgruppenverlauf/g1",
+    { daten: werkgruppenVerlauf(werkgruppenFassung(gruppe), werkgruppenFassung(gruppeNeu)),
+      mocks: [...werkgruppeDavor(gruppe), ...werkgruppeDanach(gruppe)] }),
+  fall("Bearbeiter:in schreibt keinen Werkgruppenverlauf", "DENY", als(EDITOR), "create", "artists/kutscher/werkgruppenverlauf/g1",
+    { daten: { ...werkgruppenVerlauf(werkgruppenFassung(gruppe), werkgruppenFassung(gruppeNeu)), by: EDITOR },
+      mocks: [...werkgruppeDavor(gruppe), ...werkgruppeDanach(gruppeNeu)] }),
+  fall("Werkgruppenverlauf mit Pfad als Kennung", "DENY", als(ADMIN), "create", "artists/kutscher/werkgruppenverlauf/g1",
+    { daten: { ...werkgruppenVerlauf(werkgruppenFassung(gruppe), werkgruppenFassung(gruppeNeu)), werkgruppe: "../x" },
+      mocks: [...werkgruppeDavor(gruppe), ...werkgruppeDanach(gruppeNeu)] }),
+  fall("lastChange keine Zeichenkette", "DENY", als(ADMIN), "update", "artists/kutscher/werkgruppen/fotografie",
+    { daten: { ...gruppe, lastChange: 5 }, vorhanden: gruppe }),
+  fall("niemand ändert den Werkgruppenverlauf", "DENY", als(SUPER), "update", "artists/kutscher/werkgruppenverlauf/g1",
+    { daten: werkgruppenVerlauf(null, null), vorhanden: werkgruppenVerlauf(null, null) }),
 ];
 
 const client = await new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] }).getClient();

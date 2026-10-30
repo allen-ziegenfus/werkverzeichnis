@@ -48,13 +48,37 @@ service cloud.firestore {
 
     function gueltigerKuenstler(d) {
       return d.keys().hasOnly(["titel", "websiteTitel", "titelZeile1", "titelZeile2",
-                               "copyright", "roles", "updatedAt"])
+                               "copyright", "roles", "updatedAt", "lastChange"])
         && d.titel is string && d.titel.size() > 0
         && d.websiteTitel is string && d.titelZeile1 is string
         && d.titelZeile2 is string && d.copyright is string
         && d.roles is map && d.roles.size() <= 50
         && d.roles.values().hasOnly(berechtigungen().keys())
+        && (d.get("lastChange", null) == null || d.lastChange is string)
         && d.updatedAt == request.time;
+    }
+
+    // Verlauf für Werkgruppen und Einstellungen (#106): Wer `lastChange` neu
+    // setzt, legt im selben Schreibvorgang den Eintrag an, auf den es zeigt.
+    // Noch nicht verlangt, damit Code ohne Verlauf weiter speichern kann
+    // (Übergang, CLAUDE.md); ein späterer Merge nach main verlangt ihn.
+    function neuerEintrag(d, alt) {
+      return d.get("lastChange", null) != alt.get("lastChange", null);
+    }
+
+    function einstellungen(d) {
+      return { "titel": d.get("titel", ""), "websiteTitel": d.get("websiteTitel", ""),
+               "titelZeile1": d.get("titelZeile1", ""), "titelZeile2": d.get("titelZeile2", ""),
+               "copyright": d.get("copyright", "") };
+    }
+
+    function einstellungsverlauf(kuenstler, eintrag) {
+      return /databases/$(database)/documents/artists/$(kuenstler)/einstellungsverlauf/$(eintrag);
+    }
+
+    function einstellungenMitVerlauf(kuenstler, d) {
+      return !exists(einstellungsverlauf(kuenstler, d.lastChange))
+        && getAfter(einstellungsverlauf(kuenstler, d.lastChange)).data.nachher == einstellungen(d);
     }
 
     match /artists/{kuenstler} {
@@ -68,31 +92,87 @@ service cloud.firestore {
         && (darf(kuenstler, "einstellungen.bearbeiten")
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["roles", "updatedAt"]))
         && (darf(kuenstler, "rollen.verwalten")
-            || !request.resource.data.diff(resource.data).affectedKeys().hasAny(["roles"]));
+            || !request.resource.data.diff(resource.data).affectedKeys().hasAny(["roles"]))
+        && (!neuerEintrag(request.resource.data, resource.data) || einstellungenMitVerlauf(kuenstler, request.resource.data));
 
       // Stattdessen deaktivieren: Löschen würde die Untersammlungen verwaisen lassen.
       allow delete: if false;
     }
 
+    // Jede Änderung der Einstellungen, nur anfügen: vorher und nachher die
+    // Felder aus einstellungen(), ohne Rollen (eigene Berechtigung).
+    match /artists/{kuenstler}/einstellungsverlauf/{eintrag} {
+      allow read: if darf(kuenstler, "lesen");
+      allow create: if darf(kuenstler, "einstellungen.bearbeiten")
+        && request.resource.data.keys().hasOnly(["by", "at", "vorher", "nachher", "rueckgaengig"])
+        && (!("rueckgaengig" in request.resource.data) || request.resource.data.rueckgaengig is string)
+        && request.resource.data.by == emailAdresse()
+        && request.resource.data.at == request.time
+        && request.resource.data.vorher == einstellungen(get(/databases/$(database)/documents/artists/$(kuenstler)).data)
+        && getAfter(/databases/$(database)/documents/artists/$(kuenstler)).data.get("lastChange", null) == eintrag
+        && request.resource.data.nachher == einstellungen(getAfter(/databases/$(database)/documents/artists/$(kuenstler)).data);
+    }
+
     function gueltigeWerkgruppe(d) {
       // cover: Pfad des Titelbilds in Cloud Storage.
       // updatedAt: damit Veröffentlichen die Änderung als offen zählt.
-      return d.keys().hasOnly(["titel", "kurztitel", "reihenfolge", "cover", "updatedAt"])
+      return d.keys().hasOnly(["titel", "kurztitel", "reihenfolge", "cover", "updatedAt", "lastChange"])
         && d.titel is string && d.titel.size() > 0
         && (d.get("kurztitel", null) == null || d.kurztitel is string)
         && d.reihenfolge is int
         && (d.get("cover", null) == null || d.cover is string)
+        && (d.get("lastChange", null) == null || d.lastChange is string)
         && d.updatedAt == request.time;
+    }
+
+    function werkgruppenFassung(d) {
+      return { "titel": d.titel, "kurztitel": d.get("kurztitel", null), "reihenfolge": d.reihenfolge,
+               "cover": d.get("cover", null) };
+    }
+
+    function werkgruppenverlauf(kuenstler, eintrag) {
+      return /databases/$(database)/documents/artists/$(kuenstler)/werkgruppenverlauf/$(eintrag);
+    }
+
+    function werkgruppeMitVerlauf(kuenstler, werkgruppe, d) {
+      let e = getAfter(werkgruppenverlauf(kuenstler, d.lastChange)).data;
+      return !exists(werkgruppenverlauf(kuenstler, d.lastChange))
+        && e.werkgruppe == werkgruppe
+        && e.nachher == werkgruppenFassung(d);
     }
 
     match /artists/{kuenstler}/werkgruppen/{werkgruppe} {
       allow read: if darf(kuenstler, "lesen");
       allow create: if darf(kuenstler, "werkgruppen.bearbeiten")
         && werkgruppe.matches("^[a-z0-9][a-z0-9-]{0,59}$")
-        && gueltigeWerkgruppe(request.resource.data);
-      allow update: if darf(kuenstler, "werkgruppen.bearbeiten") && gueltigeWerkgruppe(request.resource.data);
+        && gueltigeWerkgruppe(request.resource.data)
+        && (!neuerEintrag(request.resource.data, {}) || werkgruppeMitVerlauf(kuenstler, werkgruppe, request.resource.data));
+      allow update: if darf(kuenstler, "werkgruppen.bearbeiten") && gueltigeWerkgruppe(request.resource.data)
+        && (!neuerEintrag(request.resource.data, resource.data) || werkgruppeMitVerlauf(kuenstler, werkgruppe, request.resource.data));
       // Noch nicht: Ihre Werke stünden ohne Werkgruppe da.
       allow delete: if false;
+    }
+
+    // Jede Änderung einer Werkgruppe, nur anfügen: vorher (null beim Anlegen)
+    // und nachher ganz, wie beim Seitenverlauf.
+    match /artists/{kuenstler}/werkgruppenverlauf/{eintrag} {
+      allow read: if darf(kuenstler, "lesen");
+      allow create: if darf(kuenstler, "werkgruppen.bearbeiten")
+        && request.resource.data.keys().hasOnly(["werkgruppe", "by", "at", "vorher", "nachher", "rueckgaengig"])
+        && (!("rueckgaengig" in request.resource.data) || request.resource.data.rueckgaengig is string)
+        && request.resource.data.werkgruppe is string
+        && request.resource.data.werkgruppe.matches("^[a-z0-9][a-z0-9-]{0,59}$")
+        && request.resource.data.by == emailAdresse()
+        && request.resource.data.at == request.time
+        && passtZurWerkgruppe(kuenstler, eintrag, request.resource.data);
+    }
+
+    function passtZurWerkgruppe(kuenstler, eintrag, e) {
+      let g = /databases/$(database)/documents/artists/$(kuenstler)/werkgruppen/$(e.werkgruppe);
+      return (exists(g) ? e.vorher == werkgruppenFassung(get(g).data) : e.vorher == null)
+        && existsAfter(g)
+        && getAfter(g).data.get("lastChange", null) == eintrag
+        && e.nachher == werkgruppenFassung(getAfter(g).data);
     }
 
     function gueltigeSeite(d) {
