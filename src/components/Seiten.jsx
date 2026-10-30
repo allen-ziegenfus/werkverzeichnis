@@ -143,7 +143,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
 
   // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
   const abgleich = useAbgleich({
-    art: "seite", id: seite.id, aktiv: !istNeu, ref: istNeu ? null : doc(sammlung, seite.id),
+    art: "seite", id: seite.id, ich, aktiv: !istNeu, ref: istNeu ? null : doc(sammlung, seite.id),
     felder: Object.keys(SEITENFELDER), gleich, name: k => SEITENFELDER[k],
     stand: useMemo(() => ({ ...gespeichert, updatedAt: geladenAm }), [gespeichert, geladenAm]),
     entwurf: useMemo(() => alsZahl(entwurf), [entwurf]),
@@ -204,10 +204,10 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
       // Das Formular zeigt danach die neue Fassung, außer jemand hat inzwischen
       // darin weitergearbeitet; dann bleibt das und gilt als ungespeichert.
       if (extra.rueckgaengig && aktuellerEntwurf.current === start) { setEntwurf(neu); setGeladen(n => n + 1); }
-      setHinweis(text); abgleich.setMeldung(undefined);
+      setHinweis(text); abgleich.gespeichert();
       await verlaufLaden();
     } catch (e) {
-      if (e.code === "konflikt") await abgleich.nachKonflikt().catch(e => setFehler(meldung(e)));
+      if (e.code === "konflikt") await abgleich.nachKonflikt({ ruecknahme: !!extra.rueckgaengig }).catch(e => setFehler(meldung(e)));
       else setFehler(meldung(e));
     } finally {
       setSpeichert(false);

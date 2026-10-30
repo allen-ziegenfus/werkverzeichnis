@@ -101,7 +101,7 @@ function WerkEditor({ nutzer }) {
     ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk]);
   // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
   const abgleich = useAbgleich({
-    art: "werk", id: werk?.id, aktiv: !!werk, ref: werk ? doc(kuenstler, "works", werk.id) : null,
+    art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk, ref: werk ? doc(kuenstler, "works", werk.id) : null,
     felder: BEARBEITBAR, gleich,
     stand: werk?.data ?? {},
     entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf]),
@@ -132,7 +132,7 @@ function WerkEditor({ nutzer }) {
         // oder scheitert, wenn sich das Dokument darunter ändert, und updatedAt
         // zeigt, ob jemand gespeichert hat, seit dieses Formular geöffnet wurde.
         const jetzt = await tx.get(ref);
-        if (jetzt.data().updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
+        if (jetzt.data()?.updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
           throw Object.assign(new Error("Inzwischen woanders gespeichert."), { code: "konflikt" });
         }
         const changes = Object.fromEntries(Object.entries(neu).map(([f, wert]) =>
@@ -148,9 +148,9 @@ function WerkEditor({ nutzer }) {
       const w = { id: werk.id, data: frisch.data() };
       client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
-      setHinweis(meldung); abgleich.setMeldung(undefined);
+      setHinweis(meldung); abgleich.gespeichert();
     } catch (e) {
-      if (e.code === "konflikt") await abgleich.nachKonflikt().catch(e => setFehler(e.message));
+      if (e.code === "konflikt") await abgleich.nachKonflikt({ ruecknahme: !!extra.rueckgaengig }).catch(e => setFehler(e.message));
       else setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
     } finally {
       setSpeichert(false);

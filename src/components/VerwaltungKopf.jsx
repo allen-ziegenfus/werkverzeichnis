@@ -2,7 +2,7 @@ import { signOut } from "firebase/auth";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { BEREICHE } from "./bereiche.js";
 import { auth, KUENSTLER } from "./firebaseClient.js";
-import { verlassen } from "./ungespeichert.js";
+import { entwuerfeLoeschen, verlassen } from "./ungespeichert.js";
 import { Stand } from "./Veroeffentlichen.jsx";
 import { useZugang } from "./Zugang.jsx";
 
@@ -29,7 +29,7 @@ export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
             <>
               <span className="hidden sm:inline"> · {nutzer.email}</span>
               {" · "}
-              <button className={link} onClick={() => verlassen() && signOut(auth)}>Abmelden</button>
+              <button className={link} onClick={() => { if (verlassen()) { entwuerfeLoeschen(); signOut(auth); } }}>Abmelden</button>
             </>
           )}
         </span>

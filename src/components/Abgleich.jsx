@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getDoc, onSnapshot } from "firebase/firestore";
 import { KUENSTLER } from "./firebaseClient.js";
+import { ENTWURF } from "./ungespeichert.js";
 import { Unterschied } from "./VerlaufListe.jsx";
 import { wann } from "./zeit.js";
 
@@ -40,11 +41,12 @@ const entfernen = s => { try { localStorage.removeItem(s); } catch { /* gesperrt
  *   Formular auf `entwurf` (oder die Daten) setzen
  * - setzeFeld(feld, wert): für die Wahl bei einem Konflikt
  * - wer(lastChange): wer gespeichert hat (aus dem Verlauf); name(feld): Anzeige
+ * - ich: wer angemeldet ist; Entwürfe gehören zu einer Person (Abmelden löscht sie)
  * - aktiv: false für ein neues, noch nicht angelegtes Dokument (dann ist ref null)
  */
-export function useAbgleich({ art, id, ref, felder, gleich, name = f => f, stand, entwurf, geaendert,
+export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, stand, entwurf, geaendert,
   uebernehmen, setzeFeld, wer, aktiv = true }) {
-  const schluessel = `werkverzeichnis-entwurf:${KUENSTLER}:${art}:${id}`;
+  const schluessel = `${ENTWURF}${ich}:${KUENSTLER}:${art}:${id}`;
   const auswahl = d => Object.fromEntries(felder.map(f => [f, d?.[f] ?? null]));
   const [fremd, setFremd] = useState();         // { daten, by } oder { geloescht: true }
   const [konflikte, setKonflikte] = useState([]);
@@ -54,7 +56,10 @@ export function useAbgleich({ art, id, ref, felder, gleich, name = f => f, stand
   const [fund, setFund] = useState({});
   if (fund.fuer !== schluessel) {
     let e = aktiv ? lesen(schluessel) : null;
-    if (e && !felder.some(f => !gleich(f, e.entwurf?.[f], stand[f]))) { entfernen(schluessel); e = null; }
+    // Unverändert oder älter als 30 Tage: nicht mehr anbieten.
+    if (e && (Date.now() - e.at > 30 * 864e5 || !felder.some(f => !gleich(f, e.entwurf?.[f], stand[f])))) {
+      entfernen(schluessel); e = null;
+    }
     setFund({ fuer: schluessel, wert: e });
     setFremd(undefined); setKonflikte([]); setMeldung(undefined);
   }
@@ -65,9 +70,11 @@ export function useAbgleich({ art, id, ref, felder, gleich, name = f => f, stand
   const aktuell = useRef();
   aktuell.current = { stand, entwurf, geaendert, uebernehmen, wer };
 
-  // Den Entwurf sichern, solange er ungespeichert ist; nicht, solange ein alter auf Antwort wartet.
+  // Den Entwurf sichern, solange er ungespeichert ist. Ein alter, der noch auf
+  // Antwort wartet, gilt als verworfen, sobald hier etwas geändert wird.
   useEffect(() => {
-    if (!aktiv || gefunden !== null) return;
+    if (!aktiv || gefunden === undefined) return;
+    if (gefunden) { if (geaendert) setGefunden(null); return; }
     if (!geaendert) { entfernen(schluessel); return; }
     const t = setTimeout(() => schreiben(schluessel,
       { basis: auswahl(stand), basisAm: ms(stand.updatedAt), entwurf, at: Date.now() }), 400);
@@ -84,30 +91,45 @@ export function useAbgleich({ art, id, ref, felder, gleich, name = f => f, stand
       : `${text} Bitte prüfen und speichern.`);
   }
 
-  // Speichern anderer live mitbekommen.
+  // Speichern anderer live mitbekommen. Entschieden wird sofort; wer es war,
+  // kommt danach, und nur, wenn bis dahin nichts Neueres kam.
   useEffect(() => {
     if (!aktiv) return;
-    return onSnapshot(ref, async snap => {
-      const { stand, uebernehmen, wer } = aktuell.current;
+    let gueltig = true, letzte = 0;
+    const abmelden = onSnapshot(ref, snap => {
+      const { stand, geaendert, uebernehmen, wer } = aktuell.current;
+      const nr = ++letzte;
       if (!snap.exists()) { setFremd({ geloescht: true }); return; }
       const daten = snap.data();
       if (eigene.current.has(daten.lastChange) || ms(daten.updatedAt) === ms(stand.updatedAt)) return;
-      const by = await wer(daten.lastChange).catch(() => undefined);
-      if (!aktuell.current.geaendert) {
-        uebernehmen(daten);
-        setMeldung(`Gerade von ${by ?? "jemand anderem"} gespeichert; der neue Stand ist übernommen.`);
-      } else {
-        setFremd({ daten, by });
-      }
+      const text = by => `Gerade von ${by ?? "jemand anderem"} gespeichert; der neue Stand ist übernommen.`;
+      if (!geaendert) { uebernehmen(daten); setMeldung(text()); }
+      else setFremd({ daten });
+      wer(daten.lastChange).then(by => {
+        if (!gueltig || nr !== letzte || !by) return;
+        if (!geaendert) setMeldung(text(by));
+        else setFremd(f => f?.daten === daten ? { daten, by } : f);
+      }, () => {});
     }, () => { /* ohne Live-Hinweis geht es weiter; Speichern prüft selbst */ });
+    return () => { gueltig = false; abmelden(); };
   }, [aktiv, schluessel]);
 
   return {
-    eigene, konflikte, meldung, setMeldung,
-    /** Nach einem abgelehnten Speichern: mit dem aktuellen Stand zusammenführen. */
-    async nachKonflikt() {
+    eigene, konflikte,
+    /** Nach erfolgreichem Speichern: kein Entwurf und keine Meldung mehr. */
+    gespeichert() { entfernen(schluessel); setGefunden(null); setMeldung(undefined); },
+    /**
+     * Nach einem abgelehnten Speichern: mit dem aktuellen Stand zusammenführen.
+     * Eine Rücknahme schreibt nicht den Entwurf; dann nur den neuen Stand übernehmen.
+     */
+    async nachKonflikt({ ruecknahme = false } = {}) {
       const snap = await getDoc(ref);
       if (!snap.exists()) { setFremd({ geloescht: true }); return; }
+      if (ruecknahme) {
+        aktuell.current.uebernehmen(snap.data());
+        setMeldung("Inzwischen woanders gespeichert; der neue Stand ist übernommen. Bitte im Verlauf erneut zurücknehmen.");
+        return;
+      }
       const { stand, entwurf } = aktuell.current;
       abgleichen(auswahl(stand), entwurf, snap.data(), "Inzwischen woanders gespeichert; zusammengeführt.");
     },
