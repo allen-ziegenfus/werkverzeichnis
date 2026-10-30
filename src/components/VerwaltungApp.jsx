@@ -56,12 +56,21 @@ const hier = () => ({ pfad: normal(location.pathname), suche: location.search })
 
 export default function VerwaltungApp({ kuenstlerName }) {
   const [ort, setOrt] = useState(hier);
-  const adresse = useRef(location.pathname + location.search);   // die gezeigte, für „Zurück“ ohne Verlassen
+  // Die Stelle des gezeigten Eintrags im Browser-Verlauf (history.state.i).
+  const stelle = useRef(history.state?.i ?? 0);
 
   useEffect(() => {
-    const wechseln = () => { adresse.current = location.pathname + location.search; setOrt(hier()); };
-    // Zurück/Vor im Browser lässt sich nicht abbrechen; abgelehnt, kommt die alte Adresse wieder.
-    const zurueck = () => verlassen() ? wechseln() : history.pushState(null, "", adresse.current);
+    if (history.state?.i == null) history.replaceState({ ...history.state, i: stelle.current }, "");
+    const wechseln = () => setOrt(hier());
+    // Zurück/Vor im Browser lässt sich nicht abbrechen; abgelehnt, springt der
+    // Browser zum gezeigten Eintrag zurück, und dieses popstate gilt nicht.
+    let zurueckholen = false;
+    const zurueck = () => {
+      if (zurueckholen) { zurueckholen = false; return; }
+      const i = history.state?.i ?? 0;
+      if (verlassen()) { stelle.current = i; wechseln(); }
+      else if (i !== stelle.current) { zurueckholen = true; history.go(stelle.current - i); }
+    };
     // Links innerhalb der Verwaltung abfangen; neue Tabs, Downloads und
     // alles außerhalb bleiben normale Links.
     const klick = e => {
@@ -73,7 +82,7 @@ export default function VerwaltungApp({ kuenstlerName }) {
       e.preventDefault();
       if (url.pathname + url.search !== location.pathname + location.search) {
         if (!verlassen()) return;
-        history.pushState(null, "", url);
+        history.pushState({ i: ++stelle.current }, "", url);
         wechseln();
       }
       window.scrollTo(0, 0);

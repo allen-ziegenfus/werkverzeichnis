@@ -232,7 +232,7 @@ function WerkEditor({ nutzer }) {
           <ul className="divide-y">
             {treffer.map(w => (
               <li key={w.id}>
-                <button className="w-full text-left py-1 hover:bg-gray-100" onClick={() => oeffnen(w)}>
+                <button className="w-full text-left py-1 hover:bg-gray-100" onClick={() => verlassen() && (setNeu(undefined), oeffnen(w))}>
                   <span className="font-mono">{w.data.InvNr}</span> {w.data.Titel}
                 </button>
               </li>
