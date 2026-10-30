@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { serverTimestamp, updateDoc } from "firebase/firestore";
 import { ROLLEN_NAMEN, ROLLEN } from "../werkverzeichnis/permissions.js";
 import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
+import { feldweiseSpeichern, rollenPfad } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
-/** Wer bei der Künstler:in dieser Website was darf (artists/{a}.roles). Speichert nur die Rollen. */
+/**
+ * Wer bei der Künstler:in dieser Website was darf (artists/{a}.roles). Speichert
+ * nur die geänderten Einträge (#126): Wen jemand anderes inzwischen eingetragen
+ * hat, bleibt.
+ */
 
 const istEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 const knopf = "px-3 py-1 border rounded disabled:opacity-40";
@@ -19,6 +23,7 @@ export default function PersonenSeite() {
 
 function Personen({ ich }) {
   const [rollen, setRollen] = useState();
+  const [stand, setStand] = useState();   // die Rollen beim Öffnen bzw. letzten Speichern
   const [geaendert, setGeaendert] = useState(false);
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
@@ -26,16 +31,24 @@ function Personen({ ich }) {
 
   // Aus dem Cache, wenn schon geladen; neuere Daten ersetzen nur, was noch nicht geändert ist.
   const { data, error } = useKuenstler();
-  useEffect(() => { if (data && !geaendert) setRollen(data.roles ?? {}); }, [data]);
+  useEffect(() => { if (data && !geaendert) { setRollen(data.roles ?? {}); setStand(data.roles ?? {}); } }, [data]);
   useEffect(() => { if (error) setFehler(meldung(error)); }, [error]);
 
   async function speichern() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     try {
-      await updateDoc(kuenstler, { roles: rollen, updatedAt: serverTimestamp() });
-      client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, roles: rollen });
+      const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein: rollen,
+        lesen: d => ({ ...d.roles }), pfad: rollenPfad });
+      setRollen(r.formular); setStand(r.stand);
+      // Der Cache bekommt nur, was gespeichert ist.
+      client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, roles: r.stand });
+      if (r.konflikte.length) {
+        setFehler(`Inzwischen woanders geändert: ${r.konflikte.map(e => `${e} (jetzt ${ROLLEN_NAMEN[r.stand[e]] ?? "entfernt"})`).join(", ")}. `
+          + "Nichts gespeichert; erneut speichern übernimmt die Einträge von hier.");
+        return;
+      }
       setGeaendert(false);
-      setHinweis("Gespeichert.");
+      setHinweis(r.fremd ? "Gespeichert; Änderungen anderer an weiteren Einträgen sind übernommen." : "Gespeichert.");
     } catch (e) {
       setFehler(meldung(e));
     } finally {
