@@ -262,7 +262,7 @@ function WerkEditor({ nutzer }) {
 
       {!gruppen && !ladefehler && <Skelett zeilen={1} />}
       {gruppen && (
-        <select className="border p-1 w-full" value={gruppe}
+        <select className="border p-1 w-full" value={gruppe} disabled={speichert}
                 onChange={e => { if (verlassen()) { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); } }}>
           <option value="">Werkgruppe wählen…</option>
           {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
@@ -307,7 +307,9 @@ function WerkEditor({ nutzer }) {
 
       {werk && (
         <div className="space-y-3">
-          <button className="underline text-sm" onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
+          {/* Gesperrt während des Speicherns: danach öffnet schreiben() das Werk neu (#213). */}
+          <button className="underline text-sm disabled:opacity-40" disabled={speichert}
+                  onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
           {abgleich.hinweise}
           {werk.data.ausgeblendet && (
             <p className="border border-gray-400 bg-gray-100 rounded p-2 text-sm">Ausgeblendet: steht nicht auf der Website.</p>
