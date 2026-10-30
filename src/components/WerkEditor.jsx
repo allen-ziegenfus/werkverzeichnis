@@ -21,7 +21,8 @@ import Zugang from "./Zugang.jsx";
 
 // Die Felder, die der Editor zeigt, in dieser Reihenfolge. Alles andere am
 // Dokument (werkgruppe, images, updatedAt, lastChange, ausgeblendet) wird verwaltet, nicht bearbeitet.
-const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Technik",
+// Der alte Freitext „Werkgruppe“ nicht: Die Website zeigt den Namen der Werkgruppe (#189).
+const FELDER = ["InvNr", "Titel", "Jahr", "Maße", "Material", "Technik",
   "Beschreibung", "Zustand", "Standort", "Signatur", "Auflage", "Anzahl", "Foto",
   "Ausstellung", "Literatur", "Bibliographie"];
 const BEARBEITBAR = FELDER.filter(f => f !== "InvNr");

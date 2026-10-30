@@ -164,6 +164,8 @@ async function bauen() {
         Slug: werk.slug,
         WerkgruppeSlug: gruppe.slug,
         ...Object.fromEntries(WERK_FELDER.filter(f => f !== "InvNr").map(f => [f, werk[f]])),
+        // Der Name der Werkgruppe, zu der das Werk gehört, nicht der alte Freitext (#189).
+        Werkgruppe: gruppe.titel,
         Bilder: bilder,
         Thumbnail: vorschaubild(bilder[0]),
       });
