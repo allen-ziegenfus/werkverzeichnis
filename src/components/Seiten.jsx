@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
@@ -285,7 +285,8 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
 
       {!istNeu && <Fassungen eintraege={eintraege} bearbeitbar={bearbeitbar} laden={fassungLaden}
                              gespeichert={gespeichert} gesperrt={speichert || geaendert} rueckgaengig={rueckgaengig}
-                             zuruecknehmen={zuruecknehmen} />}
+                             zuruecknehmen={zuruecknehmen}
+                             sperrGrund={speichert ? "Speichert…" : geaendert ? "Erst speichern oder verwerfen." : undefined} />}
 
       {bearbeitbar && !istNeu && (
         <div className="pt-6 mt-6 border-t">
@@ -313,8 +314,9 @@ function zuruecksetzbar(e, ist) {
  * laden. Ganz unten der Stand vor dem ersten Eintrag, falls die Seite älter ist
  * als der Verlauf.
  */
-function Fassungen({ eintraege, bearbeitbar, laden, gespeichert, gesperrt, rueckgaengig, zuruecknehmen }) {
+function Fassungen({ eintraege, bearbeitbar, laden, gespeichert, gesperrt, rueckgaengig, zuruecknehmen, sperrGrund }) {
   const [alles, setAlles] = useState(false);
+  const einheitliche = useMemo(() => eintraege?.map(einheitlich), [eintraege]);
   if (!eintraege) return <p className="text-sm text-gray-600">Verlauf lädt…</p>;
   const aeltester = eintraege.at(-1);
   return (
@@ -326,9 +328,9 @@ function Fassungen({ eintraege, bearbeitbar, laden, gespeichert, gesperrt, rueck
       </div>
       {!eintraege.length ? <p className="text-sm text-gray-600">Noch keine Änderungen; der Verlauf beginnt mit dem nächsten Speichern.</p>
       : !alles ? (
-        <VerlaufListe eintraege={eintraege.map(einheitlich)} ist={gespeichert} gleich={gleich} name={k => SEITENFELDER[k]}
+        <VerlaufListe eintraege={einheitliche} ist={gespeichert} gleich={gleich} name={k => SEITENFELDER[k]}
                       lang={k => k === "text"} bearbeitbar={bearbeitbar} zuruecknehmen={zuruecknehmen}
-                      gesperrt={gesperrt && "Erst speichern oder verwerfen."} />
+                      gesperrt={sperrGrund} />
       ) : (
         <ul className="divide-y text-sm">
           {eintraege.map((e, i) => {

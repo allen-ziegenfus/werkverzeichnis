@@ -71,6 +71,7 @@ function WerkEditor({ nutzer }) {
   const [speichert, setSpeichert] = useState(false);
   const [hinweis, setHinweis] = useState();
   const [alles, setAlles] = useState(false);   // im Verlauf jeden Eintrag einzeln
+  const einheitliche = useMemo(() => verlauf?.map(einheitlich), [verlauf]);
   const [neu, setNeu] = useState();   // { InvNr, Titel }, solange das Formular für ein neues Werk offen ist
 
   // Das Werk aus ?werk=: erst seine Werkgruppe wählen, dann öffnen, sobald sie geladen ist.
@@ -292,7 +293,7 @@ function WerkEditor({ nutzer }) {
           {!verlauf && <p className="text-sm text-gray-600">Lädt…</p>}
           {verlauf?.length === 0 && <p className="text-sm text-gray-600">Noch keine Änderungen.</p>}
           {verlauf?.length > 0 && !alles && (
-            <VerlaufListe eintraege={verlauf.map(einheitlich)} ist={werk.data} gleich={gleich} name={f => f}
+            <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={f => f}
                           lang={f => LANG.includes(f)} bearbeitbar zuruecknehmen={zuruecknehmen}
                           gesperrt={speichert ? "Speichert…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
           )}

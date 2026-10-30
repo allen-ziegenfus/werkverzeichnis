@@ -8,7 +8,9 @@
  *   rueckgaengig?, zurueckgesetzt? }
  */
 
-const ABSTAND = 15 * 60_000;   // höchstens so weit auseinander, um zusammenzugehören
+// Zusammen gehört, was höchstens 15 Minuten auseinander liegt, und eine Gruppe
+// umfasst höchstens eine Stunde: Langes Arbeiten wird nicht zu einem Eintrag.
+const ABSTAND = 15 * 60_000, SPANNE = 60 * 60_000;
 const ms = t => t?.toMillis() ?? Date.now();
 
 const gruppierbar = e => e.art === "geändert" && !e.rueckgaengig && !e.zurueckgesetzt;
@@ -22,7 +24,8 @@ export function gruppieren(eintraege, gleich) {
   const gruppen = [];
   for (const e of eintraege) {   // neueste zuerst
     const g = gruppen.at(-1);
-    if (g && gruppierbar(g) && gruppierbar(e) && g.by === e.by && ms(g.ab) - ms(e.at) <= ABSTAND) {
+    if (g && gruppierbar(g) && gruppierbar(e) && g.by === e.by
+        && ms(g.ab) - ms(e.at) <= ABSTAND && ms(g.at) - ms(e.at) <= SPANNE) {
       g.eintraege.push(e); g.ids.push(e.id); g.ab = e.at;
     } else {
       gruppen.push({ ...e, ids: [e.id], eintraege: [e], ab: e.at, zurueckgenommen: {} });
@@ -37,12 +40,13 @@ export function gruppieren(eintraege, gleich) {
     }
     g.felder = Object.fromEntries(Object.entries(felder).filter(([f, c]) => !gleich(f, c.von, c.zu)));
   }
-  // Rücknahmen an ihre Gruppe hängen, außer sie wurden selbst zurückgenommen.
+  // Rücknahmen an ihre Gruppe hängen, außer sie wurden selbst zurückgenommen
+  // oder betreffen Felder, die die Gruppe netto nicht ändert; die bleiben sichtbar.
   const zurueckgenommen = new Set(gruppen.map(g => g.rueckgaengig).filter(Boolean));
   for (const u of gruppen) {
     if (!u.rueckgaengig || u.ids.some(id => zurueckgenommen.has(id))) continue;
     const ziel = gruppen.find(g => g !== u && g.ids.includes(u.rueckgaengig));
-    if (!ziel) continue;
+    if (!ziel || !Object.keys(u.felder).every(f => f in ziel.felder)) continue;
     for (const f of Object.keys(u.felder)) if (f in ziel.felder) ziel.zurueckgenommen[f] = u;
     u.verborgen = true;
   }

@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { gruppieren, zeilenUnterschied } from "./verlaufGruppen.js";
 
 /**
@@ -15,7 +16,8 @@ export const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "mediu
 const wert = v => v == null || v === "" ? "∅" : String(v);
 
 export default function VerlaufListe({ eintraege, ist, gleich, name, lang, bearbeitbar, gesperrt, zuruecknehmen }) {
-  const gruppen = gruppieren(eintraege, gleich).filter(g => !g.verborgen);
+  // Nur neu, wenn sich der Verlauf ändert, nicht bei jedem Tastendruck im Formular.
+  const gruppen = useMemo(() => gruppieren(eintraege, gleich).filter(g => !g.verborgen), [eintraege, gleich]);
   if (!gruppen.length) return <p className="text-sm text-gray-600">Noch keine Änderungen.</p>;
   return (
     <ul className="divide-y text-sm">
@@ -70,19 +72,20 @@ export default function VerlaufListe({ eintraege, ist, gleich, name, lang, bearb
   );
 }
 
-/** Zeilenweise, was sich am Text geändert hat; aufklappbar. */
+/** Zeilenweise, was sich am Text geändert hat; berechnet erst beim Aufklappen. */
 function Unterschied({ von, zu }) {
+  const [offen, setOffen] = useState(false);
   return (
-    <details className="mt-0.5">
+    <details className="mt-0.5" onToggle={e => setOffen(e.currentTarget.open)}>
       <summary className="cursor-pointer text-gray-600">Unterschied zeigen</summary>
-      <pre className="whitespace-pre-wrap break-words border rounded p-1 mt-1 text-xs font-mono">
+      {offen && <pre className="whitespace-pre-wrap break-words border rounded p-1 mt-1 text-xs font-mono">
         {zeilenUnterschied(von, zu).map(([art, zeile], k) => (
           <div key={k} className={art === "-" ? "bg-red-50 text-red-800 line-through" : art === "+" ? "bg-green-50 text-green-800"
             : art === "…" ? "text-gray-400" : "text-gray-600"}>
             {art === "…" ? "…" : `${art} ${zeile}`}
           </div>
         ))}
-      </pre>
+      </pre>}
     </details>
   );
 }
