@@ -26,7 +26,7 @@ export function zusammenfuehren(basis, mein, ihr, felder, gleich) {
   const ergebnis = {}, konflikte = [];
   for (const f of felder) {
     const hier = !gleich(f, basis[f], mein[f]), dort = !gleich(f, basis[f], ihr[f]);
-    if (hier && dort && !gleich(f, mein[f], ihr[f])) konflikte.push({ feld: f, mein: mein[f], ihr: ihr[f] });
+    if (hier && dort && !gleich(f, mein[f], ihr[f])) konflikte.push({ feld: f, mein: mein[f], ihr: ihr[f], basis: basis[f] });
     ergebnis[f] = hier ? mein[f] : ihr[f];
   }
   return { ergebnis, konflikte };
@@ -75,6 +75,11 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
   const aktuell = useRef();
   aktuell.current = { stand, entwurf, geaendert, uebernehmen, wer, konflikte, fremd };
 
+  // Für Felder mit offenem Konflikt gilt die Basis vor dem ersten fremden
+  // Speichern; sonst sähe ein erneutes Zusammenführen (auch nach dem Neuladen)
+  // den Konflikt nicht mehr und nähme still den eigenen Wert.
+  const mitOffenen = basis => ({ ...basis, ...Object.fromEntries(aktuell.current.konflikte.map(k => [k.feld, k.basis])) });
+
   // Den Entwurf sichern, solange er ungespeichert ist. Ein alter, der noch auf
   // Antwort wartet, gilt als verworfen, sobald hier etwas geändert wird.
   useEffect(() => {
@@ -82,12 +87,12 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
     if (gefunden) { if (geaendert) setGefunden(null); return; }
     if (!geaendert) { entfernen(schluessel); return; }
     const t = setTimeout(() => schreiben(schluessel,
-      { basis: auswahl(stand), basisAm: ms(stand.updatedAt), entwurf, at: Date.now() }), 400);
+      { basis: mitOffenen(auswahl(stand)), basisAm: ms(stand.updatedAt), entwurf, at: Date.now() }), 400);
     return () => clearTimeout(t);
-  }, [aktiv, gefunden, geaendert, entwurf, stand]);
+  }, [aktiv, gefunden, geaendert, entwurf, stand, konflikte]);
 
   function abgleichen(basis, mein, daten, text) {
-    const { ergebnis, konflikte } = zusammenfuehren(basis, mein, auswahl(daten), felder, gleich);
+    const { ergebnis, konflikte } = zusammenfuehren(mitOffenen(basis), mein, auswahl(daten), felder, gleich);
     aktuell.current.uebernehmen(daten, ergebnis);
     setKonflikte(konflikte);
     setFremd(undefined);

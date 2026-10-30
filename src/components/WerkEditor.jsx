@@ -139,11 +139,14 @@ function WerkEditor({ nutzer }) {
           throw Object.assign(new Error("Inzwischen woanders gespeichert."), { code: "konflikt" });
         }
         const davor = pruefen ? werk.data : jetzt.data() ?? {};
-        const changes = Object.fromEntries(Object.entries(neu).map(([f, wert]) =>
+        // Ohne Prüfung nur, was sich auf dem Server wirklich ändert.
+        const felder = Object.entries(neu).filter(([f, wert]) => pruefen || (davor[f] ?? null) !== (wert ?? null));
+        if (!felder.length) return;
+        const changes = Object.fromEntries(felder.map(([f, wert]) =>
           [f, { from: davor[f] ?? null, to: wert ?? null }]));
         tx.set(eintrag, { work: werk.id, by: nutzer.email, at: serverTimestamp(), changes, ...extra });
         tx.update(ref, {
-          ...Object.fromEntries(Object.entries(neu).map(([f, wert]) => [f, wert ?? deleteField()])),
+          ...Object.fromEntries(felder.map(([f, wert]) => [f, wert ?? deleteField()])),
           updatedAt: serverTimestamp(),
           lastChange: eintrag.id,
         });
