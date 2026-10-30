@@ -41,13 +41,16 @@ export function gruppieren(eintraege, gleich) {
     g.felder = Object.fromEntries(Object.entries(felder).filter(([f, c]) => !gleich(f, c.von, c.zu)));
   }
   // Rücknahmen an ihre Gruppe hängen, außer sie wurden selbst zurückgenommen
-  // oder betreffen Felder, die die Gruppe netto nicht ändert; die bleiben sichtbar.
+  // oder kehren die Gruppe nicht genau um (etwa nur einen Eintrag darin); die bleiben sichtbar.
   const zurueckgenommen = new Set(gruppen.map(g => g.rueckgaengig).filter(Boolean));
   for (const u of gruppen) {
     if (!u.rueckgaengig || u.ids.some(id => zurueckgenommen.has(id))) continue;
     const ziel = gruppen.find(g => g !== u && g.ids.includes(u.rueckgaengig));
-    if (!ziel || !Object.keys(u.felder).every(f => f in ziel.felder)) continue;
-    for (const f of Object.keys(u.felder)) if (f in ziel.felder) ziel.zurueckgenommen[f] = u;
+    // Nur, wenn sie die Gruppe wirklich umkehrt: zurück auf den Stand vor der Gruppe.
+    const kehrtUm = f => f in ziel.felder
+      && gleich(f, u.felder[f].von, ziel.felder[f].zu) && gleich(f, u.felder[f].zu, ziel.felder[f].von);
+    if (!ziel || !Object.keys(u.felder).every(kehrtUm)) continue;
+    for (const f of Object.keys(u.felder)) ziel.zurueckgenommen[f] = u;
     u.verborgen = true;
   }
   for (const g of gruppen) {
