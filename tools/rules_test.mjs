@@ -340,6 +340,11 @@ const faelle = [
   fall("Bearbeiter:in schreibt keinen Werkgruppenverlauf", "DENY", als(EDITOR), "create", "artists/kutscher/werkgruppenverlauf/g1",
     { daten: { ...werkgruppenVerlauf(werkgruppenFassung(gruppe), werkgruppenFassung(gruppeNeu)), by: EDITOR },
       mocks: [...werkgruppeDavor(gruppe), ...werkgruppeDanach(gruppeNeu)] }),
+  fall("Werkgruppenverlauf mit Pfad als Kennung", "DENY", als(ADMIN), "create", "artists/kutscher/werkgruppenverlauf/g1",
+    { daten: { ...werkgruppenVerlauf(werkgruppenFassung(gruppe), werkgruppenFassung(gruppeNeu)), werkgruppe: "../x" },
+      mocks: [...werkgruppeDavor(gruppe), ...werkgruppeDanach(gruppeNeu)] }),
+  fall("lastChange keine Zeichenkette", "DENY", als(ADMIN), "update", "artists/kutscher/werkgruppen/fotografie",
+    { daten: { ...gruppe, lastChange: 5 }, vorhanden: gruppe }),
   fall("niemand ändert den Werkgruppenverlauf", "DENY", als(SUPER), "update", "artists/kutscher/werkgruppenverlauf/g1",
     { daten: werkgruppenVerlauf(null, null), vorhanden: werkgruppenVerlauf(null, null) }),
 ];

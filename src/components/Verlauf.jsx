@@ -156,13 +156,16 @@ async function aenderungen(kuenstlerId, von, bis) {
     zwischen("medien", "erstellt").catch(() => []), getDoc(doc(db, "artists", kuenstlerId)),
     zwischen("werkgruppenverlauf", "at"), zwischen("einstellungsverlauf", "at")]);
   const t = kuenstler.get("updatedAt")?.toMillis();
-  const mitVerlauf = new Set(werkgruppenverlauf.map(e => e.werkgruppe));
+  // Geändert ohne Verlauf (vor #106, Personen, Code ohne Verlauf): wenn
+  // updatedAt neuer ist als der letzte Eintrag im Zeitraum.
+  const zuletzt = (eintraege, passt) => Math.max(-Infinity,
+    ...eintraege.filter(passt).map(e => e.at?.toMillis() ?? -Infinity));
   return { history, seitenverlauf, medien,
     werkgruppen: nettoFassungen(werkgruppenverlauf, e => e.werkgruppe),
-    // Geändert ohne Verlauf: vor #106 oder von Code ohne Verlauf (etwa das Titelbild).
-    werkgruppenOhne: werkgruppen.filter(g => !mitVerlauf.has(g.id)),
+    werkgruppenOhne: werkgruppen.filter(g =>
+      g.updatedAt?.toMillis() > zuletzt(werkgruppenverlauf, e => e.werkgruppe === g.id)),
     einstellungen: nettoFassungen(einstellungsverlauf, () => "einstellungen")[0],
-    kuenstlerGeaendert: !einstellungsverlauf.length && t > von.toMillis() && t <= bis.toMillis(),
+    kuenstlerGeaendert: t > von.toMillis() && t <= bis.toMillis() && t > zuletzt(einstellungsverlauf, () => true),
     zuViele: [history, seitenverlauf, werkgruppen, medien, werkgruppenverlauf, einstellungsverlauf].some(l => l.length > HOECHSTENS) };
 }
 
