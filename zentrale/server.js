@@ -21,7 +21,9 @@ const CLOUD_SHELL = "https://shell.cloud.google.com/cloudshell/editor?cloudshell
 
 const maskieren = s => String(s ?? "").replace(/[&<>"']/g, z => `&#${z.charCodeAt(0)};`);
 
-const zeit = t => t ? new Date(t).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" }) : "";
+// Der Server kennt die Zeitzone des Browsers nicht; daher Berlin, mit Kürzel (MEZ/MESZ, #205).
+const zeit = t => t ? new Date(t).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit",
+  year: "2-digit", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }) : "";
 // Wie lange etwas gedauert hat, oder „seit …“, solange es läuft (#164).
 function dauer(von, bis) {
   if (!von) return "";

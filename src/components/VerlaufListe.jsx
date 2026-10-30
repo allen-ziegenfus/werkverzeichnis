@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { gruppieren, zeilenUnterschied } from "./verlaufGruppen.js";
+import { wann as zeit } from "./zeit.js";
 
 /**
  * Der Verlauf einer Seite oder eines Werks, zusammengefasst (#204): je Gruppe,
@@ -12,7 +13,7 @@ import { gruppieren, zeilenUnterschied } from "./verlaufGruppen.js";
  * - gleich(feld, a, b), name(feld), lang(feld): Vergleich, Anzeige, Text mit Unterschied
  * - zuruecknehmen(gruppe, felder); gesperrt: Grund, warum es gerade nicht geht
  */
-export const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) ?? "gerade eben";
+export const wann = t => zeit(t, "gerade eben");
 const wert = v => v == null || v === "" ? "∅" : String(v);
 
 export default function VerlaufListe({ eintraege, ist, gleich, name, lang, bearbeitbar, gesperrt, zuruecknehmen }) {
