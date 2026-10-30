@@ -8,13 +8,30 @@ Infrastruktur: `infra/BOOTSTRAP.md`, Regeln fürs Review: `.macroscope/correctne
 ## Ablauf
 
 - Jede Änderung bekommt zuerst ein GitHub-Issue.
-- Branch `<issue>-<thema>` von `main`, z. B. `25-veroeffentlichen-aufklappen`.
+- Branch `<issue>-<thema>` von `main`, z. B. `25-veroeffentlichen-aufklappen`;
+  bei Unter-Issues einer Gruppe vom Gruppen-Branch.
 - Commit-Betreff endet mit `(#<issue>)`, dazu höchstens ein paar Zeilen Text.
-- Änderungen gehen als PR nach `main`, nie direkt. Vor jedem Push fragen.
+- Änderungen gehen als PR nach `main` oder, bei Unter-Issues, in den
+  Gruppen-Branch; nie direkt pushen, außer dem Anlegen des Gruppen-Branches
+  und dem Merge von `main` hinein. Vor jedem Push fragen.
+- Gruppen: Zusammengehörige Issues sind Unter-Issues eines Gruppen-Issues. Die
+  Gruppe hat einen Branch `<gruppe>-<thema>` von `main` (`<gruppe>` ist die
+  Nummer des Gruppen-Issues, z. B. `213-gleichzeitig-bearbeiten`); jedes
+  Unter-Issue geht als eigener PR (eigene Beschreibung, eigene Screenshots) in
+  den Gruppen-Branch. Ist die Gruppe fertig, geht der Gruppen-Branch als ein PR
+  nach `main`, mit `Closes` je Issue und Links auf die Unter-PRs. Kleine
+  Einzelstücke ohne Gruppe gehen weiter direkt nach `main`.
+- `main` regelmäßig in den Gruppen-Branch mergen, nicht rebasen: Unter-PRs
+  zielen auf ihn.
+- Auf Gruppen-Branches läuft kein Cloud-Build-Trigger: Ein Merge dorthin
+  deployt nichts, Unter-PRs bekommen aber auch keine Terraform-Vorschau.
+  Änderungen unter `infra/` darum als Einzelstück direkt nach `main`.
 - Keine gestapelten PRs: Branches werden nach dem Merge nicht gelöscht, ein PR
-  auf einem anderen PR-Branch landet sonst dort statt in `main`.
+  auf einem anderen PR-Branch landet sonst dort statt in `main`. Gruppen-Branches
+  sind keine PR-Branches; Unter-PRs zielen auf sie, solange die Gruppe offen ist.
 - Die PR-Beschreibung sagt, was sich ändert, was geprüft ist und was nicht, und
-  endet mit `Closes #<issue>`.
+  endet mit `Closes #<issue>` (Unter-PRs: `Teil von #<gruppe>`; `Closes` wirkt
+  nur auf `main`).
 
 ## Vor dem PR
 
@@ -29,12 +46,18 @@ Fehler sollen vor dem Push auffallen, nicht erst im PR.
    - Oberfläche: selbst ansehen und Screenshots (siehe unten).
 2. **Review durch eine zweite Claude-Session**: Anfrage mit Branch, Issue und
    Schwerpunkten per SendMessage. Die Reviewer-Session liest nur
-   (`git diff main...<branch>`, `git show <branch>:<pfad>`), ändert, committet und
+   (`git diff main...<branch>`, bei Unter-PRs gegen den Gruppen-Branch;
+   `git show <branch>:<pfad>`), ändert, committet und
    postet nichts und wechselt keinen Branch; am besten in einem eigenen Worktree.
    Befunde mit Datei:Zeile, konkretem Fehlerfall und Vorschlag, Maßstab sind diese
    Datei und `.macroscope/correctness/`.
-3. **Befunde beheben**, dann pushen und den PR öffnen. Macroscope prüft danach
-   weiter; seine Hinweise beheben und im PR beantworten.
+3. **Befunde beheben**, dann pushen und den PR öffnen.
+4. **Macroscope** läuft nur von Hand und kostet je Prüfung mindestens 0,50 $,
+   auch für einen kleinen Folge-Push. Darum einmal je PR nach `main` (bei
+   Gruppen nur der Gruppen-PR), nach Rückfrage bei der Repo-Eigentümer:in, mit
+   dem Kommentar `@macroscope-app review`. Seine Hinweise beheben, die Fixes
+   durch das Review der zweiten Session, dann in einem Push ohne erneute
+   Macroscope-Prüfung; im PR beantworten.
 
 Änderungen unter `infra/` erst pushen, wenn kein Terraform-Lauf läuft (Vorschau
 oder Anwenden); gleichzeitige Läufe sperren sich die Deployments.
@@ -79,8 +102,13 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
   denselben Trigger je Deployment, nach Bestätigung des Plans. Von Hand
   (`node tools/rules_deploy.mjs`, `infra/apply.sh`) nur durch die
   Repo-Eigentümer:in, nicht ohne ausdrückliche Bitte.
-  Lehnen die alten Regeln neuen Code ab, die Regeln vor dem Merge von Hand
-  deployen und das im PR sagen.
+  Regeln und Seite gehen nach dem Merge gleichzeitig live, in beliebiger
+  Reihenfolge. Darum neue Pflichten (z. B. ein Verlaufseintrag) zuerst nur
+  erlauben, sodass alter und neuer Code mit alten und neuen Regeln gehen; erst
+  ein späterer Merge nach `main` (nicht in derselben Gruppe) verlangt sie, wenn
+  der Code, der sie erfüllt, schon live ist. Neue Schreibvorgänge kommen mit
+  ihrer Erlaubnis; bis die Regeln live sind (wenige Minuten), kann neuer Code
+  abgelehnt werden, das im PR sagen. Kein Deploy von Hand vor dem Merge.
 - Keine Zugangsdaten, Tokens oder Schlüssel in Repo, Issues, PRs oder Logs.
 - Die alte Website im Repo `allen-ziegenfus.github.io` (Branch `master`, GitHub
   Pages) ist noch live und wird nicht angefasst.

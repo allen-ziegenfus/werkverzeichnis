@@ -33,10 +33,13 @@ in Cloud Build neu und deployt sie zu Cloudflare Pages.
 ## Reihenfolge beim Ausrollen
 
 - Nach dem Merge deployt `cloudbuild-backend.yaml` Regeln und Funktionen,
-  gleichzeitig mit dem Bau der Seite. Verlangt neuer Code etwas, das die
-  bisherigen Regeln ablehnen, müssen die Regeln trotzdem vorher von Hand
-  deployt werden (`node tools/rules_deploy.mjs`); ein PR, der
-  `firestore.rules` und Code zugleich ändert, sollte das in der Beschreibung sagen.
+  gleichzeitig mit dem Bau der Seite, in beliebiger Reihenfolge; kein Deploy
+  von Hand vorher. Ein PR, der `firestore.rules` und Code zugleich ändert, muss
+  darum mit alten und neuen Regeln gehen: neue Pflichten (z. B. ein
+  Verlaufseintrag) verlangen die Regeln erst in einem späteren Merge nach
+  `main`, wenn der Code, der sie erfüllt, live ist. Neue Schreibvorgänge kommen
+  mit ihrer Erlaubnis; bis die Regeln live sind (wenige Minuten), kann neuer
+  Code abgelehnt werden. Das sagt der PR.
 
 ## Website und Verwaltung
 
