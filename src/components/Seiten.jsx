@@ -7,6 +7,7 @@ import { client, SCHLUESSEL, zielSuchen } from "./abfragen.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
+import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import Zugang from "./Zugang.jsx";
 import { seitenUnterschiede, SEITENFELDER } from "./Veroeffentlichen.jsx";
 
@@ -27,8 +28,13 @@ const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt.
 const ordnung = (a, b) => a.kategorie.localeCompare(b.kategorie) * -1 || a.reihenfolge - b.reihenfolge;
 const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
 const alsZahl = f => ({ ...f, reihenfolge: Number(f.reihenfolge) });
+// Für VerlaufListe: ein Eintrag mit den geänderten Feldern, und der Vergleich je Feld.
+const einheitlich = e => ({ id: e.id, by: e.by, at: e.at, rueckgaengig: e.rueckgaengig,
+  art: !e.vorher ? "angelegt" : !e.nachher ? "gelöscht" : "geändert",
+  felder: e.vorher && e.nachher
+    ? Object.fromEntries(seitenUnterschiede(e.vorher, e.nachher).map(k => [k, { von: e.vorher[k], zu: e.nachher[k] }])) : {} });
+const gleich = (k, a, b) => !seitenUnterschiede({ [k]: a }, { [k]: b }).length;
 const neuesteZuerst = (a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0);
-const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) ?? "gerade eben";
 
 export default function SeitenSeite() {
   return <Zugang berechtigung="seiten.bearbeiten" kinder={({ nutzer, wer }) =>
@@ -206,6 +212,15 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
     schreiben(neu, { rueckgaengig: e.id }, `Rückgängig gemacht (${zurueck.map(k => SEITENFELDER[k]).join(", ")}).`);
   }
 
+  /** Felder einer Gruppe aus VerlaufListe auf den Stand davor (#204). */
+  function zuruecknehmen(g, felder) {
+    const text = felder.map(k => k === "text" ? "  Text: auf den Stand davor"
+      : `  ${SEITENFELDER[k]}: „${g.felder[k].zu}“ → „${g.felder[k].von}“`);
+    if (!window.confirm(["Zurücksetzen:", ...text].join("\n"))) return;
+    schreiben({ ...gespeichert, ...Object.fromEntries(felder.map(k => [k, g.felder[k].von])) }, { rueckgaengig: g.ids[0] },
+      `Zurückgenommen (${felder.map(k => SEITENFELDER[k]).join(", ")}).`);
+  }
+
   async function loeschen() {
     if (!confirm(`Die ganze Seite „${seite.titel}“ löschen? Sie verschwindet beim nächsten Veröffentlichen `
       + "von der Website; unter „Gelöschte Seiten“ lässt sie sich wiederherstellen.")) return;
@@ -269,7 +284,8 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
       {!bearbeitbar && fehler && <p className="text-red-700 text-sm">{fehler}</p>}
 
       {!istNeu && <Fassungen eintraege={eintraege} bearbeitbar={bearbeitbar} laden={fassungLaden}
-                             gespeichert={gespeichert} gesperrt={speichert || geaendert} rueckgaengig={rueckgaengig} />}
+                             gespeichert={gespeichert} gesperrt={speichert || geaendert} rueckgaengig={rueckgaengig}
+                             zuruecknehmen={zuruecknehmen} />}
 
       {bearbeitbar && !istNeu && (
         <div className="pt-6 mt-6 border-t">
@@ -297,13 +313,23 @@ function zuruecksetzbar(e, ist) {
  * laden. Ganz unten der Stand vor dem ersten Eintrag, falls die Seite älter ist
  * als der Verlauf.
  */
-function Fassungen({ eintraege, bearbeitbar, laden, gespeichert, gesperrt, rueckgaengig }) {
+function Fassungen({ eintraege, bearbeitbar, laden, gespeichert, gesperrt, rueckgaengig, zuruecknehmen }) {
+  const [alles, setAlles] = useState(false);
   if (!eintraege) return <p className="text-sm text-gray-600">Verlauf lädt…</p>;
   const aeltester = eintraege.at(-1);
   return (
     <div className="pt-4">
-      <h3 className="font-bold text-sm">Verlauf</h3>
-      {!eintraege.length ? <p className="text-sm text-gray-600">Noch keine Änderungen; der Verlauf beginnt mit dem nächsten Speichern.</p> : (
+      <div className="flex gap-2 items-baseline">
+        <h3 className="font-bold text-sm flex-1">Verlauf</h3>
+        {eintraege.length > 0 && <button className="underline text-sm" onClick={() => setAlles(!alles)}>
+          {alles ? "Zusammengefasst zeigen" : "Alles zeigen"}</button>}
+      </div>
+      {!eintraege.length ? <p className="text-sm text-gray-600">Noch keine Änderungen; der Verlauf beginnt mit dem nächsten Speichern.</p>
+      : !alles ? (
+        <VerlaufListe eintraege={eintraege.map(einheitlich)} ist={gespeichert} gleich={gleich} name={k => SEITENFELDER[k]}
+                      lang={k => k === "text"} bearbeitbar={bearbeitbar} zuruecknehmen={zuruecknehmen}
+                      gesperrt={gesperrt && "Erst speichern oder verwerfen."} />
+      ) : (
         <ul className="divide-y text-sm">
           {eintraege.map((e, i) => {
             const felder = e.vorher && e.nachher ? seitenUnterschiede(e.vorher, e.nachher) : [];

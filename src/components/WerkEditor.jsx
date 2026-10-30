@@ -6,6 +6,7 @@ import { client, SCHLUESSEL, useWerke, useWerkgruppen, zielSuchen } from "./abfr
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
+import VerlaufListe from "./VerlaufListe.jsx";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -35,6 +36,13 @@ function zuruecksetzbar(v, daten) {
   return { zurueck: felder.filter(gleich), geblieben: felder.filter(x => !gleich(x)).map(([f]) => f) };
 }
 
+// Für VerlaufListe (#204): ein Eintrag mit den geänderten Feldern, und der Vergleich je Feld.
+const einheitlich = v => ({ id: v.id, by: v.by, at: v.at, rueckgaengig: v.rueckgaengig, zurueckgesetzt: v.zurueckgesetzt,
+  art: v.changes?.InvNr && v.changes.InvNr.from == null ? "angelegt" : "geändert",
+  felder: Object.fromEntries(Object.entries(v.changes ?? {}).filter(([f]) => f !== "InvNr")
+    .map(([f, c]) => [f, { von: c.from ?? null, zu: c.to ?? null }])) });
+const gleich = (f, a, b) => (a ?? "") === (b ?? "");
+
 // Die zuletzt gewählte Werkgruppe, für die Rückkehr aus einem anderen Bereich.
 let letzteGruppe = "";
 
@@ -62,6 +70,7 @@ function WerkEditor({ nutzer }) {
   const offen = useRef();
   const [speichert, setSpeichert] = useState(false);
   const [hinweis, setHinweis] = useState();
+  const [alles, setAlles] = useState(false);   // im Verlauf jeden Eintrag einzeln
   const [neu, setNeu] = useState();   // { InvNr, Titel }, solange das Formular für ein neues Werk offen ist
 
   // Das Werk aus ?werk=: erst seine Werkgruppe wählen, dann öffnen, sobald sie geladen ist.
@@ -186,6 +195,14 @@ function WerkEditor({ nutzer }) {
       `Rückgängig gemacht (${zurueck.map(([f]) => f).join(", ")}).`);
   }
 
+  /** Felder einer Gruppe aus VerlaufListe auf den Stand davor (#204). */
+  function zuruecknehmen(g, felder) {
+    const text = felder.map(f => `  ${f}: „${g.felder[f].zu ?? "∅"}“ → „${g.felder[f].von ?? "∅"}“`);
+    if (!window.confirm(["Zurücksetzen:", ...text].join("\n"))) return;
+    schreiben(Object.fromEntries(felder.map(f => [f, g.felder[f].von])), { rueckgaengig: g.ids[0] },
+      `Zurückgenommen (${felder.join(", ")}).`);
+  }
+
   const treffer = (werke ?? []).filter(w => {
     const q = suche.trim().toLowerCase();
     return !q || w.data.InvNr.toLowerCase().includes(q) || (w.data.Titel ?? "").toLowerCase().includes(q);
@@ -267,10 +284,19 @@ function WerkEditor({ nutzer }) {
             {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
           </div>
 
-          <h3 className="text-lg pt-4">Verlauf</h3>
+          <div className="flex gap-2 items-baseline pt-4">
+            <h3 className="text-lg flex-1">Verlauf</h3>
+            {verlauf?.length > 0 && <button className="underline text-sm" onClick={() => setAlles(!alles)}>
+              {alles ? "Zusammengefasst zeigen" : "Alles zeigen"}</button>}
+          </div>
           {!verlauf && <p className="text-sm text-gray-600">Lädt…</p>}
           {verlauf?.length === 0 && <p className="text-sm text-gray-600">Noch keine Änderungen.</p>}
-          <ul className="text-sm space-y-2">
+          {verlauf?.length > 0 && !alles && (
+            <VerlaufListe eintraege={verlauf.map(einheitlich)} ist={werk.data} gleich={gleich} name={f => f}
+                          lang={f => LANG.includes(f)} bearbeitbar zuruecknehmen={zuruecknehmen}
+                          gesperrt={speichert ? "Speichert…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
+          )}
+          {alles && <ul className="text-sm space-y-2">
             {(verlauf ?? []).map(v => {
               const kannZurueck = zuruecksetzbar(v, werk.data).zurueck.length > 0;
               const ursprung = v.rueckgaengig && verlauf.find(x => x.id === v.rueckgaengig);
@@ -300,7 +326,7 @@ function WerkEditor({ nutzer }) {
                 </li>
               );
             })}
-          </ul>
+          </ul>}
         </div>
       )}
     </div>
