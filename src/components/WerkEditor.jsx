@@ -6,7 +6,7 @@ import { client, SCHLUESSEL, useWerke, useWerkgruppen, zielSuchen } from "./abfr
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
-import VerlaufListe from "./VerlaufListe.jsx";
+import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -303,10 +303,10 @@ function WerkEditor({ nutzer }) {
               const ursprung = v.rueckgaengig && verlauf.find(x => x.id === v.rueckgaengig);
               return (
                 <li key={v.id}>
-                  <span className="text-gray-600">{v.at?.toDate().toLocaleString("de-DE")} · {v.by}</span>
+                  <span className="text-gray-600">{wann(v.at)} · {v.by}</span>
                   {v.rueckgaengig && (
                     <span className="text-gray-600">
-                      {" "}· ↶ macht {ursprung ? `die Änderung vom ${ursprung.at?.toDate().toLocaleString("de-DE")}` : "eine Änderung"} rückgängig
+                      {" "}· ↶ macht {ursprung ? `die Änderung vom ${wann(ursprung.at)}` : "eine Änderung"} rückgängig
                     </span>
                   )}
                   {v.zurueckgesetzt && <span className="text-gray-600"> · ↶ auf den veröffentlichten Stand zurückgesetzt</span>}
