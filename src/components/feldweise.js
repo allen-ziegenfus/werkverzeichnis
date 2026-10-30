@@ -12,22 +12,27 @@ import { db } from "./firebaseClient.js";
  * - pfad(k): wohin im Dokument (Feldname oder FieldPath)
  * - lesen(daten): die Felder aus dem Dokument, wie im Formular
  * - Ein fehlender Wert (null/undefined) heißt entfernt.
+ * - ergaenzen: Felder, die im Dokument ganz fehlen, mit dem Wert von hier
+ *   mitschreiben (ältere Dokumente; die Regeln verlangen alle Felder).
  *
  * Ergebnis: { stand, formular, konflikte, fremd } – fremd: ob andere
  * inzwischen etwas anderes geändert haben.
  */
 const w = v => v ?? null;
 
-export async function feldweiseSpeichern({ ref, stand, mein, lesen, pfad = k => k }) {
+export async function feldweiseSpeichern({ ref, stand, mein, lesen, pfad = k => k, ergaenzen = false }) {
   const schluessel = [...new Set([...Object.keys(stand), ...Object.keys(mein)])];
   const geaendert = schluessel.filter(k => w(stand[k]) !== w(mein[k]));
   const ergebnis = await runTransaction(db, async tx => {
-    const jetzt = lesen((await tx.get(ref)).data() ?? {});
+    const roh = (await tx.get(ref)).data() ?? {};
+    const jetzt = lesen(roh);
     const konflikte = geaendert.filter(k => w(jetzt[k]) !== w(stand[k]) && w(jetzt[k]) !== w(mein[k]));
     const alle = new Set([...Object.keys(jetzt), ...schluessel]);
     const fremd = [...alle].some(k => !geaendert.includes(k) && w(jetzt[k]) !== w(stand[k]));
-    if (!konflikte.length && geaendert.length) {
-      tx.update(ref, ...geaendert.flatMap(k => [pfad(k), w(mein[k]) ?? deleteField()]),
+    const schreiben = [...new Set([...geaendert,
+      ...(ergaenzen ? Object.keys(mein).filter(k => !(k in roh)) : [])])];
+    if (!konflikte.length && schreiben.length) {
+      tx.update(ref, ...schreiben.flatMap(k => [pfad(k), w(mein[k]) ?? deleteField()]),
         "updatedAt", serverTimestamp());
     }
     return { jetzt, konflikte, fremd };

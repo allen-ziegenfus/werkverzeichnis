@@ -40,12 +40,13 @@ function Personen({ ich }) {
       const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein: rollen,
         lesen: d => ({ ...d.roles }), pfad: rollenPfad });
       setRollen(r.formular); setStand(r.stand);
+      // Der Cache bekommt nur, was gespeichert ist.
+      client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, roles: r.stand });
       if (r.konflikte.length) {
         setFehler(`Inzwischen woanders geändert: ${r.konflikte.map(e => `${e} (jetzt ${ROLLEN_NAMEN[r.stand[e]] ?? "entfernt"})`).join(", ")}. `
           + "Nichts gespeichert; erneut speichern übernimmt die Einträge von hier.");
         return;
       }
-      client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, roles: r.formular });
       setGeaendert(false);
       setHinweis(r.fremd ? "Gespeichert; Änderungen anderer an weiteren Einträgen sind übernommen." : "Gespeichert.");
     } catch (e) {

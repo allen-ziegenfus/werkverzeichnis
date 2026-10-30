@@ -46,15 +46,16 @@ function Einstellungen() {
   async function speichern() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     try {
-      const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein: entwurf, lesen });
+      const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein: entwurf, lesen, ergaenzen: true });
       setEntwurf(r.formular); setStand(r.stand);
+      // Der Cache bekommt nur, was gespeichert ist.
+      client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, ...r.stand });
       if (r.konflikte.length) {
         const name = k => EINSTELLUNGEN.find(([x]) => x === k)[1];
         setFehler(`Inzwischen woanders geändert: ${r.konflikte.map(k => `${name(k)} (jetzt „${r.stand[k]}“)`).join(", ")}. `
           + "Nichts gespeichert; erneut speichern übernimmt die Werte von hier.");
         return;
       }
-      client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, ...r.formular });
       setHinweis(r.fremd ? "Gespeichert; Änderungen anderer an weiteren Feldern sind übernommen." : "Gespeichert.");
     } catch (e) {
       setFehler(meldung(e));
