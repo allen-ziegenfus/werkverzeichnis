@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, initializeFirestore } from "firebase/firestore";
+import { entwuerfeLoeschen } from "./ungespeichert.js";
 
 /**
  * Die Firebase-App der Verwaltung und des Editors. Projekt, Schlüssel und
@@ -22,12 +23,13 @@ export const kuenstler = doc(db, "artists", KUENSTLER);
 
 // Merkt sich, ob auf diesem Gerät jemand angemeldet ist; nur dann lädt das
 // Layout die Werkzeugleiste. Wer sich erst auf dieser Seite anmeldet, bekommt
-// sie sofort.
+// sie sofort. Abgemeldet, auf welchem Weg auch immer: Entwürfe im Browser weg (#203).
 onAuthStateChanged(auth, n => {
   try {
     if (n) localStorage.setItem("bearbeiter", "1");
     else localStorage.removeItem("bearbeiter");
   } catch {}
+  if (!n) entwuerfeLoeschen();
   const link = document.getElementById("anmelden");
   if (link) link.hidden = !!n;
   const el = document.getElementById("werkzeugleiste");

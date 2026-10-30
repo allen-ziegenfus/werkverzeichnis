@@ -74,11 +74,11 @@ export default function VerlaufListe({ eintraege, ist, gleich, name, lang, bearb
 }
 
 /** Zeilenweise, was sich am Text geändert hat; berechnet erst beim Aufklappen. */
-function Unterschied({ von, zu }) {
+export function Unterschied({ von, zu, beschriftung = "Unterschied zeigen" }) {
   const [offen, setOffen] = useState(false);
   return (
     <details className="mt-0.5" onToggle={e => setOffen(e.currentTarget.open)}>
-      <summary className="cursor-pointer text-gray-600">Unterschied zeigen</summary>
+      <summary className="cursor-pointer text-gray-600">{beschriftung}</summary>
       {offen && <pre className="whitespace-pre-wrap break-words border rounded p-1 mt-1 text-xs font-mono">
         {zeilenUnterschied(von, zu).map(([art, zeile], k) => (
           <div key={k} className={art === "-" ? "bg-red-50 text-red-800 line-through" : art === "+" ? "bg-green-50 text-green-800"

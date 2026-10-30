@@ -3,6 +3,7 @@ import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { client, SCHLUESSEL, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
+import { useAbgleich } from "./Abgleich.jsx";
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
@@ -22,6 +23,7 @@ import Zugang from "./Zugang.jsx";
 const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Technik",
   "Beschreibung", "Zustand", "Standort", "Signatur", "Auflage", "Anzahl", "Foto",
   "Ausstellung", "Literatur", "Bibliographie"];
+const BEARBEITBAR = FELDER.filter(f => f !== "InvNr");
 const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Material"];
 
 /**
@@ -97,6 +99,22 @@ function WerkEditor({ nutzer }) {
 
   const geaendert = useMemo(() => werk
     ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk]);
+  // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
+  const abgleich = useAbgleich({
+    art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk, ref: werk ? doc(kuenstler, "works", werk.id) : null,
+    felder: BEARBEITBAR, gleich,
+    stand: werk?.data ?? {},
+    entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf]),
+    geaendert: geaendert.length > 0,
+    uebernehmen: (d, e) => {
+      const w = { id: werk.id, data: d };
+      client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
+      oeffnen(w);
+      if (e) setEntwurf({ ...d, ...e });
+    },
+    setzeFeld: (f, v) => setEntwurf(e => ({ ...e, [f]: v })),
+    wer: async l => (await getDoc(doc(collection(kuenstler, "history"), l))).get("by"),
+  });
   useUngespeichert(geaendert.length > 0 || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
 
   /**
@@ -107,14 +125,15 @@ function WerkEditor({ nutzer }) {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(kuenstler, "works", werk.id);
     const eintrag = doc(collection(kuenstler, "history"));
+    abgleich.eigene.current.add(eintrag.id);
     try {
       await runTransaction(db, async (tx) => {
         // Eine echte Konfliktprüfung ohne Sperre: Die Transaktion wiederholt sich
         // oder scheitert, wenn sich das Dokument darunter ändert, und updatedAt
         // zeigt, ob jemand gespeichert hat, seit dieses Formular geöffnet wurde.
         const jetzt = await tx.get(ref);
-        if (jetzt.data().updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
-          throw new Error("Inzwischen von jemand anderem geändert. Bitte neu öffnen.");
+        if (jetzt.data()?.updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
+          throw Object.assign(new Error("Inzwischen woanders gespeichert."), { code: "konflikt" });
         }
         const changes = Object.fromEntries(Object.entries(neu).map(([f, wert]) =>
           [f, { from: werk.data[f] ?? null, to: wert ?? null }]));
@@ -129,9 +148,10 @@ function WerkEditor({ nutzer }) {
       const w = { id: werk.id, data: frisch.data() };
       client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
-      setHinweis(meldung);
+      setHinweis(meldung); abgleich.gespeichert();
     } catch (e) {
-      setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+      if (e.code === "konflikt") await abgleich.nachKonflikt({ ruecknahme: !!extra.rueckgaengig }).catch(e => setFehler(e.message));
+      else setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
     } finally {
       setSpeichert(false);
     }
@@ -262,6 +282,7 @@ function WerkEditor({ nutzer }) {
       {werk && (
         <div className="space-y-3">
           <button className="underline text-sm" onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
+          {abgleich.hinweise}
           {FELDER.map(f => (
             <label key={f} className="block">
               <span className="text-sm text-gray-600">{f}</span>
@@ -277,7 +298,7 @@ function WerkEditor({ nutzer }) {
             </label>
           ))}
           <div className="flex gap-2 items-center">
-            <button className={knopf} disabled={!geaendert.length || speichert} onClick={speichern}>
+            <button className={knopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
               {speichert ? "Speichere…" : "Speichern"}
             </button>
             <button className={knopf} disabled={!geaendert.length || speichert}

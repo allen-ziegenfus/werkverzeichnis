@@ -20,3 +20,11 @@ export function useUngespeichert(aktiv) {
 
 /** true, wenn nichts ungespeichert ist oder die Nutzer:in verwerfen will. */
 export const verlassen = () => !offen.size || window.confirm("Ungespeicherte Änderungen verwerfen?");
+
+/** Präfix der Entwürfe im Browser (Abgleich.jsx, #203); Abmelden löscht sie. */
+export const ENTWURF = "werkverzeichnis-entwurf:";
+export function entwuerfeLoeschen() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(ENTWURF)) localStorage.removeItem(k);
+  } catch { /* gesperrt */ }
+}

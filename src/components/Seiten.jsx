@@ -4,6 +4,7 @@ import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { useQuery } from "@tanstack/react-query";
 import { client, SCHLUESSEL, zielSuchen } from "./abfragen.js";
+import { useAbgleich } from "./Abgleich.jsx";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
@@ -140,6 +141,23 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
   }
   useEffect(() => { if (!istNeu) verlaufLaden().catch(e => setFehler(meldung(e))); }, [seite.id]);
 
+  // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
+  const abgleich = useAbgleich({
+    art: "seite", id: seite.id, ich, aktiv: !istNeu, ref: istNeu ? null : doc(sammlung, seite.id),
+    felder: Object.keys(SEITENFELDER), gleich, name: k => SEITENFELDER[k],
+    stand: useMemo(() => ({ ...gespeichert, updatedAt: geladenAm }), [gespeichert, geladenAm]),
+    entwurf: useMemo(() => alsZahl(entwurf), [entwurf]),
+    geaendert: bearbeitbar && !istNeu && geaendert,
+    uebernehmen: (d, e) => {
+      setGespeichert(fassung(d)); setGeladenAm(d.updatedAt);
+      setEntwurf(fassung(e ?? d)); setGeladen(n => n + 1);
+      client.invalidateQueries({ queryKey: SCHLUESSEL.seiten });
+      verlaufLaden().catch(e => setFehler(meldung(e)));
+    },
+    setzeFeld: (k, v) => { setze(k, v); if (k === "text") setGeladen(n => n + 1); },
+    wer: async l => (await getDoc(doc(verlauf, l))).get("by"),
+  });
+
   function fassungLaden(f, t) {
     setEntwurf(fassung(f));
     setGeladen(n => n + 1);
@@ -165,13 +183,14 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(sammlung, id);
     const eintrag = doc(verlauf);
+    abgleich.eigene.current.add(eintrag.id);
     try {
       await runTransaction(db, async tx => {
         const jetzt = await tx.get(ref);
         if (istNeu && jetzt.exists()) throw new Error(`„${id}“ gibt es schon.`);
         // Jemand anderes hat gespeichert, seit dieses Formular geöffnet wurde.
         if (!istNeu && jetzt.data()?.updatedAt?.toMillis() !== geladenAm?.toMillis()) {
-          throw new Error("Inzwischen von jemand anderem geändert. Bitte neu öffnen.");
+          throw Object.assign(new Error("Inzwischen woanders gespeichert."), { code: "konflikt" });
         }
         tx.set(eintrag, { seite: id, by: ich, at: serverTimestamp(),
           vorher: jetzt.exists() ? fassung(jetzt.data()) : null, nachher: neu, ...extra });
@@ -185,10 +204,11 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
       // Das Formular zeigt danach die neue Fassung, außer jemand hat inzwischen
       // darin weitergearbeitet; dann bleibt das und gilt als ungespeichert.
       if (extra.rueckgaengig && aktuellerEntwurf.current === start) { setEntwurf(neu); setGeladen(n => n + 1); }
-      setHinweis(text);
+      setHinweis(text); abgleich.gespeichert();
       await verlaufLaden();
     } catch (e) {
-      setFehler(meldung(e));
+      if (e.code === "konflikt") await abgleich.nachKonflikt({ ruecknahme: !!extra.rueckgaengig }).catch(e => setFehler(meldung(e)));
+      else setFehler(meldung(e));
     } finally {
       setSpeichert(false);
     }
@@ -263,6 +283,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
                  onChange={e => setze("reihenfolge", e.target.value)} />
         </label>
       </div>
+      {abgleich.hinweise}
       {istNeu && <p className="text-xs text-gray-600 font-mono">/allgemein/{id || "…"}</p>}
       {alt && <p className="text-sm">Gelöschte Seite; „Anlegen“ stellt sie unter derselben Adresse wieder her.</p>}
 
@@ -273,7 +294,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
 
       {bearbeitbar && (
         <div className="flex gap-2 items-center">
-          <button className={knopf} disabled={speichert || !geaendert || !entwurf.titel.trim() || !id} onClick={speichern}>
+          <button className={knopf} disabled={speichert || !geaendert || !entwurf.titel.trim() || !id || abgleich.konflikte.length > 0} onClick={speichern}>
             {speichert ? "Speichere…" : istNeu ? "Anlegen" : "Speichern"}
           </button>
           {gespeichert && <button className={knopf} disabled={speichert || !geaendert} onClick={verwerfen}>Verwerfen</button>}
