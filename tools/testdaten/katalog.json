@@ -12,7 +12,7 @@
       "cover": "artists/test/film.jpg" }
   ],
   "werke": [
-    { "slug": "ob1", "werkgruppe": "objekte", "InvNr": "OB1", "Titel": "Kiste mit Deckel", "Jahr": "1970",
+    { "slug": "ob1", "werkgruppe": "objekte", "InvNr": "OB1", "Titel": "Kiste mit Deckel", "Werkgruppe": "Objekt-Kasten", "Jahr": "1970",
       "Material": "Holz, bemalt", "Maße": "20 x 30 x 10 cm", "Beschreibung": "Ein Werk mit einem Bild.",
       "Zustand": "gut", "Standort": "Atelier", "images": ["artists/test/ob1.jpg"] },
     { "slug": "ob2-a-b", "werkgruppe": "objekte", "InvNr": "OB2 A/B", "Titel": "Zwei Teile", "Jahr": "1972-1974",

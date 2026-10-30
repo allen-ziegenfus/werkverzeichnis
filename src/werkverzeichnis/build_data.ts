@@ -164,8 +164,11 @@ async function bauen() {
         Slug: werk.slug,
         WerkgruppeSlug: gruppe.slug,
         ...Object.fromEntries(WERK_FELDER.filter(f => f !== "InvNr").map(f => [f, werk[f]])),
-        // Der Name der Werkgruppe, zu der das Werk gehört, nicht der alte Freitext (#189).
+        // Der Name der Werkgruppe, zu der das Werk gehört (#189). Der alte Freitext
+        // „Werkgruppe“ ist oft eine Gattung (Luminogramm, Polaroid …); er steht als
+        // „Art“ da, wenn er nicht nur den Namen wiederholt.
         Werkgruppe: gruppe.titel,
+        Art: [gruppe.titel, gruppe.kurztitel].includes(werk.Werkgruppe?.trim()) ? undefined : werk.Werkgruppe?.trim() || undefined,
         Bilder: bilder,
         Thumbnail: vorschaubild(bilder[0]),
       });

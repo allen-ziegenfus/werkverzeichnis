@@ -21,8 +21,9 @@ import Zugang from "./Zugang.jsx";
 
 // Die Felder, die der Editor zeigt, in dieser Reihenfolge. Alles andere am
 // Dokument (werkgruppe, images, updatedAt, lastChange, ausgeblendet) wird verwaltet, nicht bearbeitet.
-// Der alte Freitext „Werkgruppe“ nicht: Die Website zeigt den Namen der Werkgruppe (#189).
-const FELDER = ["InvNr", "Titel", "Jahr", "Maße", "Material", "Technik",
+// Der Freitext „Werkgruppe“ heißt hier „Art“ (#189): Die Website zeigt als Werkgruppe
+// deren Namen, den Freitext als Art, wenn er abweicht.
+const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Technik",
   "Beschreibung", "Zustand", "Standort", "Signatur", "Auflage", "Anzahl", "Foto",
   "Ausstellung", "Literatur", "Bibliographie"];
 const BEARBEITBAR = FELDER.filter(f => f !== "InvNr");
@@ -104,7 +105,7 @@ function WerkEditor({ nutzer }) {
   // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
   const abgleich = useAbgleich({
     art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk, ref: werk ? doc(kuenstler, "works", werk.id) : null,
-    felder: BEARBEITBAR, gleich,
+    felder: BEARBEITBAR, gleich, name: werkFeld,
     stand: werk?.data ?? {},
     entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf]),
     geaendert: geaendert.length > 0,
@@ -317,7 +318,7 @@ function WerkEditor({ nutzer }) {
           )}
           {FELDER.map(f => (
             <label key={f} className="block">
-              <span className="text-sm text-gray-600">{f}</span>
+              <span className="text-sm text-gray-600">{werkFeld(f)}</span>
               {f === "InvNr" ? (
                 <input className="border p-1 w-full bg-gray-100" value={entwurf[f] ?? ""} readOnly />
               ) : LANG.includes(f) || String(entwurf[f] ?? "").length > 80 ? (
