@@ -5,6 +5,7 @@ import {
 import { client, SCHLUESSEL, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
+import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -86,6 +87,7 @@ function WerkEditor({ nutzer }) {
 
   const geaendert = useMemo(() => werk
     ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk]);
+  useUngespeichert(geaendert.length > 0 || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
 
   /**
    * Schreibt `neu` ({ Feld: Wert }, null entfernt das Feld) mit einem
@@ -200,7 +202,7 @@ function WerkEditor({ nutzer }) {
       {!gruppen && !ladefehler && <Skelett zeilen={1} />}
       {gruppen && (
         <select className="border p-1 w-full" value={gruppe}
-                onChange={e => { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); }}>
+                onChange={e => { if (verlassen()) { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); } }}>
           <option value="">Werkgruppe wählen…</option>
           {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
         </select>
@@ -241,7 +243,7 @@ function WerkEditor({ nutzer }) {
 
       {werk && (
         <div className="space-y-3">
-          <button className="underline text-sm" onClick={() => setWerk(undefined)}>← Zurück zur Liste</button>
+          <button className="underline text-sm" onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
           {FELDER.map(f => (
             <label key={f} className="block">
               <span className="text-sm text-gray-600">{f}</span>

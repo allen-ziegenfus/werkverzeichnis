@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { client, SCHLUESSEL, zielSuchen } from "./abfragen.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
+import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
 import { seitenUnterschiede, SEITENFELDER } from "./Veroeffentlichen.jsx";
 
@@ -25,6 +26,7 @@ const zuKennung = s => slugify(s, { lower: true }).replace(/[^a-z0-9-]/g, "").sl
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 const ordnung = (a, b) => a.kategorie.localeCompare(b.kategorie) * -1 || a.reihenfolge - b.reihenfolge;
 const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
+const alsZahl = f => ({ ...f, reihenfolge: Number(f.reihenfolge) });
 const neuesteZuerst = (a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0);
 const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) ?? "gerade eben";
 
@@ -112,8 +114,10 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
   const [geladenAm, setGeladenAm] = useState(seite.updatedAt);
   // Die gespeicherte Fassung, gegen die das Formular als geändert gilt.
   const [gespeichert, setGespeichert] = useState(() => istNeu ? null : fassung(seite));
-  const geaendert = !gespeichert
-    || seitenUnterschiede({ ...entwurf, reihenfolge: Number(entwurf.reihenfolge) }, gespeichert).length > 0;
+  const geaendert = !gespeichert || seitenUnterschiede(alsZahl(entwurf), gespeichert).length > 0;
+  // Zum Warnen: Eine neue Seite ist erst ungespeichert, wenn etwas eingetragen ist.
+  const anfang = useRef(entwurf);
+  useUngespeichert(bearbeitbar && (gespeichert ? geaendert : seitenUnterschiede(alsZahl(entwurf), alsZahl(anfang.current)).length > 0));
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
@@ -135,6 +139,12 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
     setGeladen(n => n + 1);
     setFehler(undefined);
     setHinweis(`Fassung vom ${wann(t)} geladen; Speichern stellt sie wieder her.`);
+  }
+
+  function verwerfen() {
+    setEntwurf(gespeichert);
+    setGeladen(n => n + 1);
+    setFehler(undefined); setHinweis(undefined);
   }
 
   const speichern = () =>
@@ -197,7 +207,8 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
   }
 
   async function loeschen() {
-    if (!confirm(`Seite „${seite.titel}“ löschen?`)) return;
+    if (!confirm(`Die ganze Seite „${seite.titel}“ löschen? Sie verschwindet beim nächsten Veröffentlichen `
+      + "von der Website; unter „Gelöschte Seiten“ lässt sie sich wiederherstellen.")) return;
     const ref = doc(sammlung, seite.id);
     try {
       await runTransaction(db, async tx => {
@@ -217,7 +228,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
   const feld = "border p-1 disabled:bg-gray-100";
   return (
     <div className="pt-4 space-y-3">
-      <button className="underline text-sm" onClick={onSchliessen}>← Zurück zu den Seiten</button>
+      <button className="underline text-sm" onClick={() => verlassen() && onSchliessen()}>← Zurück zu den Seiten</button>
       <div className="flex gap-2 flex-wrap items-end">
         <label className="flex-1 min-w-[12rem]">
           <span className="block text-sm text-gray-600">Titel</span>
@@ -250,7 +261,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
           <button className={knopf} disabled={speichert || !geaendert || !entwurf.titel.trim() || !id} onClick={speichern}>
             {speichert ? "Speichere…" : istNeu ? "Anlegen" : "Speichern"}
           </button>
-          {!istNeu && <button className={knopf + " text-red-700"} onClick={loeschen}>Löschen</button>}
+          {gespeichert && <button className={knopf} disabled={speichert || !geaendert} onClick={verwerfen}>Verwerfen</button>}
           {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
           {fehler && <span className="text-red-700 text-sm">{fehler}</span>}
         </div>
@@ -259,6 +270,12 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
 
       {!istNeu && <Fassungen eintraege={eintraege} bearbeitbar={bearbeitbar} laden={fassungLaden}
                              gespeichert={gespeichert} gesperrt={speichert || geaendert} rueckgaengig={rueckgaengig} />}
+
+      {bearbeitbar && !istNeu && (
+        <div className="pt-6 mt-6 border-t">
+          <button className={knopf + " border-red-700 text-red-700"} disabled={speichert} onClick={loeschen}>Seite löschen</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -306,7 +323,7 @@ function Fassungen({ eintraege, bearbeitbar, laden, gespeichert, gesperrt, rueck
                   </span>
                   {bearbeitbar && felder.length > 0 && (
                     <button className={knopf} disabled={gesperrt || !kannZurueck}
-                            title={gesperrt ? "Erst speichern oder die Seite neu öffnen."
+                            title={gesperrt ? "Erst speichern oder verwerfen."
                               : !kannZurueck ? "Alle Felder wurden inzwischen erneut geändert." : undefined}
                             onClick={() => rueckgaengig(e)}>Rückgängig</button>
                   )}
