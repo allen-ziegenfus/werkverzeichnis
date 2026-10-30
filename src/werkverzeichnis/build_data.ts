@@ -112,6 +112,9 @@ async function bauen() {
   const [katalog, md5s] = TESTDATEN ? testdaten(TESTDATEN)
     : await Promise.all([firestoreKatalog(PROJEKT, DATENBANK, KUENSTLER), fingerabdruecke()]);
   probleme.push(...katalog.probleme);
+  // Ausgeblendete Werke (#181) kommen nicht auf die Website.
+  const ausgeblendet = katalog.werke.filter(w => w.ausgeblendet);
+  const sichtbar = katalog.werke.filter(w => !w.ausgeblendet);
 
   /**
    * Ein gelistetes Bild als Bild. Fehlt es im Bucket oder gibt es noch keine
@@ -138,7 +141,10 @@ async function bauen() {
   };
 
   for (const gruppe of gruppen) {
-    const werke = katalog.werke.filter(w => w.werkgruppe === gruppe.slug);
+    const werke = sichtbar.filter(w => w.werkgruppe === gruppe.slug);
+    if (!werke.length && ausgeblendet.some(w => w.werkgruppe === gruppe.slug)) {
+      hinweise.push(`Werkgruppe ${gruppe.slug}: alle Werke ausgeblendet, sie steht leer da`);
+    }
     const eintraege = [];
 
     for (const werk of werke) {
@@ -170,8 +176,11 @@ async function bauen() {
     // Ohne Titelbild das erste Bild der Werkgruppe, sonst der Platzhalter (#182):
     // Titelbilder lassen sich in der Verwaltung noch nicht setzen (#180).
     const erstesBild = eintraege.map(e => e.Bilder[0]).find(b => b !== PLATZHALTER && !b.video);
-    if (!gruppe.cover) hinweise.push(`Werkgruppe ${gruppe.slug}: kein Titelbild, ${erstesBild ? "nehme das erste Werk" : "Platzhalter"}`);
-    const titelbild = gruppe.cover ? webBild(gruppe.cover, gruppe.slug) ?? PLATZHALTER : erstesBild ?? PLATZHALTER;
+    // Ein Titelbild aus einem ausgeblendeten Werk zeigt die Website nicht.
+    const coverAusgeblendet = !!gruppe.cover && ausgeblendet.some(w => w.images?.includes(gruppe.cover!));
+    if (coverAusgeblendet) hinweise.push(`Werkgruppe ${gruppe.slug}: Titelbild gehört zu einem ausgeblendeten Werk, nehme ${erstesBild ? "das erste Werk" : "den Platzhalter"}`);
+    else if (!gruppe.cover) hinweise.push(`Werkgruppe ${gruppe.slug}: kein Titelbild, ${erstesBild ? "nehme das erste Werk" : "Platzhalter"}`);
+    const titelbild = gruppe.cover && !coverAusgeblendet ? webBild(gruppe.cover, gruppe.slug) ?? PLATZHALTER : erstesBild ?? PLATZHALTER;
 
     werkgruppen.push({
       Titel: gruppe.titel,
@@ -189,8 +198,17 @@ async function bauen() {
     console.log(`  ${gruppe.slug.padEnd(22)} ${eintraege.length} works`);
   }
 
-  const verwaist = katalog.werke.filter(w => !gruppen.some(g => g.slug === w.werkgruppe));
+  const verwaist = sichtbar.filter(w => !gruppen.some(g => g.slug === w.werkgruppe));
   if (verwaist.length) probleme.push(`${verwaist.length} work(s) in no Werkgruppe`);
+
+  // Links in Seitentexten auf ausgeblendete Werke führen ins Leere.
+  for (const s of katalog.seiten) {
+    for (const w of ausgeblendet) {
+      if (new RegExp(`/${w.werkgruppe}/${w.slug.replace(/[.]/g, "\\.")}(?=[/)#?"'\\s]|$)`).test(s.text)) {
+        hinweise.push(`Seite ${s.slug}: Link auf das ausgeblendete Werk ${w.slug}`);
+      }
+    }
+  }
 
   const seiten = [...katalog.seiten]
     .sort((a, b) => a.reihenfolge - b.reihenfolge || nachSlug(a, b))

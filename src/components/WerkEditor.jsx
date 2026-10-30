@@ -3,10 +3,12 @@ import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { client, SCHLUESSEL, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
+import { useAbgleich } from "./Abgleich.jsx";
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
+import { werkFeld } from "./werkFeld.js";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -18,10 +20,11 @@ import Zugang from "./Zugang.jsx";
  */
 
 // Die Felder, die der Editor zeigt, in dieser Reihenfolge. Alles andere am
-// Dokument (werkgruppe, images, updatedAt, lastChange) wird verwaltet, nicht bearbeitet.
+// Dokument (werkgruppe, images, updatedAt, lastChange, ausgeblendet) wird verwaltet, nicht bearbeitet.
 const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Technik",
   "Beschreibung", "Zustand", "Standort", "Signatur", "Auflage", "Anzahl", "Foto",
   "Ausstellung", "Literatur", "Bibliographie"];
+const BEARBEITBAR = FELDER.filter(f => f !== "InvNr");
 const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Material"];
 
 /**
@@ -97,30 +100,53 @@ function WerkEditor({ nutzer }) {
 
   const geaendert = useMemo(() => werk
     ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk]);
+  // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
+  const abgleich = useAbgleich({
+    art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk, ref: werk ? doc(kuenstler, "works", werk.id) : null,
+    felder: BEARBEITBAR, gleich,
+    stand: werk?.data ?? {},
+    entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf]),
+    geaendert: geaendert.length > 0,
+    uebernehmen: (d, e) => {
+      const w = { id: werk.id, data: d };
+      client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
+      oeffnen(w);
+      if (e) setEntwurf({ ...d, ...e });
+    },
+    setzeFeld: (f, v) => setEntwurf(e => ({ ...e, [f]: v })),
+    wer: async l => (await getDoc(doc(collection(kuenstler, "history"), l))).get("by"),
+  });
   useUngespeichert(geaendert.length > 0 || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
 
   /**
    * Schreibt `neu` ({ Feld: Wert }, null entfernt das Feld) mit einem
    * Verlaufseintrag; `extra` kommt in den Eintrag (etwa `rueckgaengig`).
+   * `pruefen: false` für Felder außerhalb des Formulars (ausgeblendet): kein
+   * Konflikt mit fremdem Speichern, der Verlauf nimmt den Wert davor vom Server.
    */
-  async function schreiben(neu, extra, meldung) {
+  async function schreiben(neu, extra, meldung, { pruefen = true } = {}) {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(kuenstler, "works", werk.id);
     const eintrag = doc(collection(kuenstler, "history"));
+    abgleich.eigene.current.add(eintrag.id);
     try {
       await runTransaction(db, async (tx) => {
         // Eine echte Konfliktprüfung ohne Sperre: Die Transaktion wiederholt sich
         // oder scheitert, wenn sich das Dokument darunter ändert, und updatedAt
         // zeigt, ob jemand gespeichert hat, seit dieses Formular geöffnet wurde.
         const jetzt = await tx.get(ref);
-        if (jetzt.data().updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
-          throw new Error("Inzwischen von jemand anderem geändert. Bitte neu öffnen.");
+        if (pruefen && jetzt.data()?.updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
+          throw Object.assign(new Error("Inzwischen woanders gespeichert."), { code: "konflikt" });
         }
-        const changes = Object.fromEntries(Object.entries(neu).map(([f, wert]) =>
-          [f, { from: werk.data[f] ?? null, to: wert ?? null }]));
+        const davor = pruefen ? werk.data : jetzt.data() ?? {};
+        // Ohne Prüfung nur, was sich auf dem Server wirklich ändert.
+        const felder = Object.entries(neu).filter(([f, wert]) => pruefen || (davor[f] ?? null) !== (wert ?? null));
+        if (!felder.length) return;
+        const changes = Object.fromEntries(felder.map(([f, wert]) =>
+          [f, { from: davor[f] ?? null, to: wert ?? null }]));
         tx.set(eintrag, { work: werk.id, by: nutzer.email, at: serverTimestamp(), changes, ...extra });
         tx.update(ref, {
-          ...Object.fromEntries(Object.entries(neu).map(([f, wert]) => [f, wert ?? deleteField()])),
+          ...Object.fromEntries(felder.map(([f, wert]) => [f, wert ?? deleteField()])),
           updatedAt: serverTimestamp(),
           lastChange: eintrag.id,
         });
@@ -129,9 +155,10 @@ function WerkEditor({ nutzer }) {
       const w = { id: werk.id, data: frisch.data() };
       client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
-      setHinweis(meldung);
+      setHinweis(meldung); abgleich.gespeichert();
     } catch (e) {
-      setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+      if (e.code === "konflikt") await abgleich.nachKonflikt({ ruecknahme: !!extra.rueckgaengig }).catch(e => setFehler(e.message));
+      else setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
     } finally {
       setSpeichert(false);
     }
@@ -158,7 +185,10 @@ function WerkEditor({ nutzer }) {
     const felder = { InvNr: invNr, ...(titel && { Titel: titel }) };
     try {
       await runTransaction(db, async (tx) => {
-        if ((await tx.get(ref)).exists()) throw new Error(`Die Inv. Nr. „${invNr}“ gibt es schon.`);
+        const da = await tx.get(ref);
+        // Auch ausgeblendete Werke behalten ihre Inv. Nr. (#181).
+        if (da.exists()) throw new Error(`Die Inv. Nr. „${invNr}“ gibt es schon`
+          + (da.get("ausgeblendet") ? ` (ausgeblendet, in der Werkgruppe ${da.get("werkgruppe")}).` : "."));
         tx.set(eintrag, { work: id, by: nutzer.email, at: serverTimestamp(),
           changes: Object.fromEntries(Object.entries(felder).map(([f, wert]) => [f, { from: null, to: wert }])) });
         tx.set(ref, { ...felder, werkgruppe: gruppe, updatedAt: serverTimestamp(), lastChange: eintrag.id });
@@ -177,6 +207,19 @@ function WerkEditor({ nutzer }) {
 
   const speichern = () => schreiben(Object.fromEntries(geaendert.map(f => [f, entwurf[f]])), {},
     `Gespeichert (${geaendert.join(", ")}).`);
+
+  /**
+   * Ausblenden statt löschen (#181): Das Werk bleibt mit Inv. Nr., Bildern und
+   * Verlauf in der Verwaltung, die Website zeigt es nach der nächsten
+   * Veröffentlichung nicht mehr. Steht im Verlauf und lässt sich zurücknehmen.
+   */
+  function ausblenden(an) {
+    if (an && !window.confirm(`Werk ${werk.data.InvNr} auf der Website ausblenden?\n\n`
+      + "Es bleibt in der Verwaltung und lässt sich wieder einblenden. Von der Website verschwindet es mit der nächsten Veröffentlichung; "
+      + "Links darauf, etwa in Seitentexten, führen dann ins Leere. Die Bilder bleiben unter ihren Adressen erreichbar.")) return;
+    schreiben({ ausgeblendet: an || null }, {}, an ? "Ausgeblendet; von der Website verschwindet es mit der nächsten Veröffentlichung."
+      : "Eingeblendet; auf der Website erscheint es mit der nächsten Veröffentlichung.", { pruefen: false });
+  }
 
   /**
    * Setzt die Felder eines Verlaufseintrags auf ihren alten Wert zurück, als neue
@@ -219,7 +262,7 @@ function WerkEditor({ nutzer }) {
 
       {!gruppen && !ladefehler && <Skelett zeilen={1} />}
       {gruppen && (
-        <select className="border p-1 w-full" value={gruppe}
+        <select className="border p-1 w-full" value={gruppe} disabled={speichert}
                 onChange={e => { if (verlassen()) { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); } }}>
           <option value="">Werkgruppe wählen…</option>
           {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
@@ -251,7 +294,10 @@ function WerkEditor({ nutzer }) {
             {treffer.map(w => (
               <li key={w.id}>
                 <button className="w-full text-left py-1 hover:bg-gray-100" onClick={() => verlassen() && (setNeu(undefined), oeffnen(w))}>
-                  <span className="font-mono">{w.data.InvNr}</span> {w.data.Titel}
+                  <span className={w.data.ausgeblendet ? "text-gray-500" : ""}>
+                    <span className="font-mono">{w.data.InvNr}</span> {w.data.Titel}
+                    {w.data.ausgeblendet && <span className="text-sm"> · ausgeblendet</span>}
+                  </span>
                 </button>
               </li>
             ))}
@@ -261,7 +307,13 @@ function WerkEditor({ nutzer }) {
 
       {werk && (
         <div className="space-y-3">
-          <button className="underline text-sm" onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
+          {/* Gesperrt während des Speicherns: danach öffnet schreiben() das Werk neu (#213). */}
+          <button className="underline text-sm disabled:opacity-40" disabled={speichert}
+                  onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
+          {abgleich.hinweise}
+          {werk.data.ausgeblendet && (
+            <p className="border border-gray-400 bg-gray-100 rounded p-2 text-sm">Ausgeblendet: steht nicht auf der Website.</p>
+          )}
           {FELDER.map(f => (
             <label key={f} className="block">
               <span className="text-sm text-gray-600">{f}</span>
@@ -277,12 +329,17 @@ function WerkEditor({ nutzer }) {
             </label>
           ))}
           <div className="flex gap-2 items-center">
-            <button className={knopf} disabled={!geaendert.length || speichert} onClick={speichern}>
+            <button className={knopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
               {speichert ? "Speichere…" : "Speichern"}
             </button>
             <button className={knopf} disabled={!geaendert.length || speichert}
-                    onClick={() => setEntwurf({ ...werk.data })}>Verwerfen</button>
+                    onClick={() => { setEntwurf({ ...werk.data }); abgleich.verworfen(); }}>Verwerfen</button>
             {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
+            <button className={knopf + " ml-auto"} disabled={speichert || geaendert.length > 0}
+                    title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}
+                    onClick={() => ausblenden(!werk.data.ausgeblendet)}>
+              {werk.data.ausgeblendet ? "Einblenden" : "Ausblenden"}
+            </button>
           </div>
 
           <div className="flex gap-2 items-baseline pt-4">
@@ -293,7 +350,7 @@ function WerkEditor({ nutzer }) {
           {!verlauf && <p className="text-sm text-gray-600">Lädt…</p>}
           {verlauf?.length === 0 && <p className="text-sm text-gray-600">Noch keine Änderungen.</p>}
           {verlauf?.length > 0 && !alles && (
-            <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={f => f}
+            <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={werkFeld}
                           lang={f => LANG.includes(f)} bearbeitbar zuruecknehmen={zuruecknehmen}
                           gesperrt={speichert ? "Speichert…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
           )}

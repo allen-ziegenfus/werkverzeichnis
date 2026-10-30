@@ -33,6 +33,8 @@ export type Werk = {
   slug: string; werkgruppe: string; InvNr: string;
   /** Bilder in Cloud Storage (Objektpfade), in Reihenfolge; das erste ist das Vorschaubild. */
   images?: string[];
+  /** In der Verwaltung ausgeblendet (#181); der Bau lässt es aus. */
+  ausgeblendet?: true;
 } & Partial<Record<(typeof WERK_FELDER)[number], string>>;
 
 export interface Seite {
@@ -118,7 +120,8 @@ export async function firestoreKatalog(projekt: string, datenbank: string, kuens
     const felder = Object.fromEntries(WERK_FELDER
       .map(f => [f, wert(w[f])])
       .filter(([, v]) => v !== undefined));
-    werke.push({ ...felder, InvNr: w.InvNr, slug: d.id, werkgruppe: w.werkgruppe, images: w.images });
+    werke.push({ ...felder, InvNr: w.InvNr, slug: d.id, werkgruppe: w.werkgruppe, images: w.images,
+      ...(w.ausgeblendet === true && { ausgeblendet: true }) });
   }
 
   const seiten: Seite[] = ss.docs.map(d => {

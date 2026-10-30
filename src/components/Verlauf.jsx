@@ -3,9 +3,12 @@ import {
   collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { darf } from "../werkverzeichnis/permissions.js";
+import { EINSTELLUNGEN, lesen as einstellungenLesen } from "./Einstellungen.jsx";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
+import { werkFeld } from "./werkFeld.js";
 import Skelett from "./Skelett.jsx";
+import { WERKGRUPPENFELDER, werkgruppenFassung } from "./Werkgruppen.jsx";
 import Zugang from "./Zugang.jsx";
 import { wann } from "./zeit.js";
 
@@ -14,9 +17,9 @@ import { wann } from "./zeit.js";
  * mit welchem Ergebnis, und was er online gebracht hat. Das sind die Änderungen
  * zwischen dem, was der vorige erfolgreiche Build gelesen hat, und dem, was
  * dieser gelesen hat (`gelesen`, #67; ältere Anfragen haben nur `gestartet`,
- * das etwas zu früh liegt, #101). Zurücknehmen setzt Werke und Seiten
- * daraus auf den Stand davor zurück, als neue Änderungen; online geht das mit
- * der nächsten Veröffentlichung.
+ * das etwas zu früh liegt, #101). Zurücknehmen setzt Werke, Seiten,
+ * Werkgruppen und Einstellungen (#106) daraus auf den Stand davor zurück, als
+ * neue Änderungen; online geht das mit der nächsten Veröffentlichung.
  */
 
 const ANZAHL = 30;
@@ -27,8 +30,9 @@ const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie
 
 export default function VerlaufSeite() {
   return <Zugang berechtigung="veroeffentlichen" kinder={({ nutzer, wer }) =>
-    <Verlauf kuenstlerId={KUENSTLER} ich={nutzer.email}
-             darfWerke={darf(wer, "werke.bearbeiten")} darfSeiten={darf(wer, "seiten.bearbeiten")} />} />;
+    <Verlauf kuenstlerId={KUENSTLER} ich={nutzer.email} darf={{
+      werke: darf(wer, "werke.bearbeiten"), seiten: darf(wer, "seiten.bearbeiten"),
+      werkgruppen: darf(wer, "werkgruppen.bearbeiten"), einstellungen: darf(wer, "einstellungen.bearbeiten") }} />} />;
 }
 
 /**
@@ -53,7 +57,7 @@ function nachBuild(anfragen) {
 // Die zuletzt gesehenen Veröffentlichungen, bis der Listener die neuen bringt (#122).
 let zuletzt;
 
-function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
+function Verlauf({ kuenstlerId, ich, darf }) {
   const [anfragen, setAnfragen] = useState(zuletzt);
   const [fehler, setFehler] = useState();
 
@@ -74,7 +78,7 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
   return (
     <div className="space-y-2 text-sm">
       <p className="text-gray-600">
-        Die letzten {ANZAHL} Veröffentlichungen. Zurücknehmen setzt Werke und Seiten auf den Stand davor zurück;
+        Die letzten {ANZAHL} Veröffentlichungen. Zurücknehmen setzt Werke, Seiten, Werkgruppen und Einstellungen auf den Stand davor zurück;
         online geht das erst mit der nächsten Veröffentlichung.
       </p>
       <table className="w-full border-collapse">
@@ -89,7 +93,7 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
           {builds.map(b => (
             <Build key={b.id} b={b} seit={erfolgreich.includes(b) ? davor(b)?.gelesen : undefined}
                    ungefaehr={b.ungefaehr || davor(b)?.ungefaehr} kuenstlerId={kuenstlerId}
-                   ich={ich} darfWerke={darfWerke} darfSeiten={darfSeiten} />
+                   ich={ich} darf={darf} />
           ))}
         </tbody>
       </table>
@@ -97,7 +101,7 @@ function Verlauf({ kuenstlerId, ich, darfWerke, darfSeiten }) {
   );
 }
 
-function Build({ b, seit, ungefaehr, kuenstlerId, ich, darfWerke, darfSeiten }) {
+function Build({ b, seit, ungefaehr, kuenstlerId, ich, darf }) {
   const [auf, setAuf] = useState(false);
   const erfolgreich = b.status === "fertig" && b.gelesen;
   const hinweise = <>
@@ -135,8 +139,7 @@ function Build({ b, seit, ungefaehr, kuenstlerId, ich, darfWerke, darfSeiten }) 
       {auf && (
         <tr className="border-b">
           <td colSpan={3} className="p-2 border border-gray-300">
-            <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen}
-                    darfWerke={darfWerke} darfSeiten={darfSeiten} />
+            <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen} darf={darf} />
           </td>
         </tr>
       )}
@@ -149,13 +152,73 @@ async function aenderungen(kuenstlerId, von, bis) {
   const zwischen = (c, feld) => getDocs(query(collection(db, "artists", kuenstlerId, c),
     where(feld, ">", von), where(feld, "<=", bis), orderBy(feld), limit(HOECHSTENS + 1)))
     .then(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
-  const [history, seitenverlauf, werkgruppen, medien, kuenstler] = await Promise.all([
+  const [history, seitenverlauf, werkgruppen, medien, kuenstler, werkgruppenverlauf, einstellungsverlauf] = await Promise.all([
     zwischen("history", "at"), zwischen("seitenverlauf", "at"), zwischen("werkgruppen", "updatedAt"),
-    zwischen("medien", "erstellt").catch(() => []), getDoc(doc(db, "artists", kuenstlerId))]);
+    zwischen("medien", "erstellt").catch(() => []), getDoc(doc(db, "artists", kuenstlerId)),
+    zwischen("werkgruppenverlauf", "at"), zwischen("einstellungsverlauf", "at")]);
   const t = kuenstler.get("updatedAt")?.toMillis();
-  return { history, seitenverlauf, werkgruppen, medien,
-    einstellungen: t > von.toMillis() && t <= bis.toMillis(),
-    zuViele: [history, seitenverlauf, werkgruppen, medien].some(l => l.length > HOECHSTENS) };
+  // Geändert ohne Verlauf (vor #106, Personen, Code ohne Verlauf): wenn
+  // updatedAt neuer ist als der letzte Eintrag im Zeitraum.
+  const zuletzt = (eintraege, passt) => Math.max(-Infinity,
+    ...eintraege.filter(passt).map(e => e.at?.toMillis() ?? -Infinity));
+  return { history, seitenverlauf, medien,
+    werkgruppen: nettoFassungen(werkgruppenverlauf, e => e.werkgruppe),
+    werkgruppenOhne: werkgruppen.filter(g =>
+      g.updatedAt?.toMillis() > zuletzt(werkgruppenverlauf, e => e.werkgruppe === g.id)),
+    einstellungen: nettoFassungen(einstellungsverlauf, () => "einstellungen")[0],
+    kuenstlerGeaendert: t > von.toMillis() && t <= bis.toMillis() && t > zuletzt(einstellungsverlauf, () => true),
+    zuViele: [history, seitenverlauf, werkgruppen, medien, werkgruppenverlauf, einstellungsverlauf].some(l => l.length > HOECHSTENS) };
+}
+
+const unterschiede = (a, b) => [...new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])]
+  .filter(k => (a?.[k] ?? null) !== (b?.[k] ?? null));
+
+/** Je Schlüssel der Stand vor dem ersten Eintrag gegen den nach dem letzten; ohne Unterschied fällt er heraus. */
+function nettoFassungen(eintraege, schluessel) {
+  const m = new Map();
+  for (const e of [...eintraege].sort((a, b) => (a.at?.toMillis() ?? Infinity) - (b.at?.toMillis() ?? Infinity))) {
+    const x = m.get(schluessel(e)) ?? { id: schluessel(e), vorher: e.vorher, von: new Set() };
+    x.nachher = e.nachher;
+    x.von.add(e.by);
+    m.set(x.id, x);
+  }
+  return [...m.values()].map(x => ({ ...x, felder: unterschiede(x.vorher, x.nachher) })).filter(x => x.felder.length);
+}
+
+/**
+ * Setzt die netto geänderten Felder einer Werkgruppe bzw. der Einstellungen
+ * auf den Wert davor zurück, mit Verlaufseintrag; Felder, die sich inzwischen
+ * noch einmal geändert haben, bleiben. Eine angelegte Werkgruppe bleibt (Löschen
+ * geht noch nicht). Gibt zurück, ob etwas zurückgesetzt ist.
+ */
+async function werkgruppeZuruecksetzen(kuenstlerId, ich, g) {
+  const ref = doc(db, "artists", kuenstlerId, "werkgruppen", g.id);
+  return runTransaction(db, async tx => {
+    const ist = werkgruppenFassung((await tx.get(ref)).data());
+    if (!ist || !g.vorher) return false;
+    const zurueck = g.felder.filter(k => (ist[k] ?? null) === (g.nachher[k] ?? null));
+    if (!zurueck.length) return false;
+    const werte = Object.fromEntries(zurueck.map(k => [k, g.vorher[k] ?? null]));
+    const eintrag = doc(collection(db, "artists", kuenstlerId, "werkgruppenverlauf"));
+    tx.set(eintrag, { werkgruppe: g.id, by: ich, at: serverTimestamp(), vorher: ist, nachher: { ...ist, ...werte } });
+    tx.update(ref, { ...werte, updatedAt: serverTimestamp(), lastChange: eintrag.id });
+    return true;
+  });
+}
+
+async function einstellungenZuruecksetzen(kuenstlerId, ich, x) {
+  const ref = doc(db, "artists", kuenstlerId);
+  return runTransaction(db, async tx => {
+    const ist = einstellungenLesen((await tx.get(ref)).data() ?? {});
+    const zurueck = x.felder.filter(k => ist[k] === x.nachher[k]);
+    if (!zurueck.length) return false;
+    const werte = Object.fromEntries(zurueck.map(k => [k, x.vorher[k]]));
+    const eintrag = doc(collection(ref, "einstellungsverlauf"));
+    tx.set(eintrag, { by: ich, at: serverTimestamp(), vorher: ist, nachher: { ...ist, ...werte } });
+    // Alle Felder: Älteren Dokumenten fehlt vielleicht eins, die Regeln verlangen alle.
+    tx.update(ref, { ...ist, ...werte, updatedAt: serverTimestamp(), lastChange: eintrag.id });
+    return true;
+  });
 }
 
 /**
@@ -185,7 +248,7 @@ async function seiteZuruecksetzen(kuenstlerId, ich, s) {
   });
 }
 
-function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
+function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
   const [a, setA] = useState();
   const [ladefehler, setLadefehler] = useState();
   const [fehler, setFehler] = useState();
@@ -198,22 +261,35 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
   if (!a) return <p className="pl-4 text-gray-600">Lädt…</p>;
   if (a.zuViele) return <p className="pl-4 text-gray-600">Über {HOECHSTENS} Änderungen, zu viele für eine Übersicht hier.</p>;
   const n = netto(a.history, a.seitenverlauf);
-  const leer = !n.werke.length && !n.seiten.length && !a.werkgruppen.length && !a.medien.length && !a.einstellungen;
-  const zuruecknehmbar = (darfWerke && n.werke.length) || (darfSeiten && n.seiten.length);
+  const leer = !n.werke.length && !n.seiten.length && !a.werkgruppen.length && !a.werkgruppenOhne.length
+    && !a.medien.length && !a.einstellungen && !a.kuenstlerGeaendert;
+  const werke = darf.werke ? n.werke : [], seiten = darf.seiten ? n.seiten : [];
+  const werkgruppen = darf.werkgruppen ? a.werkgruppen.filter(g => g.vorher) : [];
+  const einstellungen = darf.einstellungen && a.einstellungen;
+  const zuruecknehmbar = werke.length || seiten.length || werkgruppen.length || einstellungen;
+  // Was Zurücknehmen nicht erfasst: ohne Verlauf, angelegte Werkgruppen oder ohne Berechtigung.
+  const bleibt = a.werkgruppenOhne.length || a.kuenstlerGeaendert || werkgruppen.length < a.werkgruppen.length
+    || (a.einstellungen && !einstellungen) || werke.length < n.werke.length || seiten.length < n.seiten.length;
 
   async function zuruecknehmen() {
-    const teile = [darfWerke && n.werke.length && `${n.werke.length} Werk(e)`,
-      darfSeiten && n.seiten.length && `${n.seiten.length} Seite(n)`].filter(Boolean);
+    const teile = [werke.length && `${werke.length} Werk(e)`, seiten.length && `${seiten.length} Seite(n)`,
+      werkgruppen.length && `${werkgruppen.length} Werkgruppe(n)`, einstellungen && "die Einstellungen"].filter(Boolean);
     if (!window.confirm(`${teile.join(" und ")} auf den Stand vor dieser Veröffentlichung zurücksetzen?\n\n`
       + "Was seitdem noch einmal geändert wurde, bleibt. Online geht es mit der nächsten Veröffentlichung.")) return;
     setLaeuft(true); setFehler(undefined); setErgebnis(undefined);
     let zurueck = 0, geblieben = 0;
     try {
-      for (const w of darfWerke ? n.werke : []) {
+      for (const w of werke) {
         if ((await werkZuruecksetzen(kuenstlerId, ich, w)).length) zurueck++; else geblieben++;
       }
-      for (const s of darfSeiten ? n.seiten : []) {
+      for (const s of seiten) {
         if (await seiteZuruecksetzen(kuenstlerId, ich, s)) zurueck++; else geblieben++;
+      }
+      for (const g of werkgruppen) {
+        if (await werkgruppeZuruecksetzen(kuenstlerId, ich, g)) zurueck++; else geblieben++;
+      }
+      if (einstellungen) {
+        if (await einstellungenZuruecksetzen(kuenstlerId, ich, a.einstellungen)) zurueck++; else geblieben++;
       }
     } catch (e) {
       // Was schon zurückgesetzt ist, bleibt es; das muss die Meldung sagen.
@@ -230,14 +306,19 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
   const ohneVerlauf = <span className="text-gray-600">ohne Verlauf</span>;
   // Je Zeile: Schlüssel, was, welche Änderung, von wem.
   const zeilen = [
-    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).join(", "), [...w.von].join(", ")]),
+    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).map(werkFeld).join(", "), [...w.von].join(", ")]),
     ...n.seiten.map(s => ["s" + s.seite, `Seite „${seitenName(s)}“`,
       !s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
         : seitenUnterschiede(s.vorher, s.nachher).map(k => SEITENFELDER[k]).join(", "),
       [...s.von].join(", ")]),
-    ...a.werkgruppen.map(g => ["g" + g.id, `Werkgruppe „${g.titel || g.id}“`, ohneVerlauf, ""]),
+    ...a.werkgruppen.map(g => ["g" + g.id, `Werkgruppe „${g.nachher?.titel ?? g.vorher?.titel ?? g.id}“`,
+      !g.vorher ? "angelegt" : g.felder.map(k => WERKGRUPPENFELDER[k] ?? k).join(", "), [...g.von].join(", ")]),
+    ...a.werkgruppenOhne.map(g => ["go" + g.id, `Werkgruppe „${g.titel || g.id}“`, ohneVerlauf, ""]),
     ...a.medien.map(m => ["m" + m.id, "Bild verarbeitet", m.original?.split("/").pop() ?? m.id, ""]),
-    ...(a.einstellungen ? [["e", "Einstellungen oder Personen", ohneVerlauf, ""]] : []),
+    ...(a.einstellungen ? [["e", "Einstellungen",
+      a.einstellungen.felder.map(k => EINSTELLUNGEN.find(([x]) => x === k)?.[1] ?? k).join(", "),
+      [...a.einstellungen.von].join(", ")]] : []),
+    ...(a.kuenstlerGeaendert ? [["eo", "Einstellungen oder Personen", ohneVerlauf, ""]] : []),
   ];
   return (
     <div className="pt-1 space-y-2">
@@ -258,15 +339,17 @@ function Inhalt({ kuenstlerId, ich, von, bis, darfWerke, darfSeiten }) {
       {zuruecknehmbar ? (
         <p className="flex flex-wrap gap-2 items-center">
           <button className={knopf} disabled={laeuft} onClick={zuruecknehmen}>{laeuft ? "Setzt zurück…" : "Zurücknehmen"}</button>
-          {(a.werkgruppen.length > 0 || a.einstellungen) && (
-            <span className="text-gray-600">Werkgruppen und Einstellungen bleiben.</span>
+          {bleibt && (
+            <span className="text-gray-600">Was ohne Verlauf ist, angelegte Werkgruppen und was du nicht bearbeiten darfst, bleibt.</span>
           )}
         </p>
       ) : null}
-      <p className="text-gray-600 text-xs">
-        Werkgruppen und Einstellungen haben keinen Verlauf: Sie stehen hier nur, wenn sie seitdem nicht noch einmal
-        geändert wurden.
-      </p>
+      {(a.werkgruppenOhne.length > 0 || a.kuenstlerGeaendert) && (
+        <p className="text-gray-600 text-xs">
+          „Ohne Verlauf“: geändert, bevor es einen Verlauf gab, oder Personen; steht hier nur, wenn es seitdem nicht noch
+          einmal geändert wurde.
+        </p>
+      )}
       {fehler && <p className="text-red-700">{fehler}</p>}
       {ergebnis && <p className="text-green-700">{ergebnis}</p>}
     </div>
