@@ -14,7 +14,7 @@ import { wann as zeit } from "./zeit.js";
  * - zuruecknehmen(gruppe, felder); gesperrt: Grund, warum es gerade nicht geht
  */
 export const wann = t => zeit(t, "gerade eben");
-const wert = v => v == null || v === "" ? "∅" : String(v);
+const wert = v => v == null || v === "" ? "∅" : v === true ? "ja" : v === false ? "nein" : String(v);
 
 export default function VerlaufListe({ eintraege, ist, gleich, name, lang, bearbeitbar, gesperrt, zuruecknehmen }) {
   // Nur neu, wenn sich der Verlauf ändert, nicht bei jedem Tastendruck im Formular.

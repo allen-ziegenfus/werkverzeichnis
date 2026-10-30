@@ -108,6 +108,8 @@ export async function firestoreKatalog(projekt: string, datenbank: string, kuens
   const werke: Werk[] = [];
   for (const d of ws.docs) {
     const w = d.data();
+    // In der Verwaltung ausgeblendet (#181): nicht auf der Website.
+    if (w.ausgeblendet === true) continue;
     if (!bekannt.has(w.werkgruppe)) {
       probleme.push(`work ${d.id}: unknown Werkgruppe "${w.werkgruppe}"`);
       continue;
