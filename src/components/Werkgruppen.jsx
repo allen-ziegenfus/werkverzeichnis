@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { collection, doc, runTransaction, serverTimestamp, updateDoc } from "firebase/firestore";
+import { collection, doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { client, SCHLUESSEL, useWerkgruppen } from "./abfragen.js";
@@ -7,22 +7,31 @@ import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 
-/** Die Werkgruppen der Künstler:in dieser Website: Titel, Kurztitel, Reihenfolge. */
+/**
+ * Die Werkgruppen der Künstler:in dieser Website: Titel, Kurztitel, Reihenfolge.
+ * Jede Änderung schreibt einen Eintrag in `werkgruppenverlauf` (#106).
+ */
+
+/** Was der Verlauf je Werkgruppe festhält, wie werkgruppenFassung() in firestore.rules. */
+export const werkgruppenFassung = d => d && ({ titel: d.titel, kurztitel: d.kurztitel ?? null,
+  reihenfolge: d.reihenfolge, cover: d.cover ?? null });
+export const WERKGRUPPENFELDER = { titel: "Titel", kurztitel: "Kurztitel", reihenfolge: "Reihe", cover: "Titelbild" };
 
 const zuKennung = (s, max) => slugify(s, { lower: true }).replace(/[^a-z0-9-]/g, "").slice(0, max);
 const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 
 export default function WerkgruppenSeite() {
-  return <Zugang berechtigung="werkgruppen.bearbeiten" kinder={({ wer }) =>
-    <Werkgruppen kuenstlerId={KUENSTLER} bearbeitbar={darf(wer, "werkgruppen.bearbeiten")} />} />;
+  return <Zugang berechtigung="werkgruppen.bearbeiten" kinder={({ nutzer, wer }) =>
+    <Werkgruppen kuenstlerId={KUENSTLER} ich={nutzer.email} bearbeitbar={darf(wer, "werkgruppen.bearbeiten")} />} />;
 }
 
-function Werkgruppen({ kuenstlerId, bearbeitbar }) {
+function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
   const { data: gruppen, error: ladefehler } = useWerkgruppen();
   const [titel, setTitel] = useState("");
   const [fehler, setFehler] = useState();
   const sammlung = collection(db, "artists", kuenstlerId, "werkgruppen");
+  const verlauf = collection(db, "artists", kuenstlerId, "werkgruppenverlauf");
   // ?werkgruppe=<Kennung> (aus der Werkzeugleiste): Zeile hervorheben, Titel fokussieren.
   const [ziel] = useState(() => new URLSearchParams(location.search).get("werkgruppe"));
   const zielFeld = useRef();
@@ -41,7 +50,10 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
     try {
       await runTransaction(db, async tx => {
         if ((await tx.get(ref)).exists()) throw new Error(`„${id}“ gibt es schon.`);
-        tx.set(ref, { titel: titel.trim(), kurztitel: null, reihenfolge, updatedAt: serverTimestamp() });
+        const neu = { titel: titel.trim(), kurztitel: null, reihenfolge };
+        const eintrag = doc(verlauf);
+        tx.set(eintrag, { werkgruppe: id, by: ich, at: serverTimestamp(), vorher: null, nachher: werkgruppenFassung(neu) });
+        tx.set(ref, { ...neu, updatedAt: serverTimestamp(), lastChange: eintrag.id });
       });
       setTitel("");
       await laden();
@@ -53,7 +65,14 @@ function Werkgruppen({ kuenstlerId, bearbeitbar }) {
   async function aendern(g, aenderungen) {
     setFehler(undefined);
     try {
-      await updateDoc(doc(sammlung, g.id), { ...aenderungen, updatedAt: serverTimestamp() });
+      const ref = doc(sammlung, g.id);
+      await runTransaction(db, async tx => {
+        const jetzt = (await tx.get(ref)).data();
+        const eintrag = doc(verlauf);
+        tx.set(eintrag, { werkgruppe: g.id, by: ich, at: serverTimestamp(),
+          vorher: werkgruppenFassung(jetzt), nachher: werkgruppenFassung({ ...jetzt, ...aenderungen }) });
+        tx.update(ref, { ...aenderungen, updatedAt: serverTimestamp(), lastChange: eintrag.id });
+      });
       await laden();
     } catch (e) {
       setFehler(meldung(e));
