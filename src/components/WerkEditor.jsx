@@ -8,6 +8,7 @@ import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
+import { werkFeld } from "./werkFeld.js";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -19,7 +20,7 @@ import Zugang from "./Zugang.jsx";
  */
 
 // Die Felder, die der Editor zeigt, in dieser Reihenfolge. Alles andere am
-// Dokument (werkgruppe, images, updatedAt, lastChange) wird verwaltet, nicht bearbeitet.
+// Dokument (werkgruppe, images, updatedAt, lastChange, ausgeblendet) wird verwaltet, nicht bearbeitet.
 const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Technik",
   "Beschreibung", "Zustand", "Standort", "Signatur", "Auflage", "Anzahl", "Foto",
   "Ausstellung", "Literatur", "Bibliographie"];
@@ -178,7 +179,10 @@ function WerkEditor({ nutzer }) {
     const felder = { InvNr: invNr, ...(titel && { Titel: titel }) };
     try {
       await runTransaction(db, async (tx) => {
-        if ((await tx.get(ref)).exists()) throw new Error(`Die Inv. Nr. „${invNr}“ gibt es schon.`);
+        const da = await tx.get(ref);
+        // Auch ausgeblendete Werke behalten ihre Inv. Nr. (#181).
+        if (da.exists()) throw new Error(`Die Inv. Nr. „${invNr}“ gibt es schon`
+          + (da.get("ausgeblendet") ? ` (ausgeblendet, in der Werkgruppe ${da.get("werkgruppe")}).` : "."));
         tx.set(eintrag, { work: id, by: nutzer.email, at: serverTimestamp(),
           changes: Object.fromEntries(Object.entries(felder).map(([f, wert]) => [f, { from: null, to: wert }])) });
         tx.set(ref, { ...felder, werkgruppe: gruppe, updatedAt: serverTimestamp(), lastChange: eintrag.id });
@@ -197,6 +201,19 @@ function WerkEditor({ nutzer }) {
 
   const speichern = () => schreiben(Object.fromEntries(geaendert.map(f => [f, entwurf[f]])), {},
     `Gespeichert (${geaendert.join(", ")}).`);
+
+  /**
+   * Ausblenden statt löschen (#181): Das Werk bleibt mit Inv. Nr., Bildern und
+   * Verlauf in der Verwaltung, die Website zeigt es nach der nächsten
+   * Veröffentlichung nicht mehr. Steht im Verlauf und lässt sich zurücknehmen.
+   */
+  function ausblenden(an) {
+    if (an && !window.confirm(`Werk ${werk.data.InvNr} auf der Website ausblenden?\n\n`
+      + "Es bleibt in der Verwaltung und lässt sich wieder einblenden. Von der Website verschwindet es mit der nächsten Veröffentlichung; "
+      + "Links darauf, etwa in Seitentexten, führen dann ins Leere. Die Bilder bleiben unter ihren Adressen erreichbar.")) return;
+    schreiben({ ausgeblendet: an || null }, {}, an ? "Ausgeblendet; von der Website verschwindet es mit der nächsten Veröffentlichung."
+      : "Eingeblendet; auf der Website erscheint es mit der nächsten Veröffentlichung.");
+  }
 
   /**
    * Setzt die Felder eines Verlaufseintrags auf ihren alten Wert zurück, als neue
@@ -271,7 +288,10 @@ function WerkEditor({ nutzer }) {
             {treffer.map(w => (
               <li key={w.id}>
                 <button className="w-full text-left py-1 hover:bg-gray-100" onClick={() => verlassen() && (setNeu(undefined), oeffnen(w))}>
-                  <span className="font-mono">{w.data.InvNr}</span> {w.data.Titel}
+                  <span className={w.data.ausgeblendet ? "text-gray-500" : ""}>
+                    <span className="font-mono">{w.data.InvNr}</span> {w.data.Titel}
+                    {w.data.ausgeblendet && <span className="text-sm"> · ausgeblendet</span>}
+                  </span>
                 </button>
               </li>
             ))}
@@ -283,6 +303,9 @@ function WerkEditor({ nutzer }) {
         <div className="space-y-3">
           <button className="underline text-sm" onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
           {abgleich.hinweise}
+          {werk.data.ausgeblendet && (
+            <p className="border border-gray-400 bg-gray-100 rounded p-2 text-sm">Ausgeblendet: steht nicht auf der Website.</p>
+          )}
           {FELDER.map(f => (
             <label key={f} className="block">
               <span className="text-sm text-gray-600">{f}</span>
@@ -304,6 +327,11 @@ function WerkEditor({ nutzer }) {
             <button className={knopf} disabled={!geaendert.length || speichert}
                     onClick={() => setEntwurf({ ...werk.data })}>Verwerfen</button>
             {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
+            <button className={knopf + " ml-auto"} disabled={speichert || geaendert.length > 0}
+                    title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}
+                    onClick={() => ausblenden(!werk.data.ausgeblendet)}>
+              {werk.data.ausgeblendet ? "Einblenden" : "Ausblenden"}
+            </button>
           </div>
 
           <div className="flex gap-2 items-baseline pt-4">
@@ -314,7 +342,7 @@ function WerkEditor({ nutzer }) {
           {!verlauf && <p className="text-sm text-gray-600">Lädt…</p>}
           {verlauf?.length === 0 && <p className="text-sm text-gray-600">Noch keine Änderungen.</p>}
           {verlauf?.length > 0 && !alles && (
-            <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={f => f}
+            <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={werkFeld}
                           lang={f => LANG.includes(f)} bearbeitbar zuruecknehmen={zuruecknehmen}
                           gesperrt={speichert ? "Speichert…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
           )}

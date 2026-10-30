@@ -5,6 +5,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
 import { marked } from "marked";
+import { werkFeld, werkWert } from "./werkFeld.js";
 import { wann } from "./zeit.js";
 
 /**
@@ -272,7 +273,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
 
   async function zurueck(w) {
     const text = ["Auf den veröffentlichten Stand zurücksetzen?", "",
-      ...Object.entries(w.felder).map(([f, c]) => `  ${f}: „${c.to ?? "∅"}“ → „${c.from ?? "∅"}“`)].join("\n");
+      ...Object.entries(w.felder).map(([f, c]) => `  ${werkFeld(f)}: „${werkWert(c.to)}“ → „${werkWert(c.from)}“`)].join("\n");
     if (!window.confirm(text)) return;
     setLaeuft(w.werk); setHinweis(undefined);
     const felder = await zuruecksetzen(w);
@@ -288,7 +289,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
         {darfWerke
           ? <a className="underline" href={`/verwaltung/werke/?werk=${encodeURIComponent(w.werk)}`}>Werk {w.werk}</a>
           : <>Werk {w.werk}</>}
-        : {Object.keys(w.felder).join(", ")} · {von(w.von)}
+        : {Object.keys(w.felder).map(werkFeld).join(", ")} · {von(w.von)}
         {darfWerke && <> · <button className="underline disabled:opacity-40" disabled={!!laeuft}
           onClick={() => zurueck(w)}>{laeuft === w.werk ? "setzt zurück…" : "Zurücksetzen"}</button></>}
       </> })),

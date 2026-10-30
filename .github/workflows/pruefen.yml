@@ -47,3 +47,5 @@ jobs:
       - run: npx astro build
         env:
           SITE: https://example.org
+      # Ausgeblendete Werke (#181) fehlen auf der Website, die anderen sind da.
+      - run: test -e dist/objekte/ob3/index.html && test ! -e dist/objekte/ob4
