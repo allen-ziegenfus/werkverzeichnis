@@ -8,7 +8,7 @@ import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
-import { werkFeld } from "./werkFeld.js";
+import { werkFeld, werkWert } from "./werkFeld.js";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -233,17 +233,17 @@ function WerkEditor({ nutzer }) {
     const { zurueck, geblieben } = zuruecksetzbar(v, werk.data);
     const text = [
       "Zurücksetzen:",
-      ...zurueck.map(([f, c]) => `  ${f}: „${c.to ?? "∅"}“ → „${c.from ?? "∅"}“`),
-      ...(geblieben.length ? ["", "Bleibt (inzwischen erneut geändert): " + geblieben.join(", ")] : []),
+      ...zurueck.map(([f, c]) => `  ${werkFeld(f)}: „${werkWert(c.to)}“ → „${werkWert(c.from)}“`),
+      ...(geblieben.length ? ["", "Bleibt (inzwischen erneut geändert): " + geblieben.map(werkFeld).join(", ")] : []),
     ].join("\n");
     if (!window.confirm(text)) return;
     schreiben(Object.fromEntries(zurueck.map(([f, c]) => [f, c.from])), { rueckgaengig: v.id },
-      `Rückgängig gemacht (${zurueck.map(([f]) => f).join(", ")}).`);
+      `Rückgängig gemacht (${zurueck.map(([f]) => werkFeld(f)).join(", ")}).`);
   }
 
   /** Felder einer Gruppe aus VerlaufListe auf den Stand davor (#204). */
   function zuruecknehmen(g, felder) {
-    const text = felder.map(f => `  ${f}: „${g.felder[f].zu ?? "∅"}“ → „${g.felder[f].von ?? "∅"}“`);
+    const text = felder.map(f => `  ${werkFeld(f)}: „${werkWert(g.felder[f].zu)}“ → „${werkWert(g.felder[f].von)}“`);
     if (!window.confirm(["Zurücksetzen:", ...text].join("\n"))) return;
     schreiben(Object.fromEntries(felder.map(f => [f, g.felder[f].von])), { rueckgaengig: g.ids[0] },
       `Zurückgenommen (${felder.join(", ")}).`);
@@ -380,7 +380,7 @@ function WerkEditor({ nutzer }) {
                   </button>
                   {Object.entries(v.changes).map(([f, c]) => (
                     <div key={f} className="pl-3">
-                      <b>{f}</b>: <s className="text-gray-500">{c.from || "∅"}</s> → {c.to || "∅"}
+                      <b>{werkFeld(f)}</b>: <s className="text-gray-500">{werkWert(c.from)}</s> → {werkWert(c.to)}
                     </div>
                   ))}
                 </li>
