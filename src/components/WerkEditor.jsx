@@ -121,8 +121,10 @@ function WerkEditor({ nutzer }) {
   /**
    * Schreibt `neu` ({ Feld: Wert }, null entfernt das Feld) mit einem
    * Verlaufseintrag; `extra` kommt in den Eintrag (etwa `rueckgaengig`).
+   * `pruefen: false` für Felder außerhalb des Formulars (ausgeblendet): kein
+   * Konflikt mit fremdem Speichern, der Verlauf nimmt den Wert davor vom Server.
    */
-  async function schreiben(neu, extra, meldung) {
+  async function schreiben(neu, extra, meldung, { pruefen = true } = {}) {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     const ref = doc(kuenstler, "works", werk.id);
     const eintrag = doc(collection(kuenstler, "history"));
@@ -133,11 +135,12 @@ function WerkEditor({ nutzer }) {
         // oder scheitert, wenn sich das Dokument darunter ändert, und updatedAt
         // zeigt, ob jemand gespeichert hat, seit dieses Formular geöffnet wurde.
         const jetzt = await tx.get(ref);
-        if (jetzt.data()?.updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
+        if (pruefen && jetzt.data()?.updatedAt?.toMillis() !== werk.data.updatedAt?.toMillis()) {
           throw Object.assign(new Error("Inzwischen woanders gespeichert."), { code: "konflikt" });
         }
+        const davor = pruefen ? werk.data : jetzt.data() ?? {};
         const changes = Object.fromEntries(Object.entries(neu).map(([f, wert]) =>
-          [f, { from: werk.data[f] ?? null, to: wert ?? null }]));
+          [f, { from: davor[f] ?? null, to: wert ?? null }]));
         tx.set(eintrag, { work: werk.id, by: nutzer.email, at: serverTimestamp(), changes, ...extra });
         tx.update(ref, {
           ...Object.fromEntries(Object.entries(neu).map(([f, wert]) => [f, wert ?? deleteField()])),
@@ -212,7 +215,7 @@ function WerkEditor({ nutzer }) {
       + "Es bleibt in der Verwaltung und lässt sich wieder einblenden. Von der Website verschwindet es mit der nächsten Veröffentlichung; "
       + "Links darauf, etwa in Seitentexten, führen dann ins Leere. Die Bilder bleiben unter ihren Adressen erreichbar.")) return;
     schreiben({ ausgeblendet: an || null }, {}, an ? "Ausgeblendet; von der Website verschwindet es mit der nächsten Veröffentlichung."
-      : "Eingeblendet; auf der Website erscheint es mit der nächsten Veröffentlichung.");
+      : "Eingeblendet; auf der Website erscheint es mit der nächsten Veröffentlichung.", { pruefen: false });
   }
 
   /**
@@ -325,7 +328,7 @@ function WerkEditor({ nutzer }) {
               {speichert ? "Speichere…" : "Speichern"}
             </button>
             <button className={knopf} disabled={!geaendert.length || speichert}
-                    onClick={() => setEntwurf({ ...werk.data })}>Verwerfen</button>
+                    onClick={() => { setEntwurf({ ...werk.data }); abgleich.verworfen(); }}>Verwerfen</button>
             {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
             <button className={knopf + " ml-auto"} disabled={speichert || geaendert.length > 0}
                     title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}

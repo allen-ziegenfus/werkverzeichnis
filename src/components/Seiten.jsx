@@ -169,6 +169,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
     setEntwurf(gespeichert);
     setGeladen(n => n + 1);
     setFehler(undefined); setHinweis(undefined);
+    abgleich.verworfen();
   }
 
   const speichern = () =>

@@ -76,7 +76,9 @@ function Einstellungen({ ich }) {
       {EINSTELLUNGEN.map(([k, beschriftung]) => (
         <label key={k} className="block">
           <span className="text-sm text-gray-600">{beschriftung}</span>
-          <input className="border p-1 w-full" value={entwurf[k]} onChange={e => setze(k, e.target.value)} />
+          {/* Während des Speicherns gesperrt: Das Ergebnis ersetzt das Formular. */}
+          <input className="border p-1 w-full disabled:bg-gray-100" value={entwurf[k]} disabled={speichert}
+                 onChange={e => setze(k, e.target.value)} />
         </label>
       ))}
 

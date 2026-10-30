@@ -13,16 +13,21 @@ import { wann } from "./zeit.js";
  * - Speichert jemand anderes, kommt das live an: ohne eigene Änderungen wird
  *   es übernommen, sonst je Feld zusammengeführt.
  * - Zusammenführen: nur hier geändert → von hier; nur dort → von dort; beide
- *   dasselbe Feld unterschiedlich → Konflikt, die Nutzer:in wählt.
+ *   dasselbe Feld unterschiedlich → Konflikt, die Nutzer:in wählt. Bis dahin
+ *   steht der eigene Wert im Formular (und im Entwurf), der gespeicherte im Konflikt.
  */
 
-/** Je Feld zusammenführen; bei Konflikten steht vorerst der gespeicherte Wert im Ergebnis. */
+/**
+ * Je Feld zusammenführen; bei Konflikten bleibt vorerst der eigene Wert im
+ * Ergebnis, damit er weder beim Neuladen noch bei einem weiteren fremden
+ * Speichern verloren geht.
+ */
 export function zusammenfuehren(basis, mein, ihr, felder, gleich) {
   const ergebnis = {}, konflikte = [];
   for (const f of felder) {
     const hier = !gleich(f, basis[f], mein[f]), dort = !gleich(f, basis[f], ihr[f]);
     if (hier && dort && !gleich(f, mein[f], ihr[f])) konflikte.push({ feld: f, mein: mein[f], ihr: ihr[f] });
-    ergebnis[f] = hier && !dort ? mein[f] : ihr[f];
+    ergebnis[f] = hier ? mein[f] : ihr[f];
   }
   return { ergebnis, konflikte };
 }
@@ -68,7 +73,7 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
   // Eigene Verlaufseinträge: deren Speichern ist kein fremdes.
   const eigene = useRef(new Set());
   const aktuell = useRef();
-  aktuell.current = { stand, entwurf, geaendert, uebernehmen, wer };
+  aktuell.current = { stand, entwurf, geaendert, uebernehmen, wer, konflikte, fremd };
 
   // Den Entwurf sichern, solange er ungespeichert ist. Ein alter, der noch auf
   // Antwort wartet, gilt als verworfen, sobald hier etwas geändert wird.
@@ -97,7 +102,9 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
     if (!aktiv) return;
     let gueltig = true, letzte = 0;
     const abmelden = onSnapshot(ref, snap => {
-      const { stand, geaendert, uebernehmen, wer } = aktuell.current;
+      const { stand, geaendert: eigenes, konflikte, uebernehmen, wer } = aktuell.current;
+      // Offene Konflikte zählen als eigene Änderung: Sie werden neu abgeglichen, nicht überschrieben.
+      const geaendert = eigenes || konflikte.length > 0;
       const nr = ++letzte;
       if (!snap.exists()) { setFremd({ geloescht: true }); return; }
       const daten = snap.data();
@@ -118,6 +125,16 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
     eigene, konflikte,
     /** Nach erfolgreichem Speichern: kein Entwurf und keine Meldung mehr. */
     gespeichert() { entfernen(schluessel); setGefunden(null); setMeldung(undefined); },
+    /**
+     * Nach „Verwerfen“: keine Konflikte mehr; wartet ein fremdes Speichern,
+     * kommt dessen Stand ins Formular.
+     */
+    verworfen() {
+      const { fremd } = aktuell.current;
+      if (fremd?.daten) aktuell.current.uebernehmen(fremd.daten);
+      if (!fremd?.geloescht) setFremd(undefined);
+      setKonflikte([]); setMeldung(undefined);
+    },
     /**
      * Nach einem abgelehnten Speichern: mit dem aktuellen Stand zusammenführen.
      * Eine Rücknahme schreibt nicht den Entwurf; dann nur den neuen Stand übernehmen.
