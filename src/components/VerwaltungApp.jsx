@@ -63,13 +63,13 @@ export default function VerwaltungApp({ kuenstlerName }) {
     if (history.state?.i == null) history.replaceState({ ...history.state, i: stelle.current }, "");
     const wechseln = () => setOrt(hier());
     // Zurück/Vor im Browser lässt sich nicht abbrechen; abgelehnt, springt der
-    // Browser zum gezeigten Eintrag zurück, und dieses popstate gilt nicht.
-    let zurueckholen = false;
+    // Browser zum gezeigten Eintrag zurück, und das popstate dorthin gilt nicht.
+    let zurueckholen = null;
     const zurueck = () => {
-      if (zurueckholen) { zurueckholen = false; return; }
       const i = history.state?.i ?? 0;
+      if (i === zurueckholen) { zurueckholen = null; return; }
       if (verlassen()) { stelle.current = i; wechseln(); }
-      else if (i !== stelle.current) { zurueckholen = true; history.go(stelle.current - i); }
+      else if (i !== stelle.current) { zurueckholen = stelle.current; history.go(stelle.current - i); }
     };
     // Links innerhalb der Verwaltung abfangen; neue Tabs, Downloads und
     // alles außerhalb bleiben normale Links.
