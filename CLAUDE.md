@@ -12,7 +12,8 @@ Infrastruktur: `infra/BOOTSTRAP.md`, Regeln fürs Review: `.macroscope/correctne
   bei Unter-Issues einer Gruppe vom Gruppen-Branch.
 - Commit-Betreff endet mit `(#<issue>)`, dazu höchstens ein paar Zeilen Text.
 - Änderungen gehen als PR nach `main` oder, bei Unter-Issues, in den
-  Gruppen-Branch; nie direkt pushen. Vor jedem Push fragen.
+  Gruppen-Branch; nie direkt pushen, außer dem Anlegen des Gruppen-Branches
+  und dem Merge von `main` hinein. Vor jedem Push fragen.
 - Gruppen: Zusammengehörige Issues sind Unter-Issues eines Gruppen-Issues. Die
   Gruppe hat einen Branch `<gruppe>-<thema>` von `main` (`<gruppe>` ist die
   Nummer des Gruppen-Issues, z. B. `213-gleichzeitig-bearbeiten`); jedes
@@ -105,7 +106,9 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
   Reihenfolge. Darum neue Pflichten (z. B. ein Verlaufseintrag) zuerst nur
   erlauben, sodass alter und neuer Code mit alten und neuen Regeln gehen; erst
   ein späterer Merge nach `main` (nicht in derselben Gruppe) verlangt sie, wenn
-  der Code, der sie erfüllt, schon live ist. Kein Deploy von Hand vor dem Merge.
+  der Code, der sie erfüllt, schon live ist. Neue Schreibvorgänge kommen mit
+  ihrer Erlaubnis; bis die Regeln live sind (wenige Minuten), kann neuer Code
+  abgelehnt werden, das im PR sagen. Kein Deploy von Hand vor dem Merge.
 - Keine Zugangsdaten, Tokens oder Schlüssel in Repo, Issues, PRs oder Logs.
 - Die alte Website im Repo `allen-ziegenfus.github.io` (Branch `master`, GitHub
   Pages) ist noch live und wird nicht angefasst.
