@@ -5,6 +5,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
 import { marked } from "marked";
+import { wann } from "./zeit.js";
 
 /**
  * Änderungen gehen erst online, wenn jemand auf Veröffentlichen drückt: Das legt
@@ -24,7 +25,6 @@ const knopfKlein = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled
 export const HOECHSTENS = 100;
 export const NOTIZ_LAENGE = 500;   // wie in firestore.rules
 export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
-const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const zeit = t => t?.toMillis() ?? Infinity;   // noch ohne Serverzeit: gerade eben
 export const SEITENFELDER = { titel: "Titel", kategorie: "Ort", reihenfolge: "Reihe", text: "Text" };
 // Seitentexte so, wie die Website sie zeigt (marked wie in build_data.ts): Was der

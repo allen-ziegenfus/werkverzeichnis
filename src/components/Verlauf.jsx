@@ -7,6 +7,7 @@ import { db, KUENSTLER } from "./firebaseClient.js";
 import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
+import { wann } from "./zeit.js";
 
 /**
  * Verlauf der Veröffentlichungen (#88): je Build, wer ihn wann angefordert hat,
@@ -21,7 +22,6 @@ import Zugang from "./Zugang.jsx";
 const ANZAHL = 30;
 const zelle = "py-1.5 px-2 align-top border border-gray-300";
 const knopf = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
-const wann = t => t?.toDate().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) ?? "…";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
 
