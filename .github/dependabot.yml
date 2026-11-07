@@ -28,3 +28,7 @@ updates:
     schedule: { interval: monthly }
     groups:
       klein: { update-types: [minor, patch] }
+  # Images der Cloud-Build-Schritte (#244), über .github/build-images/Dockerfile.
+  - package-ecosystem: docker
+    directory: /.github/build-images
+    schedule: { interval: monthly }
