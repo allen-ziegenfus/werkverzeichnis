@@ -82,6 +82,7 @@ function WerkEditor({ nutzer }) {
   const [hinweis, setHinweis] = useState();
   const [laedt, setLaedt] = useState();     // { name, anteil, von, bis } beim Hochladen (#180)
   const [bildFehler, setBildFehler] = useState(); // beim Knopf, nicht oben auf der Seite
+  const [nichtAngehaengt, setNichtAngehaengt] = useState(); // { pfad, name }: im Bucket, aber nicht am Werk
   const [alles, setAlles] = useState(false);   // im Verlauf jeden Eintrag einzeln
   const einheitliche = useMemo(() => verlauf?.map(einheitlich), [verlauf]);
   const [neu, setNeu] = useState();   // { InvNr, Titel }, solange das Formular für ein neues Werk offen ist
@@ -127,7 +128,8 @@ function WerkEditor({ nutzer }) {
     setzeFeld: (f, v) => setEntwurf(e => ({ ...e, [f]: v })),
     wer: async l => (await getDoc(doc(collection(kuenstler, "history"), l))).get("by"),
   });
-  useUngespeichert(geaendert.length > 0 || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
+  // Ein laufender Upload zählt mit: Tab zu bricht ihn ab, ein anderes Werk nähme die Ansicht weg (#180).
+  useUngespeichert(geaendert.length > 0 || !!laedt || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
 
   /**
    * `neu` kann auch eine Funktion des Stands auf dem Server sein (Bilder anhängen, #180).
@@ -169,9 +171,11 @@ function WerkEditor({ nutzer }) {
       client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
       setHinweis(meldung); abgleich.gespeichert();
+      return true;
     } catch (e) {
       if (e.code === "konflikt") await abgleich.nachKonflikt({ ruecknahme: !!extra.rueckgaengig }).catch(e => setFehler(e.message));
       else setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+      return false;
     } finally {
       setSpeichert(false);
     }
@@ -224,19 +228,24 @@ function WerkEditor({ nutzer }) {
    * Verlaufseintrag. Hängt an, was auf dem Server steht, nicht an den Stand
    * beim Öffnen: Wer gleichzeitig ein Bild anhängt, verliert es nicht.
    */
+  const anhaengen = (pfad, namen) => schreiben(davor => ({ images: [...(davor.images ?? []), pfad] }), {},
+    `Hochgeladen (${namen.join(", ")}). Auf der Website nach dem nächsten Veröffentlichen.`, { pruefen: false });
+
   async function bilderHochladen(dateien) {
     const abgelehnt = dateien.map(ablehnen).filter(Boolean);
     if (abgelehnt.length) { setBildFehler(abgelehnt.join(" ")); return; }
-    setBildFehler(undefined); setHinweis(undefined);
+    setBildFehler(undefined); setNichtAngehaengt(undefined); setHinweis(undefined);
     const fertig = [];
     try {
       for (const [i, datei] of dateien.entries()) {
         setLaedt({ name: datei.name, anteil: 0, von: i + 1, bis: dateien.length });
         const pfad = await hochladen({ werk: werk.id, datei, von: nutzer.email,
           fortschritt: anteil => setLaedt(l => l && { ...l, anteil }) });
-        await schreiben(davor => ({ images: [...(davor.images ?? []), pfad] }), {},
-          `Hochgeladen (${[...fertig, datei.name].join(", ")}). Auf der Website nach dem nächsten Veröffentlichen.`,
-          { pruefen: false });
+        // Scheitert das Anhängen, liegt die Datei schon im Bucket: nur das Anhängen wiederholen.
+        if (!await anhaengen(pfad, [...fertig, datei.name])) {
+          setNichtAngehaengt({ pfad, name: datei.name, fertig });
+          break;
+        }
         fertig.push(datei.name);
       }
     } catch (e) {
@@ -314,7 +323,7 @@ function WerkEditor({ nutzer }) {
 
       {!gruppen && !ladefehler && <Skelett zeilen={1} />}
       {gruppen && (
-        <select className="border p-1 w-full" value={gruppe} disabled={speichert}
+        <select className="border p-1 w-full" value={gruppe} disabled={speichert || !!laedt}
                 onChange={e => { if (verlassen()) { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); setSuche(""); } }}>
           <option value="">Werkgruppe wählen…</option>
           {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
@@ -386,8 +395,8 @@ function WerkEditor({ nutzer }) {
 
       {werk && (
         <div className="space-y-3">
-          {/* Gesperrt während des Speicherns: danach öffnet schreiben() das Werk neu (#213). */}
-          <button className="underline text-sm disabled:opacity-40" disabled={speichert}
+          {/* Gesperrt während des Speicherns und Hochladens: danach öffnet schreiben() das Werk neu (#213, #180). */}
+          <button className="underline text-sm disabled:opacity-40" disabled={speichert || !!laedt}
                   onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
           {abgleich.hinweise}
           {werk.data.ausgeblendet && (
@@ -430,6 +439,14 @@ function WerkEditor({ nutzer }) {
               ) : <span className="text-sm text-gray-600">JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei.</span>}
             </div>
             {bildFehler && <p className="text-sm text-red-700" role="alert">{bildFehler}</p>}
+            {nichtAngehaengt && (
+              <p className="text-sm text-red-700" role="alert">
+                „{nichtAngehaengt.name}“ ist hochgeladen, aber nicht am Werk.{" "}
+                <button className="underline disabled:opacity-40" disabled={speichert}
+                        onClick={async () => { if (await anhaengen(nichtAngehaengt.pfad, [...nichtAngehaengt.fertig, nichtAngehaengt.name])) setNichtAngehaengt(undefined); }}>
+                  Nochmal anhängen</button>
+              </p>
+            )}
           </div>
           <div className="flex gap-2 items-center">
             <button className={hauptknopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
