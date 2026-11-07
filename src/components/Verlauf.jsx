@@ -11,6 +11,7 @@ import Skelett from "./Skelett.jsx";
 import { WERKGRUPPENFELDER, werkgruppenFassung } from "./Werkgruppen.jsx";
 import Zugang from "./Zugang.jsx";
 import { wann } from "./zeit.js";
+import { knopfKlein as knopf } from "./knoepfe.js";
 
 /**
  * Verlauf der Veröffentlichungen (#88): je Build, wer ihn wann angefordert hat,
@@ -24,7 +25,6 @@ import { wann } from "./zeit.js";
 
 const ANZAHL = 30;
 const zelle = "py-1.5 px-2 align-top border border-gray-300";
-const knopf = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
 
