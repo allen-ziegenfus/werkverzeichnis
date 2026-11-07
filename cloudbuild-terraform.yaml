@@ -15,7 +15,7 @@ options:
 
 steps:
   - id: terraform
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:591.0.0-slim
     entrypoint: bash
     args: [infra/alle.sh, '${_BEFEHL}', '${_ZIEL}']
     env:

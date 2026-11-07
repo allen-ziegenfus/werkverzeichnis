@@ -10,6 +10,21 @@ permissions:
   contents: read
 
 jobs:
+  # Feste Images in cloudbuild*.yaml, wie in .github/build-images/Dockerfile,
+  # die Dependabot aktualisiert (#244).
+  build-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          cloudbuild=$(grep -ho 'name: gcr\.io/[^ ]*' cloudbuild*.yaml | cut -d' ' -f2 | sort -u)
+          dockerfile=$(grep -o '^FROM .*' .github/build-images/Dockerfile | cut -d' ' -f2 | sort -u)
+          if [ "$cloudbuild" != "$dockerfile" ]; then
+            echo "::error::Images in cloudbuild*.yaml und .github/build-images/Dockerfile angleichen"
+            diff <(echo "$cloudbuild") <(echo "$dockerfile")
+            exit 1
+          fi
+
   terraform:
     runs-on: ubuntu-latest
     strategy:
