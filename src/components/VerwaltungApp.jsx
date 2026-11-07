@@ -5,6 +5,7 @@ import { BEREICHE } from "./bereiche.js";
 import Skelett from "./Skelett.jsx";
 import { verlassen } from "./ungespeichert.js";
 import VerwaltungKopf from "./VerwaltungKopf.jsx";
+import { knopf } from "./knoepfe.js";
 
 /**
  * Die Verwaltung als eine Seite (#90): Jede Adresse unter /verwaltung/ lädt
@@ -34,7 +35,7 @@ class Fehlergrenze extends Component {
     return (
       <div className="space-y-2">
         <p className="text-red-700">Dieser Bereich konnte nicht geladen werden: {this.state.fehler.message}</p>
-        <button className="px-3 py-1 border rounded" onClick={() => location.reload()}>Neu laden</button>
+        <button className={knopf} onClick={() => location.reload()}>Neu laden</button>
       </div>
     );
   }

@@ -11,6 +11,7 @@ import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import Zugang from "./Zugang.jsx";
 import { seitenUnterschiede, SEITENFELDER } from "./Veroeffentlichen.jsx";
+import { gefahrknopf, hauptknopf, knopf } from "./knoepfe.js";
 
 // Der Editor ist groß; erst laden, wenn eine Seite geöffnet wird.
 const MarkdownEditor = lazy(() => import("./MarkdownEditor.jsx"));
@@ -23,7 +24,6 @@ const MarkdownEditor = lazy(() => import("./MarkdownEditor.jsx"));
  * kommen frühere Fassungen und gelöschte Seiten zurück.
  */
 const KATEGORIEN = { Header: "Kopfzeile", Footer: "Fußzeile" };
-const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 const zuKennung = s => slugify(s, { lower: true }).replace(/[^a-z0-9-]/g, "").slice(0, 60);
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 const ordnung = (a, b) => a.kategorie.localeCompare(b.kategorie) * -1 || a.reihenfolge - b.reihenfolge;
@@ -87,7 +87,7 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
           </li>
         ))}
       </ul>
-      {bearbeitbar && <button className={knopf} onClick={() => setOffen({ id: "" })}>Neue Seite</button>}
+      {bearbeitbar && <button className={hauptknopf} onClick={() => setOffen({ id: "" })}>+ Neue Seite</button>}
       {bearbeitbar && geloescht.length > 0 && (
         <div className="pt-4">
           <h3 className="font-bold text-sm">Gelöschte Seiten</h3>
@@ -295,7 +295,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
 
       {bearbeitbar && (
         <div className="flex gap-2 items-center">
-          <button className={knopf} disabled={speichert || !geaendert || !entwurf.titel.trim() || !id || abgleich.konflikte.length > 0} onClick={speichern}>
+          <button className={hauptknopf} disabled={speichert || !geaendert || !entwurf.titel.trim() || !id || abgleich.konflikte.length > 0} onClick={speichern}>
             {speichert ? "Speichere…" : istNeu ? "Anlegen" : "Speichern"}
           </button>
           {gespeichert && <button className={knopf} disabled={speichert || !geaendert} onClick={verwerfen}>Verwerfen</button>}
@@ -312,7 +312,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
 
       {bearbeitbar && !istNeu && (
         <div className="pt-6 mt-6 border-t">
-          <button className={knopf + " border-red-700 text-red-700"} disabled={speichert} onClick={loeschen}>Seite löschen</button>
+          <button className={gefahrknopf} disabled={speichert} onClick={loeschen}>Seite löschen</button>
         </div>
       )}
     </div>
