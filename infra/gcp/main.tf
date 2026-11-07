@@ -89,6 +89,15 @@ resource "google_storage_bucket" "originale" {
   storage_class               = "REGIONAL"
   uniform_bucket_level_access = false
   lifecycle { prevent_destroy = true }
+
+  # Die Verwaltung lädt Originale mit signierten URLs direkt hoch (#180). Die
+  # Unterschrift entscheidet, wer darf; CORS lässt den Browser nur den PUT zu.
+  cors {
+    origin          = ["*"]
+    method          = ["PUT"]
+    response_header = ["Content-Type"]
+    max_age_seconds = 3600
+  }
 }
 
 # --- Servicekonten -----------------------------------------------------------
@@ -98,6 +107,7 @@ resource "google_service_account" "konto" {
     werkverzeichnis-build  = "Werkverzeichnis build"
     bilder-function        = "Bild-Funktion: Webversionen nach R2"
     publish-function       = "Veröffentlichen: Build starten, Status eintragen"
+    upload-function        = "Bilder hochladen: signierte Upload-URLs (#180)"
     werkverzeichnis-deploy = "Regeln und Funktionen deployen (#3)"
   }
   account_id   = each.key
@@ -115,6 +125,9 @@ resource "google_project_iam_member" "rolle" {
     "publish-datastore" = ["publish-function", "roles/datastore.user"]
     "publish-events"    = ["publish-function", "roles/eventarc.eventReceiver"]
     "publish-invoker"   = ["publish-function", "roles/run.invoker"]
+    "upload-datastore"  = ["upload-function", "roles/datastore.user"]
+    "upload-events"     = ["upload-function", "roles/eventarc.eventReceiver"]
+    "upload-invoker"    = ["upload-function", "roles/run.invoker"]
     # Regeln und Funktionen (cloudbuild-backend.yaml). Die Firebase CLI liest
     # außerdem Projekt, APIs und IAM-Richtlinie, bevor sie deployt.
     "deploy-logs"      = ["werkverzeichnis-deploy", "roles/logging.logWriter"]
@@ -135,6 +148,22 @@ resource "google_storage_bucket_iam_member" "originale_lesen" {
   bucket   = google_storage_bucket.originale.name
   role     = "roles/storage.objectViewer"
   member   = local.konten[each.key]
+}
+
+# Die Upload-Funktion (#180) unterschreibt URLs, mit denen der Browser neue
+# Originale anlegt; die URL darf nur, was das Konto darf: anlegen, nicht
+# überschreiben oder löschen. Unterschreiben ohne Schlüssel geht über die
+# IAM-API (signBlob) mit dem eigenen Konto.
+resource "google_storage_bucket_iam_member" "originale_hochladen" {
+  bucket = google_storage_bucket.originale.name
+  role   = "roles/storage.objectCreator"
+  member = local.konten["upload-function"]
+}
+
+resource "google_service_account_iam_member" "upload_unterschreiben" {
+  service_account_id = google_service_account.konto["upload-function"].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = local.konten["upload-function"]
 }
 
 # Die Veröffentlichen-Funktion startet den Trigger, dessen Builds als Build-Konto laufen.
@@ -343,7 +372,7 @@ resource "google_cloudbuild_trigger" "backend" {
 
 # Die Funktionen laufen unter eigenen Konten; wer sie deployt, muss diese verwenden dürfen.
 resource "google_service_account_iam_member" "deploy_als_funktion" {
-  for_each           = toset(["bilder-function", "publish-function"])
+  for_each           = toset(["bilder-function", "publish-function", "upload-function"])
   service_account_id = google_service_account.konto[each.key].name
   role               = "roles/iam.serviceAccountUser"
   member             = local.konten["werkverzeichnis-deploy"]
