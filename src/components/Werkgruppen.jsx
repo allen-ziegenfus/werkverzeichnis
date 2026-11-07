@@ -6,6 +6,7 @@ import { client, SCHLUESSEL, useWerkgruppen } from "./abfragen.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
+import { hauptknopf } from "./knoepfe.js";
 
 /**
  * Die Werkgruppen der Künstler:in dieser Website: Titel, Kurztitel, Reihenfolge.
@@ -18,7 +19,6 @@ export const werkgruppenFassung = d => d && ({ titel: d.titel, kurztitel: d.kurz
 export const WERKGRUPPENFELDER = { titel: "Titel", kurztitel: "Kurztitel", reihenfolge: "Reihe", cover: "Titelbild" };
 
 const zuKennung = (s, max) => slugify(s, { lower: true }).replace(/[^a-z0-9-]/g, "").slice(0, max);
-const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 
 export default function WerkgruppenSeite() {
@@ -121,7 +121,7 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
           <div className="flex gap-2">
             <input className="border p-1 flex-1" placeholder="Neue Werkgruppe" value={titel}
                    onChange={e => setTitel(e.target.value)} />
-            <button className={knopf} disabled={!gruppen || !zuKennung(titel, 60)} onClick={hinzufuegen}>Hinzufügen</button>
+            <button className={hauptknopf} disabled={!gruppen || !zuKennung(titel, 60)} onClick={hinzufuegen}>Hinzufügen</button>
           </div>
         </>
       )}

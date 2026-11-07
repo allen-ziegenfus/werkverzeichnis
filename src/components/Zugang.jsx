@@ -4,6 +4,7 @@ import { getDoc } from "firebase/firestore";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { auth, kuenstler } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
+import { knopf } from "./knoepfe.js";
 
 /**
  * Wer angemeldet ist und was er bei der Künstler:in dieser Website darf.
@@ -56,7 +57,6 @@ export function useZugang() {
   return { nutzer, wer, fehler, erneut: () => setVersuch(v => v + 1) };
 }
 
-const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 
 /**
  * Rahmen jeder Verwaltungsseite: Anmeldung, dann `kinder({ nutzer, wer })`, wenn

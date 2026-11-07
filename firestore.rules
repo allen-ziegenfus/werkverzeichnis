@@ -58,10 +58,9 @@ service cloud.firestore {
         && d.updatedAt == request.time;
     }
 
-    // Verlauf für Werkgruppen und Einstellungen (#106): Wer `lastChange` neu
-    // setzt, legt im selben Schreibvorgang den Eintrag an, auf den es zeigt.
-    // Noch nicht verlangt, damit Code ohne Verlauf weiter speichern kann
-    // (Übergang, CLAUDE.md); ein späterer Merge nach main verlangt ihn.
+    // Verlauf für Werkgruppen und Einstellungen (#106, verlangt seit #228):
+    // Jede Änderung setzt `lastChange` neu und legt im selben Schreibvorgang
+    // den Eintrag an, auf den es zeigt.
     function neuerEintrag(d, alt) {
       return d.get("lastChange", null) != alt.get("lastChange", null);
     }
@@ -93,7 +92,10 @@ service cloud.firestore {
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["roles", "updatedAt"]))
         && (darf(kuenstler, "rollen.verwalten")
             || !request.resource.data.diff(resource.data).affectedKeys().hasAny(["roles"]))
-        && (!neuerEintrag(request.resource.data, resource.data) || einstellungenMitVerlauf(kuenstler, request.resource.data));
+        // Einstellungen nur mit Verlaufseintrag; reine Rollenänderungen ohne.
+        && (einstellungen(request.resource.data) == einstellungen(resource.data)
+            ? !neuerEintrag(request.resource.data, resource.data) || einstellungenMitVerlauf(kuenstler, request.resource.data)
+            : neuerEintrag(request.resource.data, resource.data) && einstellungenMitVerlauf(kuenstler, request.resource.data));
 
       // Stattdessen deaktivieren: Löschen würde die Untersammlungen verwaisen lassen.
       allow delete: if false;
@@ -146,9 +148,10 @@ service cloud.firestore {
       allow create: if darf(kuenstler, "werkgruppen.bearbeiten")
         && werkgruppe.matches("^[a-z0-9][a-z0-9-]{0,59}$")
         && gueltigeWerkgruppe(request.resource.data)
-        && (!neuerEintrag(request.resource.data, {}) || werkgruppeMitVerlauf(kuenstler, werkgruppe, request.resource.data));
+        && werkgruppeMitVerlauf(kuenstler, werkgruppe, request.resource.data);
       allow update: if darf(kuenstler, "werkgruppen.bearbeiten") && gueltigeWerkgruppe(request.resource.data)
-        && (!neuerEintrag(request.resource.data, resource.data) || werkgruppeMitVerlauf(kuenstler, werkgruppe, request.resource.data));
+        && neuerEintrag(request.resource.data, resource.data)
+        && werkgruppeMitVerlauf(kuenstler, werkgruppe, request.resource.data);
       // Noch nicht: Ihre Werke stünden ohne Werkgruppe da.
       allow delete: if false;
     }
