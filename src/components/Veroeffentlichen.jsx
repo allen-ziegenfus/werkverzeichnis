@@ -8,6 +8,7 @@ import { marked } from "marked";
 import { werkFeld, werkWert } from "./werkFeld.js";
 import { wann } from "./zeit.js";
 import { hauptknopfKlein } from "./knoepfe.js";
+import { client } from "./abfragen.js";
 
 /**
  * Änderungen gehen erst online, wenn jemand auf Veröffentlichen drückt: Das legt
@@ -111,7 +112,11 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
   // der Build selbst (#67); ältere Anfragen haben nur `gestartet`, das etwas zu
   // früh liegt: Was kurz danach gespeichert wurde, ist schon online.
   useEffect(() => onSnapshot(query(sammlung, where("status", "==", "fertig"), orderBy("gestartet", "desc"), limit(1)),
-    snap => setZuletzt(snap.docs[0]?.get("gelesen") ?? snap.docs[0]?.get("gestartet") ?? null),
+    snap => {
+      setZuletzt(snap.docs[0]?.get("gelesen") ?? snap.docs[0]?.get("gestartet") ?? null);
+      // Neuer Stand online: die Werktabelle liest neu, was die Website zeigt (#248).
+      client.invalidateQueries({ queryKey: ["veroeffentlicht"] });
+    },
     e => setFehler(e.message)), [kuenstlerId]);
 
   // Änderungen seitdem, live, damit das Speichern einer Seite sie aktualisiert;

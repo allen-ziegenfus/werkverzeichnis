@@ -330,7 +330,7 @@ function WerkEditor({ nutzer }) {
             </p>
           )}
           {treffer.length > 0 && (
-            <WerkTabelle werke={treffer} veroeffentlicht={veroeffentlicht}
+            <WerkTabelle werke={treffer} veroeffentlicht={veroeffentlicht} gruppen={gruppen}
                          onOeffnen={w => verlassen() && (setNeu(undefined), oeffnen(w))}
                          onVerlauf={async w => {
                            if (!verlassen()) return;

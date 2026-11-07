@@ -4,11 +4,14 @@ import { useEffect, useRef, useState } from "react";
  * Die Werke einer Werkgruppe als Tabelle (#248): kleines Bild, Inv. Nr., Titel,
  * Jahr und je Zeile ein Menü. Ein Klick auf die Zeile öffnet das Werk.
  *
- * - veroeffentlicht: Map `<werkgruppe>/<werk>` → Vorschaubild oder null, aus der
- *   veröffentlichten Website (searchData.json); was dort fehlt, ist (noch) nicht
- *   veröffentlicht und hat weder Bild noch Link.
+ * - veroeffentlicht: Map Werk-ID → { gruppe, bild } aus der veröffentlichten
+ *   Website (useVeroeffentlicht); was dort fehlt, ist (noch) nicht online und
+ *   hat weder Bild noch Link. Der Link nimmt die veröffentlichte Werkgruppe:
+ *   Ein verschobenes oder ausgeblendetes Werk bleibt bis zum nächsten
+ *   Veröffentlichen dort.
+ * - gruppen: die Werkgruppen ({ id, titel }), für „noch unter …“.
  */
-export default function WerkTabelle({ werke, veroeffentlicht, onOeffnen, onVerlauf }) {
+export default function WerkTabelle({ werke, veroeffentlicht, gruppen, onOeffnen, onVerlauf }) {
   return (
     <table className="w-full text-sm">
       <thead className="text-left text-gray-600 border-b">
@@ -22,13 +25,19 @@ export default function WerkTabelle({ werke, veroeffentlicht, onOeffnen, onVerla
       </thead>
       <tbody className="divide-y">
         {werke.map(w => {
-          const schluessel = `${w.data.werkgruppe}/${w.id}`;
-          const online = !w.data.ausgeblendet && veroeffentlicht?.has(schluessel);
+          const online = veroeffentlicht?.get(w.id);
+          const verschoben = online && online.gruppe !== w.data.werkgruppe;
+          const alteGruppe = verschoben && (gruppen?.find(g => g.id === online.gruppe)?.titel ?? online.gruppe);
+          const website = online
+            ? { text: "Auf der Website ansehen", href: `/${online.gruppe}/${w.id}/`,
+                zusatz: w.data.ausgeblendet ? "ausgeblendet, beim nächsten Veröffentlichen weg"
+                  : verschoben ? `noch unter ${alteGruppe}` : undefined }
+            : { text: "Auf der Website ansehen", aus: w.data.ausgeblendet ? "ausgeblendet" : "noch nicht veröffentlicht" };
           return (
-            <tr key={w.id} className={"cursor-pointer hover:bg-gray-100" + (w.data.ausgeblendet ? " text-gray-500" : "")}
-                onClick={() => onOeffnen(w)}>
+            <tr key={w.id} className={"cursor-pointer hover:bg-gray-50" + (w.data.ausgeblendet ? " text-gray-500" : "")}
+                onClick={() => { if (!getSelection()?.toString()) onOeffnen(w); }}>
               <td className="py-1">
-                <Vorschau src={veroeffentlicht?.get(schluessel)} />
+                <Vorschau key={online?.bild} src={online?.bild} />
               </td>
               <td className="py-1 px-2 font-mono whitespace-nowrap">{w.data.InvNr}</td>
               <td className="py-1 px-2">
@@ -42,9 +51,7 @@ export default function WerkTabelle({ werke, veroeffentlicht, onOeffnen, onVerla
               <td className="py-1 text-right" onClick={e => e.stopPropagation()}>
                 <Menue titel={w.data.Titel || w.data.InvNr} eintraege={[
                   { text: "Bearbeiten", tun: () => onOeffnen(w) },
-                  online
-                    ? { text: "Auf der Website ansehen", href: `/${w.data.werkgruppe}/${w.id}/` }
-                    : { text: "Auf der Website ansehen", aus: w.data.ausgeblendet ? "Ausgeblendet" : "Noch nicht veröffentlicht" },
+                  website,
                   { text: "Verlauf", tun: () => onVerlauf(w) },
                 ]} />
               </td>
@@ -62,34 +69,38 @@ function Vorschau({ src }) {
   return <img src={src} alt="" loading="lazy" className="w-12 h-12 object-cover rounded" onError={() => setKaputt(true)} />;
 }
 
-/** Ein Menü (⋮); schließt mit Escape, einem Klick daneben oder nach der Wahl. */
+/**
+ * Ein aufklappbares Menü (⋮), bewusst ohne role="menu" (das verspräche
+ * Pfeiltasten): Tab geht durch die Einträge, Escape schließt und gibt den Fokus
+ * an ⋮ zurück, ebenso schließen ein Klick daneben, der Fokus außerhalb und die Wahl.
+ */
 function Menue({ titel, eintraege }) {
   const [auf, setAuf] = useState(false);
-  const rahmen = useRef();
+  const rahmen = useRef(), knopf = useRef();
   useEffect(() => {
     if (!auf) return;
     const daneben = e => { if (!rahmen.current?.contains(e.target)) setAuf(false); };
-    const taste = e => { if (e.key === "Escape") setAuf(false); };
+    const taste = e => { if (e.key === "Escape") { setAuf(false); knopf.current?.focus(); } };
     document.addEventListener("mousedown", daneben);
     document.addEventListener("keydown", taste);
     return () => { document.removeEventListener("mousedown", daneben); document.removeEventListener("keydown", taste); };
   }, [auf]);
   const zeile = "block w-full text-left px-3 py-1.5 whitespace-nowrap";
+  const zusatz = t => t && <span className="text-xs text-gray-500"> ({t})</span>;
   return (
-    <div className="relative inline-block" ref={rahmen}>
-      <button className="px-2 py-1 rounded hover:bg-gray-200 text-lg leading-none" aria-haspopup="menu" aria-expanded={auf}
+    <div className="relative inline-block" ref={rahmen}
+         onBlur={e => { if (!rahmen.current?.contains(e.relatedTarget)) setAuf(false); }}>
+      <button ref={knopf} className="px-2 py-1 rounded hover:bg-gray-200 text-lg leading-none" aria-expanded={auf}
               aria-label={`Aktionen für ${titel}`} onClick={() => setAuf(!auf)}>⋮</button>
       {auf && (
-        <div role="menu" className="absolute right-0 z-20 mt-1 bg-white border border-gray-300 rounded shadow-lg py-1 text-sm">
+        <div className="absolute right-0 z-20 mt-1 bg-white text-gray-900 border border-gray-300 rounded shadow-lg py-1 text-sm">
           {eintraege.map(e => e.href ? (
-            <a key={e.text} role="menuitem" className={zeile + " hover:bg-gray-100"} href={e.href}
-               target="_blank" rel="noopener" onClick={() => setAuf(false)}>{e.text} ↗</a>
+            <a key={e.text} className={zeile + " hover:bg-gray-100"} href={e.href}
+               target="_blank" rel="noopener" onClick={() => setAuf(false)}>{e.text} ↗{zusatz(e.zusatz)}</a>
           ) : e.aus ? (
-            <span key={e.text} role="menuitem" aria-disabled="true" className={zeile + " text-gray-400"} title={e.aus}>
-              {e.text} <span className="text-xs">({e.aus})</span>
-            </span>
+            <span key={e.text} className={zeile + " text-gray-400"}>{e.text}{zusatz(e.aus)}</span>
           ) : (
-            <button key={e.text} role="menuitem" className={zeile + " hover:bg-gray-100"}
+            <button key={e.text} className={zeile + " hover:bg-gray-100"}
                     onClick={() => { setAuf(false); e.tun(); }}>{e.text}</button>
           ))}
         </div>
