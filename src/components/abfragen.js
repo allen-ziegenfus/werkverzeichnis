@@ -62,3 +62,20 @@ export function zielSuchen(ziel, abfrage, finden, oeffnen) {
   if (abfrage.isFetchedAfterMount) ziel.current = null;
   else abfrage.refetch();
 }
+
+/**
+ * Was die Website gerade zeigt (#248), aus ihrer searchData.json: Map
+ * `<werkgruppe>/<werk>` → Vorschaubild (null ohne Bild). Fehlt die Datei, ist
+ * das Ergebnis eine leere Map; die Verwaltung geht auch ohne.
+ */
+export const useVeroeffentlicht = () => useQuery({
+  queryKey: ["veroeffentlicht"],
+  queryFn: async () => {
+    const antwort = await fetch("/searchData.json");
+    if (!antwort.ok) return new Map();
+    return new Map((await antwort.json()).map(e =>
+      [`${e.WerkgruppeSlug}/${e.Slug}`, e.Thumbnail && e.Thumbnail !== "/placeholder.png" ? e.Thumbnail : null]));
+  },
+  staleTime: 5 * 60_000,
+  retry: false,
+});
