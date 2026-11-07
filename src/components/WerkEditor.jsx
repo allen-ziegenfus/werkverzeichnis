@@ -10,6 +10,7 @@ import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import { werkFeld } from "./werkFeld.js";
 import Zugang from "./Zugang.jsx";
+import { hauptknopf, knopf } from "./knoepfe.js";
 
 /**
  * Der Werk-Editor (Firestore): bearbeiten und anlegen (#179), eine Künstler:in.
@@ -197,7 +198,7 @@ function WerkEditor({ nutzer }) {
       client.invalidateQueries({ queryKey: SCHLUESSEL.werke(gruppe) });
       setNeu(undefined);
       if (aktuelleGruppe.current === startGruppe && offen.current === startOffen) await oeffnen(w);
-      setHinweis(`Angelegt (${invNr}).`);
+      setHinweis(`Angelegt (${invNr}). Die weiteren Felder hier eintragen und speichern.`);
     } catch (e) {
       setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
     } finally {
@@ -252,7 +253,9 @@ function WerkEditor({ nutzer }) {
     return !q || w.data.InvNr.toLowerCase().includes(q) || (w.data.Titel ?? "").toLowerCase().includes(q);
   }).slice(0, 50);
 
-  const knopf = "px-3 py-1 border rounded disabled:opacity-40";
+  const gruppenTitel = gruppen?.find(g => g.id === gruppe)?.titel;
+  // Aus der Suche übernommen: Die Suche leert sich, sonst steht „keine Werke“ darunter.
+  const neuesWerk = (titel = "") => { setNeu({ InvNr: "", Titel: titel }); setFehler(undefined); if (titel) setSuche(""); };
 
   return (
     <div className="space-y-4">
@@ -273,23 +276,42 @@ function WerkEditor({ nutzer }) {
       {werke && !werk && (
         <>
           {neu ? (
-            <div className="flex gap-2 flex-wrap items-center">
-              <input className="border p-1 w-32" placeholder="Inv. Nr." autoFocus value={neu.InvNr}
-                     onChange={e => setNeu({ ...neu, InvNr: e.target.value })} />
-              <input className="border p-1 flex-1 min-w-40" placeholder="Titel" value={neu.Titel}
-                     onChange={e => setNeu({ ...neu, Titel: e.target.value })}
-                     onKeyDown={e => e.key === "Enter" && neu.InvNr.trim() && anlegen()} />
-              <button className={knopf} disabled={speichert || !neu.InvNr.trim()} onClick={anlegen}>
-                {speichert ? "Lege an…" : "Anlegen"}
-              </button>
-              <button className={knopf} disabled={speichert} onClick={() => setNeu(undefined)}>Abbrechen</button>
-            </div>
+            <fieldset className="border rounded p-3 space-y-2 bg-gray-50">
+              <legend className="px-1 font-semibold">Neues Werk in {gruppenTitel}</legend>
+              <div className="flex gap-2 flex-wrap items-end">
+                <label className="text-sm">Inv. Nr.
+                  <input className="block border p-1 w-32 bg-white" autoFocus value={neu.InvNr}
+                         onChange={e => setNeu({ ...neu, InvNr: e.target.value })} />
+                </label>
+                <label className="text-sm flex-1 min-w-40">Titel (optional)
+                  <input className="block border p-1 w-full bg-white" value={neu.Titel}
+                         onChange={e => setNeu({ ...neu, Titel: e.target.value })}
+                         onKeyDown={e => e.key === "Enter" && neu.InvNr.trim() && anlegen()} />
+                </label>
+                <button className={hauptknopf} disabled={speichert || !neu.InvNr.trim()} onClick={anlegen}>
+                  {speichert ? "Lege an…" : "Anlegen"}
+                </button>
+                <button className={knopf} disabled={speichert} onClick={() => setNeu(undefined)}>Abbrechen</button>
+              </div>
+              <p className="text-sm text-gray-600">Die weiteren Felder (Jahr, Maße, …) nach dem Anlegen im Werk.</p>
+            </fieldset>
           ) : (
-            <button className={knopf} onClick={() => { setNeu({ InvNr: "", Titel: "" }); setFehler(undefined); }}>Neues Werk</button>
+            <button className={hauptknopf} onClick={() => neuesWerk()}>+ Neues Werk</button>
           )}
           {werke.length === 0 && !neu && <p className="text-sm text-gray-600">Noch keine Werke in dieser Werkgruppe.</p>}
-          <input className="border p-1 w-full" placeholder="Inv. Nr. oder Titel"
-                 value={suche} onChange={e => setSuche(e.target.value)} />
+          {werke.length > 0 && (
+            <label className="block text-sm">Suchen ({werke.length} {werke.length === 1 ? "Werk" : "Werke"})
+              <input type="search" className="block border p-1 w-full" placeholder="Inv. Nr. oder Titel"
+                     value={suche} onChange={e => setSuche(e.target.value)} />
+            </label>
+          )}
+          {suche.trim() && treffer.length === 0 && (
+            <p className="text-sm text-gray-600">
+              Keine Werke zu „{suche.trim()}“.{" "}
+              {!neu && <button className="underline" onClick={() => neuesWerk(suche.trim())}>
+                „{suche.trim()}“ als neues Werk anlegen</button>}
+            </p>
+          )}
           <ul className="divide-y">
             {treffer.map(w => (
               <li key={w.id}>
@@ -329,7 +351,7 @@ function WerkEditor({ nutzer }) {
             </label>
           ))}
           <div className="flex gap-2 items-center">
-            <button className={knopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
+            <button className={hauptknopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
               {speichert ? "Speichere…" : "Speichern"}
             </button>
             <button className={knopf} disabled={!geaendert.length || speichert}
