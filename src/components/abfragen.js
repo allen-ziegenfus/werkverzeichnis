@@ -62,3 +62,24 @@ export function zielSuchen(ziel, abfrage, finden, oeffnen) {
   if (abfrage.isFetchedAfterMount) ziel.current = null;
   else abfrage.refetch();
 }
+
+/**
+ * Was die Website gerade zeigt (#248), aus ihrer searchData.json: Map
+ * Werk-ID → { gruppe, bild } (bild null ohne Bild); die Gruppe ist die
+ * veröffentlichte, sie kann von der in Firestore abweichen. Fehlt die Datei,
+ * ist das Ergebnis eine leere Map; die Verwaltung geht auch ohne. Nach jedem
+ * fertigen Veröffentlichen liest Stand (Veroeffentlichen.jsx) sie neu.
+ */
+export const useVeroeffentlicht = () => useQuery({
+  queryKey: ["veroeffentlicht"],
+  queryFn: async () => {
+    const antwort = await fetch("/searchData.json", { cache: "no-cache" });
+    if (!antwort.ok) return new Map();
+    return new Map((await antwort.json()).map(e => [e.Slug, {
+      gruppe: e.WerkgruppeSlug,
+      bild: e.Thumbnail && e.Thumbnail !== "/placeholder.png" ? e.Thumbnail : null,
+    }]));
+  },
+  staleTime: 5 * 60_000,
+  retry: false,
+});

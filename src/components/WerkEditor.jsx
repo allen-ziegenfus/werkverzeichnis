@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
-import { client, SCHLUESSEL, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
+import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
 import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
+import WerkTabelle from "./WerkTabelle.jsx";
 import { werkFeld } from "./werkFeld.js";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
@@ -64,6 +65,7 @@ function WerkEditor({ nutzer }) {
   const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
   const werkeAbfrage = useWerke(gruppe);
   const { data: werke, error: werkeFehler } = werkeAbfrage;
+  const { data: veroeffentlicht } = useVeroeffentlicht();
   const ladefehler = gruppenFehler ?? werkeFehler;
   const [suche, setSuche] = useState("");
   const [werk, setWerk] = useState();               // {id, data} wie geladen
@@ -327,18 +329,17 @@ function WerkEditor({ nutzer }) {
                 Neues Werk mit {alsInvNr ? "Inv. Nr." : "Titel"} „{gesucht}“ anlegen</button>}
             </p>
           )}
-          <ul className="divide-y">
-            {treffer.map(w => (
-              <li key={w.id}>
-                <button className="w-full text-left py-1 hover:bg-gray-100" onClick={() => verlassen() && (setNeu(undefined), oeffnen(w))}>
-                  <span className={w.data.ausgeblendet ? "text-gray-500" : ""}>
-                    <span className="font-mono">{w.data.InvNr}</span> {w.data.Titel}
-                    {w.data.ausgeblendet && <span className="text-sm"> · ausgeblendet</span>}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {treffer.length > 0 && (
+            <WerkTabelle werke={treffer} veroeffentlicht={veroeffentlicht} gruppen={gruppen}
+                         onOeffnen={w => verlassen() && (setNeu(undefined), oeffnen(w))}
+                         onVerlauf={async w => {
+                           if (!verlassen()) return;
+                           setNeu(undefined);
+                           await oeffnen(w);
+                           // Nach dem Zeichnen des Werks; vorher gibt es die Überschrift nicht.
+                           setTimeout(() => document.getElementById("werk-verlauf")?.scrollIntoView({ block: "start" }));
+                         }} />
+          )}
           {alleTreffer.length > treffer.length && (
             <p className="text-sm text-gray-600">{treffer.length} von {alleTreffer.length}; die Suche grenzt ein.</p>
           )}
@@ -382,7 +383,7 @@ function WerkEditor({ nutzer }) {
             </button>
           </div>
 
-          <div className="flex gap-2 items-baseline pt-4">
+          <div id="werk-verlauf" className="flex gap-2 items-baseline pt-4 scroll-mt-4">
             <h3 className="text-lg flex-1">Verlauf</h3>
             {verlauf?.length > 0 && <button className="underline text-sm" onClick={() => setAlles(!alles)}>
               {alles ? "Zusammengefasst zeigen" : "Alles zeigen"}</button>}
