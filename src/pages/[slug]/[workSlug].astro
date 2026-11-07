@@ -72,6 +72,7 @@ const { werk, slug, workSlug, titel, nachher, vorher } = Astro.props;
         href={`/${slug}`}
         wert={werk.Werkgruppe}
       />
+      <Eigenschaft titel="Art" wert={werk.Art} />
       <Eigenschaft titel="Jahr" wert={werk.Jahr} />
       <Eigenschaft titel="Maße" wert={werk.Maße} />
       <Eigenschaft titel="Anzahl" wert={werk.Anzahl} />

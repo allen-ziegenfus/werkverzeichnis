@@ -8,7 +8,7 @@ import { kuenstler, db } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
-import { werkFeld } from "./werkFeld.js";
+import { werkFeld, werkWert } from "./werkFeld.js";
 import Zugang from "./Zugang.jsx";
 
 /**
@@ -21,6 +21,8 @@ import Zugang from "./Zugang.jsx";
 
 // Die Felder, die der Editor zeigt, in dieser Reihenfolge. Alles andere am
 // Dokument (werkgruppe, images, updatedAt, lastChange, ausgeblendet) wird verwaltet, nicht bearbeitet.
+// Der Freitext „Werkgruppe“ heißt hier „Art“ (#189): Die Website zeigt als Werkgruppe
+// deren Namen, den Freitext als Art, wenn er abweicht.
 const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Technik",
   "Beschreibung", "Zustand", "Standort", "Signatur", "Auflage", "Anzahl", "Foto",
   "Ausstellung", "Literatur", "Bibliographie"];
@@ -103,7 +105,7 @@ function WerkEditor({ nutzer }) {
   // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
   const abgleich = useAbgleich({
     art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk, ref: werk ? doc(kuenstler, "works", werk.id) : null,
-    felder: BEARBEITBAR, gleich,
+    felder: BEARBEITBAR, gleich, name: werkFeld,
     stand: werk?.data ?? {},
     entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf]),
     geaendert: geaendert.length > 0,
@@ -231,17 +233,17 @@ function WerkEditor({ nutzer }) {
     const { zurueck, geblieben } = zuruecksetzbar(v, werk.data);
     const text = [
       "Zurücksetzen:",
-      ...zurueck.map(([f, c]) => `  ${f}: „${c.to ?? "∅"}“ → „${c.from ?? "∅"}“`),
-      ...(geblieben.length ? ["", "Bleibt (inzwischen erneut geändert): " + geblieben.join(", ")] : []),
+      ...zurueck.map(([f, c]) => `  ${werkFeld(f)}: „${werkWert(c.to)}“ → „${werkWert(c.from)}“`),
+      ...(geblieben.length ? ["", "Bleibt (inzwischen erneut geändert): " + geblieben.map(werkFeld).join(", ")] : []),
     ].join("\n");
     if (!window.confirm(text)) return;
     schreiben(Object.fromEntries(zurueck.map(([f, c]) => [f, c.from])), { rueckgaengig: v.id },
-      `Rückgängig gemacht (${zurueck.map(([f]) => f).join(", ")}).`);
+      `Rückgängig gemacht (${zurueck.map(([f]) => werkFeld(f)).join(", ")}).`);
   }
 
   /** Felder einer Gruppe aus VerlaufListe auf den Stand davor (#204). */
   function zuruecknehmen(g, felder) {
-    const text = felder.map(f => `  ${f}: „${g.felder[f].zu ?? "∅"}“ → „${g.felder[f].von ?? "∅"}“`);
+    const text = felder.map(f => `  ${werkFeld(f)}: „${werkWert(g.felder[f].zu)}“ → „${werkWert(g.felder[f].von)}“`);
     if (!window.confirm(["Zurücksetzen:", ...text].join("\n"))) return;
     schreiben(Object.fromEntries(felder.map(f => [f, g.felder[f].von])), { rueckgaengig: g.ids[0] },
       `Zurückgenommen (${felder.join(", ")}).`);
@@ -316,7 +318,7 @@ function WerkEditor({ nutzer }) {
           )}
           {FELDER.map(f => (
             <label key={f} className="block">
-              <span className="text-sm text-gray-600">{f}</span>
+              <span className="text-sm text-gray-600">{werkFeld(f)}</span>
               {f === "InvNr" ? (
                 <input className="border p-1 w-full bg-gray-100" value={entwurf[f] ?? ""} readOnly />
               ) : LANG.includes(f) || String(entwurf[f] ?? "").length > 80 ? (
@@ -378,7 +380,7 @@ function WerkEditor({ nutzer }) {
                   </button>
                   {Object.entries(v.changes).map(([f, c]) => (
                     <div key={f} className="pl-3">
-                      <b>{f}</b>: <s className="text-gray-500">{c.from || "∅"}</s> → {c.to || "∅"}
+                      <b>{werkFeld(f)}</b>: <s className="text-gray-500">{werkWert(c.from)}</s> → {werkWert(c.to)}
                     </div>
                   ))}
                 </li>
