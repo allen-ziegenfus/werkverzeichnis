@@ -7,7 +7,7 @@ options:
 
 steps:
   - id: deployen
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:591.0.0-slim
     entrypoint: gcloud
     args:
       - run
