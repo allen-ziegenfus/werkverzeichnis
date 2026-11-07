@@ -76,6 +76,12 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
   return (
     <div className="space-y-2">
       {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
+      {/* Anlegen rechts über der Liste, wie bei den Werken (#232). */}
+      {bearbeitbar && (
+        <div className="flex justify-end">
+          <button className={hauptknopf} onClick={() => setOffen({ id: "" })}>+ Neue Seite</button>
+        </div>
+      )}
       {!seiten && !fehler && <Skelett />}
       <ul className="divide-y text-sm">
         {(seiten ?? []).map(s => (
@@ -87,7 +93,6 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
           </li>
         ))}
       </ul>
-      {bearbeitbar && <button className={hauptknopf} onClick={() => setOffen({ id: "" })}>+ Neue Seite</button>}
       {bearbeitbar && geloescht.length > 0 && (
         <div className="pt-4">
           <h3 className="font-bold text-sm">Gelöschte Seiten</h3>

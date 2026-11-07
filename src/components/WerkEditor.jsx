@@ -285,7 +285,7 @@ function WerkEditor({ nutzer }) {
       {gruppe && !werke && !ladefehler && <Skelett />}
       {werke && !werk && (
         <>
-          {neu ? (
+          {neu && (
             <form className="border rounded p-3 bg-gray-50"
                   onSubmit={e => { e.preventDefault(); if (!speichert && neu.InvNr.trim()) anlegen(); }}>
               <fieldset className="space-y-2">
@@ -307,15 +307,18 @@ function WerkEditor({ nutzer }) {
                 <p className="text-sm text-gray-600">Die weiteren Felder (Jahr, Maße, …) nach dem Anlegen im Werk.</p>
               </fieldset>
             </form>
-          ) : (
-            <button className={hauptknopf} onClick={() => neuesWerk()}>+ Neues Werk</button>
           )}
-          {werke.length === 0 && !neu && <p className="text-sm text-gray-600">Noch keine Werke in dieser Werkgruppe.</p>}
-          {werke.length > 0 && (
-            <label className="block text-sm">Suchen ({werke.length} {werke.length === 1 ? "Werk" : "Werke"})
-              <input type="search" className="block border p-1 w-full" placeholder="Inv. Nr. oder Titel"
-                     value={suche} onChange={e => setSuche(e.target.value)} />
-            </label>
+          {/* Suche links, Anlegen rechts in einer Zeile: zwei verschiedene Dinge (#232). */}
+          {(werke.length > 0 || !neu) && (
+            <div className="flex gap-2 items-end flex-wrap">
+              {werke.length > 0 ? (
+                <label className="text-sm flex-1 min-w-48">Suchen ({werke.length} {werke.length === 1 ? "Werk" : "Werke"})
+                  <input type="search" className="block border p-1 w-full" placeholder="Inv. Nr. oder Titel"
+                         value={suche} onChange={e => setSuche(e.target.value)} />
+                </label>
+              ) : <p className="flex-1 self-center text-sm text-gray-600">Noch keine Werke in dieser Werkgruppe.</p>}
+              {!neu && <button className={hauptknopf + " ml-auto"} onClick={() => neuesWerk()}>+ Neues Werk</button>}
+            </div>
           )}
           {werke.length > 0 && gesucht && treffer.length === 0 && (
             <p className="text-sm text-gray-600" role="status">
