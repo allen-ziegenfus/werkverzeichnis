@@ -4,6 +4,7 @@ import { KUENSTLER } from "./firebaseClient.js";
 import { ENTWURF } from "./ungespeichert.js";
 import { Unterschied } from "./VerlaufListe.jsx";
 import { wann } from "./zeit.js";
+import { knopfKlein as knopf } from "./knoepfe.js";
 
 /**
  * Abgleich eines Formulars mit dem gespeicherten Stand (#203), für Seiten und
@@ -173,7 +174,6 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
   };
 }
 
-const knopf = "px-2 py-0.5 border rounded bg-white";
 const kurz = w => !String(w ?? "").includes("\n") && String(w ?? "").length <= 120;
 
 function Hinweise({ gefunden, name, fremd, konflikte, meldung, wiederherstellen, verwerfen, zusammenfuehren, waehlen }) {

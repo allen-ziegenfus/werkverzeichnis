@@ -5,6 +5,7 @@ import { feldweiseSpeichern } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
+import { hauptknopf } from "./knoepfe.js";
 
 /**
  * Einstellungen der Künstler:in dieser Website. Speichert nur die geänderten
@@ -23,7 +24,6 @@ export const EINSTELLUNGEN = [
 ];
 /** Die Felder aus dem Dokument, fehlende leer; wie einstellungen() in firestore.rules. */
 export const lesen = d => Object.fromEntries(EINSTELLUNGEN.map(([k]) => [k, d[k] ?? ""]));
-const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 
 export default function EinstellungenSeite() {
@@ -83,7 +83,7 @@ function Einstellungen({ ich }) {
       ))}
 
       <div className="flex gap-2 items-center">
-        <button className={knopf} onClick={speichern} disabled={speichert || !entwurf.titel.trim()}>
+        <button className={hauptknopf} onClick={speichern} disabled={speichert || !entwurf.titel.trim()}>
           {speichert ? "Speichere…" : "Speichern"}
         </button>
         {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}

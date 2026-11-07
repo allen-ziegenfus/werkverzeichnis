@@ -7,6 +7,7 @@ import { db } from "./firebaseClient.js";
 import { marked } from "marked";
 import { werkFeld, werkWert } from "./werkFeld.js";
 import { wann } from "./zeit.js";
+import { hauptknopfKlein } from "./knoepfe.js";
 
 /**
  * Änderungen gehen erst online, wenn jemand auf Veröffentlichen drückt: Das legt
@@ -22,7 +23,6 @@ export const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
 export const LAEUFT = ["angefordert", "wartet", "läuft"];
 /** Dreht sich, solange eine Veröffentlichung läuft (#86). */
 export const Dreht = () => <span aria-hidden="true" className="inline-block w-3 h-3 mr-1.5 align-[-1px] rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin motion-reduce:[animation-duration:3s]" />;
-const knopfKlein = "px-2 py-0.5 border border-gray-400 rounded bg-white disabled:opacity-40";
 export const HOECHSTENS = 100;
 export const NOTIZ_LAENGE = 500;   // wie in firestore.rules
 export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
@@ -221,7 +221,7 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
         {" "}<span className="text-gray-600">{auf === nachOben ? "▾" : "▴"}</span>
       </button>
       {erlaubt && (
-        <button className={knopfKlein} onClick={() => { setAuf(true); setFragen(true); }}
+        <button className={hauptknopfKlein} onClick={() => { setAuf(true); setFragen(true); }}
                 disabled={!liste || (auf && fragen) || nichtsZuTun}
                 title={nichtsZuTun ? "Keine offenen Änderungen" : undefined}>Veröffentlichen</button>
       )}
@@ -257,7 +257,7 @@ function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
                onChange={e => setNotiz(e.target.value)} />
       </label>
       <div className="flex items-center gap-2">
-        <button className={knopfKlein} disabled={sendet}>Jetzt veröffentlichen</button>
+        <button className={hauptknopfKlein} disabled={sendet}>Jetzt veröffentlichen</button>
         <button type="button" className="underline" onClick={fertig}>Abbrechen</button>
         {beschaeftigt && <span className="text-gray-600">Läuft gerade; kommt danach dran.</span>}
       </div>

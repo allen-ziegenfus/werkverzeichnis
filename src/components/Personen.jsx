@@ -5,6 +5,7 @@ import { feldweiseSpeichern, rollenPfad } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
+import { hauptknopf, knopf } from "./knoepfe.js";
 
 /**
  * Wer bei der Künstler:in dieser Website was darf (artists/{a}.roles). Speichert
@@ -13,7 +14,6 @@ import Zugang from "./Zugang.jsx";
  */
 
 const istEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-const knopf = "px-3 py-1 border rounded disabled:opacity-40";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 
 export default function PersonenSeite() {
@@ -63,7 +63,7 @@ function Personen({ ich }) {
       <Rollen rollen={rollen} ich={ich} nurLesen={speichert}
               onAenderung={r => { setRollen(r); setGeaendert(true); setHinweis(undefined); }} />
       <div className="flex gap-2 items-center">
-        <button className={knopf} onClick={speichern} disabled={speichert || !geaendert}>
+        <button className={hauptknopf} onClick={speichern} disabled={speichert || !geaendert}>
           {speichert ? "Speichere…" : "Speichern"}
         </button>
         {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
