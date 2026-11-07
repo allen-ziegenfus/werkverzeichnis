@@ -1,7 +1,8 @@
 /**
  * Knöpfe der Verwaltung (#238), überall gleich: Die Hauptaktion einer Ansicht
- * (Speichern, Anlegen, Veröffentlichen) ist blau gefüllt, alles andere weiß
- * mit Rand, Löschen rot umrandet. Links (unterstrichen) bleiben Links.
+ * (Speichern, Anlegen) ist blau gefüllt, ebenso Veröffentlichen im Kopf über
+ * jeder Ansicht; alles andere weiß mit Rand, Löschen rot umrandet. Links
+ * (unterstrichen) bleiben Links.
  */
 const basis = "rounded border shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none";
 const gross = "px-3 py-1";

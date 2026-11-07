@@ -197,8 +197,9 @@ function WerkEditor({ nutzer }) {
       const w = { id, data: (await getDoc(ref)).data() };
       client.invalidateQueries({ queryKey: SCHLUESSEL.werke(gruppe) });
       setNeu(undefined);
-      if (aktuelleGruppe.current === startGruppe && offen.current === startOffen) await oeffnen(w);
-      setHinweis(`Angelegt (${invNr}). Die weiteren Felder hier eintragen und speichern.`);
+      const hier = aktuelleGruppe.current === startGruppe && offen.current === startOffen;
+      if (hier) await oeffnen(w);
+      setHinweis(`Angelegt (${invNr}).${hier ? " Die weiteren Felder hier eintragen und speichern." : ""}`);
     } catch (e) {
       setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
     } finally {
@@ -248,14 +249,23 @@ function WerkEditor({ nutzer }) {
       `Zurückgenommen (${felder.join(", ")}).`);
   }
 
-  const treffer = (werke ?? []).filter(w => {
+  const alleTreffer = (werke ?? []).filter(w => {
     const q = suche.trim().toLowerCase();
     return !q || w.data.InvNr.toLowerCase().includes(q) || (w.data.Titel ?? "").toLowerCase().includes(q);
-  }).slice(0, 50);
+  });
+  const treffer = alleTreffer.slice(0, 50);
 
   const gruppenTitel = gruppen?.find(g => g.id === gruppe)?.titel;
-  // Aus der Suche übernommen: Die Suche leert sich, sonst steht „keine Werke“ darunter.
-  const neuesWerk = (titel = "") => { setNeu({ InvNr: "", Titel: titel }); setFehler(undefined); if (titel) setSuche(""); };
+  // Aus der Suche übernommen (#232): Sieht der Text aus wie eine Inv. Nr. (ein
+  // Wort mit Ziffer, erlaubte Zeichen wie in anlegen()), kommt er dorthin, sonst
+  // in den Titel. Die Suche leert sich, sonst steht „keine Werke“ darunter.
+  const gesucht = suche.trim();
+  const alsInvNr = /\d/.test(gesucht) && /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(gesucht);
+  const neuesWerk = (text = "") => {
+    setNeu(alsInvNr && text ? { InvNr: text, Titel: "" } : { InvNr: "", Titel: text });
+    setFehler(undefined);
+    if (text) setSuche("");
+  };
 
   return (
     <div className="space-y-4">
@@ -266,7 +276,7 @@ function WerkEditor({ nutzer }) {
       {!gruppen && !ladefehler && <Skelett zeilen={1} />}
       {gruppen && (
         <select className="border p-1 w-full" value={gruppe} disabled={speichert}
-                onChange={e => { if (verlassen()) { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); } }}>
+                onChange={e => { if (verlassen()) { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); setSuche(""); } }}>
           <option value="">Werkgruppe wählen…</option>
           {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
         </select>
@@ -276,25 +286,27 @@ function WerkEditor({ nutzer }) {
       {werke && !werk && (
         <>
           {neu ? (
-            <fieldset className="border rounded p-3 space-y-2 bg-gray-50">
-              <legend className="px-1 font-semibold">Neues Werk in {gruppenTitel}</legend>
-              <div className="flex gap-2 flex-wrap items-end">
-                <label className="text-sm">Inv. Nr.
-                  <input className="block border p-1 w-32 bg-white" autoFocus value={neu.InvNr}
-                         onChange={e => setNeu({ ...neu, InvNr: e.target.value })} />
-                </label>
-                <label className="text-sm flex-1 min-w-40">Titel (optional)
-                  <input className="block border p-1 w-full bg-white" value={neu.Titel}
-                         onChange={e => setNeu({ ...neu, Titel: e.target.value })}
-                         onKeyDown={e => e.key === "Enter" && neu.InvNr.trim() && anlegen()} />
-                </label>
-                <button className={hauptknopf} disabled={speichert || !neu.InvNr.trim()} onClick={anlegen}>
-                  {speichert ? "Lege an…" : "Anlegen"}
-                </button>
-                <button className={knopf} disabled={speichert} onClick={() => setNeu(undefined)}>Abbrechen</button>
-              </div>
-              <p className="text-sm text-gray-600">Die weiteren Felder (Jahr, Maße, …) nach dem Anlegen im Werk.</p>
-            </fieldset>
+            <form className="border rounded p-3 bg-gray-50"
+                  onSubmit={e => { e.preventDefault(); if (!speichert && neu.InvNr.trim()) anlegen(); }}>
+              <fieldset className="space-y-2">
+                <legend className="px-1 font-semibold">Neues Werk{gruppenTitel && ` in ${gruppenTitel}`}</legend>
+                <div className="flex gap-2 flex-wrap items-end">
+                  <label className="text-sm">Inv. Nr.
+                    <input className="block border p-1 w-32 bg-white" autoFocus value={neu.InvNr}
+                           onChange={e => setNeu({ ...neu, InvNr: e.target.value })} />
+                  </label>
+                  <label className="text-sm flex-1 min-w-40">Titel (optional)
+                    <input className="block border p-1 w-full bg-white" value={neu.Titel}
+                           onChange={e => setNeu({ ...neu, Titel: e.target.value })} />
+                  </label>
+                  <button className={hauptknopf} disabled={speichert || !neu.InvNr.trim()}>
+                    {speichert ? "Lege an…" : "Anlegen"}
+                  </button>
+                  <button type="button" className={knopf} disabled={speichert} onClick={() => setNeu(undefined)}>Abbrechen</button>
+                </div>
+                <p className="text-sm text-gray-600">Die weiteren Felder (Jahr, Maße, …) nach dem Anlegen im Werk.</p>
+              </fieldset>
+            </form>
           ) : (
             <button className={hauptknopf} onClick={() => neuesWerk()}>+ Neues Werk</button>
           )}
@@ -305,11 +317,11 @@ function WerkEditor({ nutzer }) {
                      value={suche} onChange={e => setSuche(e.target.value)} />
             </label>
           )}
-          {suche.trim() && treffer.length === 0 && (
-            <p className="text-sm text-gray-600">
-              Keine Werke zu „{suche.trim()}“.{" "}
-              {!neu && <button className="underline" onClick={() => neuesWerk(suche.trim())}>
-                „{suche.trim()}“ als neues Werk anlegen</button>}
+          {werke.length > 0 && gesucht && treffer.length === 0 && (
+            <p className="text-sm text-gray-600" role="status">
+              Keine Werke zu „{gesucht}“.{" "}
+              {!neu && <button className="underline" onClick={() => neuesWerk(gesucht)}>
+                Neues Werk mit {alsInvNr ? "Inv. Nr." : "Titel"} „{gesucht}“ anlegen</button>}
             </p>
           )}
           <ul className="divide-y">
@@ -324,6 +336,9 @@ function WerkEditor({ nutzer }) {
               </li>
             ))}
           </ul>
+          {alleTreffer.length > treffer.length && (
+            <p className="text-sm text-gray-600">{treffer.length} von {alleTreffer.length}; die Suche grenzt ein.</p>
+          )}
         </>
       )}
 
