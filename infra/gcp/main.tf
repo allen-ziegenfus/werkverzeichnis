@@ -91,11 +91,12 @@ resource "google_storage_bucket" "originale" {
   lifecycle { prevent_destroy = true }
 
   # Die Verwaltung lädt Originale mit signierten URLs direkt hoch (#180). Die
-  # Unterschrift entscheidet, wer darf; CORS lässt den Browser nur den PUT zu.
+  # Unterschrift entscheidet, wer darf, und begrenzt mit
+  # x-goog-content-length-range die Größe; CORS lässt den Browser nur den PUT zu.
   cors {
     origin          = ["*"]
     method          = ["PUT"]
-    response_header = ["Content-Type"]
+    response_header = ["Content-Type", "x-goog-content-length-range"]
     max_age_seconds = 3600
   }
 }
