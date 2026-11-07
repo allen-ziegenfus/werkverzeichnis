@@ -9,6 +9,7 @@ import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import { werkFeld, werkWert } from "./werkFeld.js";
+import { ANNEHMEN, ablehnen, hochladen } from "./hochladen.js";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
 
@@ -30,6 +31,9 @@ const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Te
 const BEARBEITBAR = FELDER.filter(f => f !== "InvNr");
 const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Material"];
 
+// Bilder (#180) sind Listen: nach Inhalt vergleichen, nicht nach Objekt.
+const gleicherWert = (a, b) => Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b;
+
 /**
  * Was sich von einem Verlaufseintrag zurücksetzen lässt: Felder, deren heutiger
  * Wert noch der damals gespeicherte ist. Die anderen hat jemand seitdem
@@ -38,7 +42,7 @@ const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Mate
 function zuruecksetzbar(v, daten) {
   // Die Inv. Nr. ändert sich nie; beim Anlegen steht sie mit from: null im Verlauf (#179).
   const felder = Object.entries(v.changes ?? {}).filter(([f]) => f !== "InvNr");
-  const gleich = ([f, c]) => (daten[f] ?? null) === (c.to ?? null);
+  const gleich = ([f, c]) => gleicherWert(daten[f] ?? null, c.to ?? null);
   return { zurueck: felder.filter(gleich), geblieben: felder.filter(x => !gleich(x)).map(([f]) => f) };
 }
 
@@ -47,7 +51,7 @@ const einheitlich = v => ({ id: v.id, by: v.by, at: v.at, rueckgaengig: v.rueckg
   art: v.changes?.InvNr && v.changes.InvNr.from == null ? "angelegt" : "geändert",
   felder: Object.fromEntries(Object.entries(v.changes ?? {}).filter(([f]) => f !== "InvNr")
     .map(([f, c]) => [f, { von: c.from ?? null, zu: c.to ?? null }])) });
-const gleich = (f, a, b) => (a ?? "") === (b ?? "");
+const gleich = (f, a, b) => gleicherWert(a ?? "", b ?? "");
 
 // Die zuletzt gewählte Werkgruppe, für die Rückkehr aus einem anderen Bereich.
 let letzteGruppe = "";
@@ -76,6 +80,8 @@ function WerkEditor({ nutzer }) {
   const offen = useRef();
   const [speichert, setSpeichert] = useState(false);
   const [hinweis, setHinweis] = useState();
+  const [laedt, setLaedt] = useState();     // { name, anteil, von, bis } beim Hochladen (#180)
+  const [bildFehler, setBildFehler] = useState(); // beim Knopf, nicht oben auf der Seite
   const [alles, setAlles] = useState(false);   // im Verlauf jeden Eintrag einzeln
   const einheitliche = useMemo(() => verlauf?.map(einheitlich), [verlauf]);
   const [neu, setNeu] = useState();   // { InvNr, Titel }, solange das Formular für ein neues Werk offen ist
@@ -94,6 +100,8 @@ function WerkEditor({ nutzer }) {
     [werke, werkeAbfrage.isFetching]);
 
   async function oeffnen(w) {
+    // Ein anderes Werk: der Upload-Fehler des vorigen gehört nicht dazu.
+    if (offen.current !== w.id) setBildFehler(undefined);
     offen.current = w.id;
     setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined); setVerlauf(undefined);
     const v = await getDocs(query(collection(kuenstler, "history"), where("work", "==", w.id)));
@@ -122,6 +130,7 @@ function WerkEditor({ nutzer }) {
   useUngespeichert(geaendert.length > 0 || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
 
   /**
+   * `neu` kann auch eine Funktion des Stands auf dem Server sein (Bilder anhängen, #180).
    * Schreibt `neu` ({ Feld: Wert }, null entfernt das Feld) mit einem
    * Verlaufseintrag; `extra` kommt in den Eintrag (etwa `rueckgaengig`).
    * `pruefen: false` für Felder außerhalb des Formulars (ausgeblendet): kein
@@ -143,7 +152,8 @@ function WerkEditor({ nutzer }) {
         }
         const davor = pruefen ? werk.data : jetzt.data() ?? {};
         // Ohne Prüfung nur, was sich auf dem Server wirklich ändert.
-        const felder = Object.entries(neu).filter(([f, wert]) => pruefen || (davor[f] ?? null) !== (wert ?? null));
+        const werte = typeof neu === "function" ? neu(davor) : neu;
+        const felder = Object.entries(werte).filter(([f, wert]) => pruefen || (davor[f] ?? null) !== (wert ?? null));
         if (!felder.length) return;
         const changes = Object.fromEntries(felder.map(([f, wert]) =>
           [f, { from: davor[f] ?? null, to: wert ?? null }]));
@@ -206,6 +216,33 @@ function WerkEditor({ nutzer }) {
       setFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
     } finally {
       setSpeichert(false);
+    }
+  }
+
+  /**
+   * Bilder hochladen (#180), nacheinander; jedes kommt gleich ans Werk, mit
+   * Verlaufseintrag. Hängt an, was auf dem Server steht, nicht an den Stand
+   * beim Öffnen: Wer gleichzeitig ein Bild anhängt, verliert es nicht.
+   */
+  async function bilderHochladen(dateien) {
+    const abgelehnt = dateien.map(ablehnen).filter(Boolean);
+    if (abgelehnt.length) { setBildFehler(abgelehnt.join(" ")); return; }
+    setBildFehler(undefined); setHinweis(undefined);
+    const fertig = [];
+    try {
+      for (const [i, datei] of dateien.entries()) {
+        setLaedt({ name: datei.name, anteil: 0, von: i + 1, bis: dateien.length });
+        const pfad = await hochladen({ werk: werk.id, datei, von: nutzer.email,
+          fortschritt: anteil => setLaedt(l => l && { ...l, anteil }) });
+        await schreiben(davor => ({ images: [...(davor.images ?? []), pfad] }), {},
+          `Hochgeladen (${[...fertig, datei.name].join(", ")}). Auf der Website nach dem nächsten Veröffentlichen.`,
+          { pruefen: false });
+        fertig.push(datei.name);
+      }
+    } catch (e) {
+      setBildFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+    } finally {
+      setLaedt(undefined);
     }
   }
 
@@ -370,6 +407,30 @@ function WerkEditor({ nutzer }) {
               )}
             </label>
           ))}
+          <div className="space-y-1">
+            <span className="text-sm text-gray-600">Bilder</span>
+            {werk.data.images?.length > 0 ? (
+              <ul className="text-sm list-disc pl-5">
+                {werk.data.images.map(p => <li key={p} className="break-all">{p.split("/").pop()}</li>)}
+              </ul>
+            ) : <p className="text-sm text-gray-600">Noch keine Bilder.</p>}
+            <div className="flex gap-2 items-center flex-wrap">
+              {/* Ein Label als Knopf: Das Dateifeld selbst lässt sich nicht gestalten. */}
+              <label className={knopf + (laedt || speichert || geaendert.length ? " opacity-40 cursor-not-allowed" : " cursor-pointer")}
+                     title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}>
+                Bilder hochladen…
+                <input type="file" className="sr-only" accept={ANNEHMEN} multiple
+                       disabled={!!laedt || speichert || geaendert.length > 0}
+                       onChange={e => { const d = [...e.target.files]; e.target.value = ""; if (d.length) bilderHochladen(d); }} />
+              </label>
+              {laedt ? (
+                <span className="text-sm" role="status">
+                  Lade {laedt.bis > 1 && `${laedt.von}/${laedt.bis} `}„{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %
+                </span>
+              ) : <span className="text-sm text-gray-600">JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei.</span>}
+            </div>
+            {bildFehler && <p className="text-sm text-red-700" role="alert">{bildFehler}</p>}
+          </div>
           <div className="flex gap-2 items-center">
             <button className={hauptknopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
               {speichert ? "Speichere…" : "Speichern"}
