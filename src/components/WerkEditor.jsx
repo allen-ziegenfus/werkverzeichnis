@@ -146,6 +146,7 @@ function WerkEditor({ nutzer }) {
    */
   async function schreiben(neu, extra, meldung, { pruefen = true } = {}) {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
+    if (meldung) setBildHinweis(undefined);   // nicht zwei grüne Meldungen; das Anhängen bringt keine mit
     const ref = doc(kuenstler, "works", werk.id);
     const eintrag = doc(collection(kuenstler, "history"));
     abgleich.eigene.current.add(eintrag.id);
