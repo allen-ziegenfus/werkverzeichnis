@@ -62,6 +62,24 @@ export default function WerkEditorSeite() {
   return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer }) => <WerkEditor nutzer={nutzer} />} />;
 }
 
+
+/**
+ * Die nächste freie Inv. Nr. nach `invNr` (#240): die letzte Zahl darin
+ * hochgezählt, führende Nullen bleiben (AZ-009 → AZ-010, OB1359 → OB1360).
+ * Schon vergebene in `werke` werden übersprungen; ohne Zahl leer.
+ */
+export function naechsteInvNr(invNr, werke) {
+  const teile = String(invNr ?? "").match(/^(.*?)(\d+)(\D*)$/);
+  if (!teile) return "";
+  const [, vorn, zahl, hinten] = teile;
+  const vergeben = new Set(werke.map(w => w.id));
+  for (let n = Number(zahl) + 1, i = 0; i < 1000; n++, i++) {
+    const neu = `${vorn}${String(n).padStart(zahl.length, "0")}${hinten}`;
+    if (!vergeben.has(neu.toLowerCase())) return neu;
+  }
+  return "";
+}
+
 function WerkEditor({ nutzer }) {
   const [fehler, setFehler] = useState();
   // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
@@ -338,6 +356,12 @@ function WerkEditor({ nutzer }) {
   // in den Titel. Die Suche leert sich, sonst steht „keine Werke“ darunter.
   const gesucht = suche.trim();
   const alsInvNr = /\d/.test(gesucht) && /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(gesucht);
+  // Nach einem Werk gleich das nächste (#240): die Inv. Nr. hochgezählt vorgeschlagen.
+  const naechstesWerk = () => {
+    if (!verlassen()) return;
+    setWerk(undefined); setSuche(""); setFehler(undefined); setHinweis(undefined);
+    setNeu({ InvNr: naechsteInvNr(werk.data.InvNr, werke ?? []), Titel: "" });
+  };
   const neuesWerk = (text = "") => {
     setNeu(alsInvNr && text ? { InvNr: text, Titel: "" } : { InvNr: "", Titel: text });
     setFehler(undefined);
@@ -424,8 +448,12 @@ function WerkEditor({ nutzer }) {
       {werk && (
         <div className="space-y-3">
           {/* Gesperrt während des Speicherns und Hochladens: danach öffnet schreiben() das Werk neu (#213, #180). */}
-          <button className="underline text-sm disabled:opacity-40" disabled={speichert || !!laedt}
-                  onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
+          <div className="flex gap-2 items-center">
+            <button className="underline text-sm disabled:opacity-40" disabled={speichert || !!laedt}
+                    onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
+            <button className={knopf + " ml-auto"} disabled={speichert || !!laedt} onClick={naechstesWerk}
+                    title="Neues Werk in dieser Werkgruppe, Inv. Nr. hochgezählt">+ Neues Werk</button>
+          </div>
           {abgleich.hinweise}
           {werk.data.ausgeblendet && (
             <p className="border border-gray-400 bg-gray-100 rounded p-2 text-sm">Ausgeblendet: steht nicht auf der Website.</p>
