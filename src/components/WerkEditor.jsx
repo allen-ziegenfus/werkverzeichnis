@@ -88,13 +88,14 @@ function WerkEditor({ nutzer }) {
   const [nichtAngehaengt, setNichtAngehaengt] = useState(); // { pfad, name }: im Bucket, aber nicht am Werk
   const [bildHinweis, setBildHinweis] = useState(); // im Abschnitt Bilder, nicht beim Speichern-Knopf
   const [ziehen, setZiehen] = useState(false);       // Dateien werden über den Abschnitt Bilder gezogen (#270)
+  const [ziehGrund, setZiehGrund] = useState();     // warum gerade nicht abgelegt werden kann, nur beim Ziehen
   const zieht = useRef(0);                           // dragenter minus dragleave: relatedTarget fehlt in manchen Browsern
   // Daneben fallen gelassene Dateien öffnete der Browser selbst und verließe die Verwaltung.
   // Der Abschnitt Bilder hat dann schon preventDefault gerufen; sonst „hier nicht ablegen“.
   useEffect(() => {
     if (!werk) return;
     const nicht = e => {
-      if (e.type === "drop") { zieht.current = 0; setZiehen(false); }
+      if (e.type === "drop") { zieht.current = 0; setZiehen(false); setZiehGrund(undefined); }
       if (e.defaultPrevented || ![...(e.dataTransfer?.types ?? [])].includes("Files")) return;
       e.preventDefault();
       if (e.type === "dragover") e.dataTransfer.dropEffect = "none";
@@ -472,13 +473,13 @@ function WerkEditor({ nutzer }) {
                        : geaendert.length ? "Erst speichern oder verwerfen, dann Bilder hochladen."
                        : speichert ? "Speichert gerade." : undefined;
                      e.dataTransfer.dropEffect = grund ? "none" : "copy";
-                     if (grund) setBildFehler(grund);
+                     setZiehGrund(grund);
                      setZiehen(!grund);
                    }}
-                   onDragLeave={() => { if (--zieht.current <= 0) { zieht.current = 0; setZiehen(false); } }}
+                   onDragLeave={() => { if (--zieht.current <= 0) { zieht.current = 0; setZiehen(false); setZiehGrund(undefined); } }}
                    onDrop={e => {
                      if (![...e.dataTransfer.types].includes("Files")) return;
-                     e.preventDefault(); zieht.current = 0; setZiehen(false);
+                     e.preventDefault(); zieht.current = 0; setZiehen(false); setZiehGrund(undefined);
                      if (laedt || speichert || nichtAngehaengt || geaendert.length) return;
                      const d = [...e.dataTransfer.files];
                      if (d.length) bilderHochladen(d);
@@ -503,6 +504,7 @@ function WerkEditor({ nutzer }) {
               ) : <span className="text-sm text-gray-600">oder Dateien hierher ziehen. JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei. Wird gleich gespeichert.</span>}
             </div>
             {bildHinweis && <p className="text-sm text-green-700" role="status">{bildHinweis}</p>}
+            {ziehGrund && <p className="text-sm text-red-700" role="status">{ziehGrund}</p>}
             {bildFehler && <p className="text-sm text-red-700" role="alert">{bildFehler}</p>}
             {nichtAngehaengt && (
               <p className="text-sm text-red-700" role="alert">
