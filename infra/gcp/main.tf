@@ -138,6 +138,8 @@ resource "google_project_iam_member" "rolle" {
     "deploy-firebase"  = ["werkverzeichnis-deploy", "roles/firebase.viewer"]
     "deploy-dienste"   = ["werkverzeichnis-deploy", "roles/serviceusage.serviceUsageConsumer"]
     "deploy-iam-lesen" = ["werkverzeichnis-deploy", "roles/iam.securityReviewer"]
+    # Datenmigrationen nach dem Deploy (tools/migrieren.mjs, #261).
+    "deploy-datastore" = ["werkverzeichnis-deploy", "roles/datastore.user"]
   }
   project = var.projekt_id
   member  = local.konten[each.value[0]]
@@ -145,7 +147,8 @@ resource "google_project_iam_member" "rolle" {
 }
 
 resource "google_storage_bucket_iam_member" "originale_lesen" {
-  for_each = toset(["werkverzeichnis-build", "bilder-function"])
+  # werkverzeichnis-deploy: Datenmigrationen lesen die Liste der Originale (#261).
+  for_each = toset(["werkverzeichnis-build", "bilder-function", "werkverzeichnis-deploy"])
   bucket   = google_storage_bucket.originale.name
   role     = "roles/storage.objectViewer"
   member   = local.konten[each.key]
