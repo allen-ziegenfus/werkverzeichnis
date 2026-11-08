@@ -5,7 +5,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
 import { marked } from "marked";
-import { werkFeld, werkWert } from "./werkFeld.js";
+import { gleicherWert, werkFeld, werkWert } from "./werkFeld.js";
 import { wann } from "./zeit.js";
 import { hauptknopfKlein } from "./knoepfe.js";
 import { client } from "./abfragen.js";
@@ -55,7 +55,7 @@ export function netto(history, seitenverlauf) {
     werke.set(h.work, w);
   }
   for (const w of werke.values()) {
-    for (const [f, c] of Object.entries(w.felder)) if (c.from === c.to) delete w.felder[f];
+    for (const [f, c] of Object.entries(w.felder)) if (gleicherWert(c.from, c.to)) delete w.felder[f];
   }
 
   const seiten = new Map();
@@ -82,7 +82,8 @@ export async function werkZuruecksetzen(kuenstlerId, ich, w) {
   const eintrag = doc(collection(db, "artists", kuenstlerId, "history"));
   return runTransaction(db, async tx => {
     const daten = (await tx.get(ref)).data() ?? {};
-    const zurueck = Object.entries(w.felder).filter(([f, c]) => (daten[f] ?? null) === c.to);
+    // Nach Inhalt: Bilder sind Listen, die nie === sind (#275).
+    const zurueck = Object.entries(w.felder).filter(([f, c]) => gleicherWert(daten[f] ?? null, c.to));
     if (!zurueck.length) return [];
     tx.set(eintrag, { work: w.werk, by: ich, at: serverTimestamp(), zurueckgesetzt: true,
       changes: Object.fromEntries(zurueck.map(([f, c]) => [f, { from: c.to, to: c.from }])) });

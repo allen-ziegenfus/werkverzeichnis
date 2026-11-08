@@ -10,7 +10,7 @@ import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import WerkTabelle from "./WerkTabelle.jsx";
-import { werkFeld, werkWert } from "./werkFeld.js";
+import { gleicherWert, werkFeld, werkWert } from "./werkFeld.js";
 import { ANNEHMEN, ablehnen, hochladen } from "./hochladen.js";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
@@ -34,7 +34,6 @@ const BEARBEITBAR = FELDER.filter(f => f !== "InvNr");
 const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Material"];
 
 // Bilder (#180) sind Listen: nach Inhalt vergleichen, nicht nach Objekt.
-const gleicherWert = (a, b) => Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b;
 
 /**
  * Was sich von einem Verlaufseintrag zurücksetzen lässt: Felder, deren heutiger
