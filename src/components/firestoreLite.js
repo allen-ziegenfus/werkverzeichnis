@@ -1,5 +1,5 @@
 import { doc, getDoc, getFirestore } from "firebase/firestore/lite";
-import { app, KUENSTLER } from "./firebaseClient.js";
+import { app, DATENBANK, KUENSTLER } from "./firebaseClient.js";
 
 /**
  * Firestore Lite liest per REST, am Listen-Stream vorbei. Im vollen SDK liest
@@ -7,7 +7,7 @@ import { app, KUENSTLER } from "./firebaseClient.js";
  * #121) so hinterher wie ein Listener (#279). Nur zum Lesen von Dokumenten,
  * die andere schreiben (die Bildfunktion); eigene Schreibvorgänge kommen über den Stream.
  */
-const kuenstler = doc(getFirestore(app, "werkverzeichnis"), "artists", KUENSTLER);
+const kuenstler = doc(getFirestore(app, DATENBANK), "artists", KUENSTLER);
 
 /** Das Dokument unter artists/<k>/<pfad…>, frisch vom Server. */
 export const frischLesen = (...pfad) => getDoc(doc(kuenstler, ...pfad));
