@@ -2,7 +2,8 @@
  * Erzeugt die Webversionen aller Originale, die schon im Bucket liegen, genau wie
  * die Upload-Funktion (process.js). Für Originale, die hochgeladen wurden, bevor
  * es die Funktion gab, oder nachdem sich geändert hat, was sie erzeugt (dann
- * vorher die medien-Einträge löschen, sonst gelten sie als erledigt).
+ * vorher die medien-Einträge löschen, sonst gelten sie als erledigt). Trägt für
+ * die erledigten nur pfade nach (#259).
  *
  *   cd gcf && npm install && BUCKET=<bucket> R2_BUCKET=<r2-bucket> node backfill.js <projekt> <kuenstler>
  *
@@ -16,7 +17,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
-import { originalVerarbeiten, r2Client } from "./process.js";
+import { fingerabdruck, kuenstlerVon, originalVerarbeiten, pfadSchluessel, r2Client } from "./process.js";
 
 const [PROJEKT, KUENSTLER] = process.argv.slice(2);
 const BUCKET = process.env.BUCKET;
@@ -37,6 +38,17 @@ const [dateien] = await getStorage().bucket(BUCKET).getFiles({ prefix: `artists/
 const erledigt = new Set((await kuenstlerDok.collection("medien").select().get()).docs.map(d => d.id));
 const offen = dateien.filter(d => !erledigt.has(Buffer.from(d.metadata.md5Hash, "base64").toString("hex")));
 console.log(`${dateien.length} originals, ${dateien.length - offen.length} already done, ${offen.length} to process`);
+
+// Die erledigten bekommen nur ihren Eintrag in pfade.
+const nachtragen = dateien.filter(d => kuenstlerVon(d.name) && erledigt.has(fingerabdruck(d.metadata.md5Hash)));
+for (let i = 0; i < nachtragen.length; i += 400) {
+  const stapel = getFirestore("werkverzeichnis").batch();
+  for (const d of nachtragen.slice(i, i + 400)) {
+    stapel.set(kuenstlerDok.collection("pfade").doc(pfadSchluessel(d.name)), { medium: fingerabdruck(d.metadata.md5Hash) });
+  }
+  await stapel.commit();
+}
+console.log(`pfade: ${nachtragen.length} nachgetragen`);
 
 const zaehler = {};
 let naechste = 0, fertig = 0;
