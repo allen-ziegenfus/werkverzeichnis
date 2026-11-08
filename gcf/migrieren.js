@@ -20,8 +20,10 @@ import { getStorage } from "firebase-admin/storage";
 const { KUENSTLER, BUCKET, FIRESTORE_DATABASE = "werkverzeichnis" } = process.env;
 if (!KUENSTLER || !BUCKET) throw new Error("KUENSTLER=<k> BUCKET=<bucket> node migrieren.js");
 
-/** Wie lange ein Lauf die anderen sperrt (so lang wie der Build höchstens); danach gilt er als abgebrochen. */
-const SPERRE = 60 * 60 * 1000;
+/** Wie lange eine Sperre ohne Erneuern gilt; danach gilt der Lauf als abgebrochen. */
+const SPERRE = 10 * 60 * 1000;
+/** Wie oft ein laufender Lauf seine Sperre erneuert, auch während eines langen Schritts. */
+const ERNEUERN = 2 * 60 * 1000;
 /** Wie lange ein Lauf auf einen anderen wartet. */
 const WARTEN = 45 * 60 * 1000;
 
@@ -56,6 +58,15 @@ for (const bis = Date.now() + WARTEN; !(gesperrt = await sperren());) {
 }
 const { version, erledigt } = gesperrt;
 
+// Die Sperre erneuern, solange dieser Lauf lebt. Hat ein anderer sie übernommen
+// (dieser hing länger als SPERRE), nichts mehr gutschreiben und abbrechen.
+let verloren = false;
+const herzschlag = setInterval(() => db.runTransaction(async tx => {
+  const d = (await tx.get(stand)).data();
+  if (d?.sperre?.von !== ich) { verloren = true; return; }
+  tx.update(stand, { "sperre.bis": Timestamp.fromMillis(Date.now() + SPERRE) });
+}).catch(e => console.log("Sperre nicht erneuert:", e.message)), ERNEUERN);
+
 let fertig = version;
 try {
   // Erst alles prüfen, dann ausführen: kein halber Lauf. Zwei Branches mit
@@ -74,6 +85,7 @@ try {
   for (const s of offen) {
     const start = Date.now();
     console.log(`→ ${s.datei}`);
+    if (verloren) throw new Error("Sperre verloren, Abbruch.");
     const { ausfuehren } = await import(new URL(s.datei, ordner));
     const ergebnis = String(await ausfuehren({ db, kuenstlerDok, bucket, log: (...a) => console.log("  ", ...a) }) ?? "");
     const eintrag = { nr: s.nr, name: s.name, am: Timestamp.now(), sekunden: Math.round((Date.now() - start) / 1000), ergebnis };
@@ -86,6 +98,7 @@ try {
     console.log(`  fertig in ${eintrag.sekunden} s: ${ergebnis}`);
   }
 } finally {
+  clearInterval(herzschlag);
   await db.runTransaction(async tx => {
     const d = (await tx.get(stand)).data();
     if (d?.sperre?.von === ich) tx.update(stand, { sperre: null });
