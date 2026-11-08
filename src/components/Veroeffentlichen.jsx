@@ -7,7 +7,7 @@ import { db } from "./firebaseClient.js";
 import { marked } from "marked";
 import { gleicherWert, werkFeld, werkWert } from "./werkFeld.js";
 import { wann } from "./zeit.js";
-import { hauptknopfKlein } from "./knoepfe.js";
+import { veroeffentlichenKnopf } from "./knoepfe.js";
 import { client } from "./abfragen.js";
 
 /**
@@ -22,8 +22,9 @@ export const STATUS = {
 };
 export const FARBE = { fertig: "text-green-700", fehler: "text-red-700" };
 export const LAEUFT = ["angefordert", "wartet", "läuft"];
-/** Dreht sich, solange eine Veröffentlichung läuft (#86). */
-export const Dreht = () => <span aria-hidden="true" className="inline-block w-3 h-3 mr-1.5 align-[-1px] rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin motion-reduce:[animation-duration:3s]" />;
+/** Dreht sich, solange eine Veröffentlichung läuft (#86); `dunkel` für dunklen Grund (#278). */
+export const Dreht = ({ dunkel = false }) => <span aria-hidden="true" className={"inline-block w-3 h-3 mr-1.5 align-[-1px] rounded-full border-2 animate-spin motion-reduce:[animation-duration:3s] "
+  + (dunkel ? "border-stone-600 border-t-stone-200" : "border-gray-300 border-t-gray-700")} />;
 export const HOECHSTENS = 100;
 export const NOTIZ_LAENGE = 500;   // wie in firestore.rules
 export const anzahl = n => n > HOECHSTENS ? `über ${HOECHSTENS}` : n;
@@ -190,9 +191,10 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
  * fehlgeschlagen oder alles veröffentlicht, mit dem Knopf für Admins. Ein Klick
  * auf den Stand klappt die Einzelheiten auf (Tafel), nach oben in der Leiste
  * unten, nach unten im Kopf. „Veröffentlichen“ klappt sie mit einem Feld für
- * eine Notiz auf; erst der Knopf dort legt die Anfrage an.
+ * eine Notiz auf; erst der Knopf dort legt die Anfrage an. `dunkel` für den
+ * dunklen Kopf der Verwaltung (#278); die Tafel bleibt hell.
  */
-export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten = false, nachOben = false, className = "" }) {
+export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten = false, nachOben = false, dunkel = false, className = "" }) {
   const v = useVeroeffentlichung(kuenstlerId, ich);
   const { liste, offen: n, fehler, beschaeftigt, veroeffentlichen } = v;
   const letzte = liste?.[0];
@@ -203,6 +205,7 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
   const [auf, setAuf] = useState(false);
   const [fragen, setFragen] = useState(false);   // Tafel mit Notizfeld
   const ref = useRef();
+  const rot = dunkel ? "text-red-400" : "text-red-700";
 
   useEffect(() => {
     if (!auf) { setFragen(false); return; }
@@ -218,16 +221,16 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
   return (
     <span ref={ref} className={`relative flex items-center gap-2 ${className}`}>
       <button className="hover:underline text-left" aria-expanded={auf} onClick={() => setAuf(!auf)}>
-        {fehler ? <span className="text-red-700">{fehler}</span>
-          : beschaeftigt ? <span><Dreht />Veröffentlichung läuft …</span>
-          : letzte?.status === "fehler" ? <span className="text-red-700">Letzte Veröffentlichung fehlgeschlagen</span>
+        {fehler ? <span className={rot}>{fehler}</span>
+          : beschaeftigt ? <span><Dreht dunkel={dunkel} />Veröffentlichung läuft …</span>
+          : letzte?.status === "fehler" ? <span className={rot}>Letzte Veröffentlichung fehlgeschlagen</span>
           : n === undefined ? <span>…</span>
-          : n === 0 ? <span className="text-green-700">Alles veröffentlicht</span>
+          : n === 0 ? <span className={dunkel ? "text-green-400" : "text-green-700"}>Alles veröffentlicht</span>
           : <span>● {anzahl(n)} offene Änderung{n === 1 ? "" : "en"}</span>}
-        {" "}<span className="text-gray-600">{auf === nachOben ? "▾" : "▴"}</span>
+        {" "}<span className={dunkel ? "text-stone-400" : "text-gray-600"}>{auf === nachOben ? "▾" : "▴"}</span>
       </button>
       {erlaubt && (
-        <button className={hauptknopfKlein} onClick={() => { setAuf(true); setFragen(true); }}
+        <button className={veroeffentlichenKnopf} onClick={() => { setAuf(true); setFragen(true); }}
                 disabled={!liste || (auf && fragen) || nichtsZuTun}
                 title={nichtsZuTun ? "Keine offenen Änderungen" : undefined}>Veröffentlichen</button>
       )}
@@ -263,7 +266,7 @@ function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
                onChange={e => setNotiz(e.target.value)} />
       </label>
       <div className="flex items-center gap-2">
-        <button className={hauptknopfKlein} disabled={sendet}>Jetzt veröffentlichen</button>
+        <button className={veroeffentlichenKnopf} disabled={sendet}>Jetzt veröffentlichen</button>
         <button type="button" className="underline" onClick={fertig}>Abbrechen</button>
         {beschaeftigt && <span className="text-gray-600">Läuft gerade; kommt danach dran.</span>}
       </div>
