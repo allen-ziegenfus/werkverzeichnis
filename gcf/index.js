@@ -1,6 +1,7 @@
 /**
  * Cloud Functions: die Webversionen jedes Originals, das in den Firebase-Bucket
- * hochgeladen wird (process.js), und das Veröffentlichen (publish.js).
+ * hochgeladen wird (process.js), das Veröffentlichen (publish.js) und die
+ * Upload-URLs der Verwaltung (upload.js).
  * Deployen mit `firebase deploy --only functions`.
  */
 import { initializeApp } from "firebase-admin/app";
@@ -58,3 +59,4 @@ export const bilder = onObjectFinalized({
 });
 
 export { veroeffentlichen, buildStatus } from "./publish.js";
+export { hochladen } from "./upload.js";
