@@ -74,6 +74,30 @@ function useMediumLive(pfad) {
   return medium;
 }
 
+/**
+ * Gerade in diesem Tab hochgeladene Dateien (#294), je Pfad die Objekt-URL
+ * (null, wenn der Browser sie nicht zeigen kann): Die Kachel zeigt sie, bis die
+ * Webversionen da sind (17–45 s), und nur für sie dreht sich der Kreis. Ein
+ * Original, das nie verarbeitet wurde, soll keine laufende Arbeit behaupten.
+ * Nach zehn Minuten vergessen: Fehlerfälle hielten die Datei sonst im Speicher.
+ */
+const lokal = new Map();
+const VERGESSEN = 10 * 60 * 1000;
+export function lokalMerken(pfad, datei) {
+  lokalVergessen(pfad);
+  lokal.set(pfad, datei.type.startsWith("image/") ? URL.createObjectURL(datei) : null);
+  setTimeout(() => lokalVergessen(pfad), VERGESSEN);
+}
+function lokalVergessen(pfad, nurUrl = false) {
+  const url = lokal.get(pfad);
+  if (url) URL.revokeObjectURL(url);
+  if (nurUrl) { if (lokal.has(pfad)) lokal.set(pfad, null); } else lokal.delete(pfad);
+}
+
+/** Dreht sich, solange die Webversionen entstehen; ruhig mit reduzierter Bewegung. */
+const Dreht = () => <span aria-hidden="true" className="inline-block w-3 h-3 shrink-0 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin motion-reduce:[animation-duration:3s]" />;
+const IN_ARBEIT = "Webversionen werden erzeugt";
+
 /** Die Bilder eines Werks im Editor; ein Klick öffnet die Lightbox wie auf der Website. */
 export default function BildListe({ bilder }) {
   const [media, setMedia] = useState({});   // Pfad → Medium, für die Lightbox
@@ -98,6 +122,10 @@ export default function BildListe({ bilder }) {
 function Bild({ pfad, melden, oeffnen }) {
   const medium = useMediumLive(pfad);
   useEffect(() => melden(pfad, medium), [medium]);
+  // Die eigene Datei, bis der Server mehr weiß; danach freigeben.
+  const [eigene, setEigene] = useState(() => lokal.get(pfad));
+  const hier = lokal.has(pfad);   // in diesem Tab hochgeladen: es wird gearbeitet
+  useEffect(() => { if (medium) { lokalVergessen(pfad); setEigene(undefined); } }, [medium, pfad]);
   const name = pfad.split("/").pop();
   return (
     <li className="w-28 text-xs space-y-1">
@@ -106,9 +134,22 @@ function Bild({ pfad, melden, oeffnen }) {
           <img src={klein(medium)} alt={name} loading="lazy"
                className="w-28 h-28 object-contain bg-gray-100 rounded border" />
         </button>
+      ) : eigene && !medium ? (
+        <div className="relative w-28 h-28" title={IN_ARBEIT}>
+          {/* Nicht darstellbar (etwa HEIC, TIFF außer Safari): Platzhalter, die Datei freigeben. */}
+          <img src={eigene} alt={name} onError={() => { lokalVergessen(pfad, true); setEigene(undefined); }}
+               className="w-28 h-28 object-contain bg-gray-100 rounded border" />
+          <div className="absolute inset-x-0 bottom-0 m-px rounded-b bg-white/90 px-1 py-0.5 flex items-center gap-1 text-[10px] leading-tight text-gray-700">
+            <Dreht />{IN_ARBEIT}
+          </div>
+        </div>
+      ) : medium === null && hier ? (
+        <div className="w-28 h-28 bg-gray-100 rounded border flex flex-col items-center justify-center gap-2 text-center p-1 text-gray-600">
+          <Dreht />{IN_ARBEIT}
+        </div>
       ) : (
         <div className="w-28 h-28 bg-gray-100 rounded border flex items-center justify-center text-center p-1 text-gray-600">
-          {medium === undefined ? "" : medium === null ? "wird verarbeitet…"
+          {medium === undefined ? "" : medium === null ? "Noch keine Webversionen"
             : medium.lesefehler ? "Vorschau nicht verfügbar" : medium.art === "video" ? "Video"
             : medium.art === "fehler" ? "nicht lesbar" : "nicht unterstützt"}
         </div>
