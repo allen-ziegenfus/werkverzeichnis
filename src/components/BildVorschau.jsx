@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, onSnapshot } from "firebase/firestore";
 import { useQuery } from "@tanstack/react-query";
 import { Lightbox } from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
@@ -26,17 +26,41 @@ async function mediumLesen(pfad) {
   return m.exists() ? { id, ...m.data() } : null;
 }
 
-/** Live, für den Editor: undefined lädt, null noch kein Eintrag (wird verarbeitet), { lesefehler }. */
+/** Wie oft und wie lange nach einem Bild in Arbeit gesehen wird. */
+const NACHSEHEN = 3000, HOECHSTENS = 5 * 60 * 1000;
+
+/**
+ * Live, für den Editor: undefined lädt, null noch kein Eintrag (wird verarbeitet), { lesefehler }.
+ * Neben dem Listener wird beim Server nachgesehen, solange der Eintrag fehlt:
+ * Mit Long Polling (firebaseClient.js, #121) meldete der Listener ein neues
+ * pfade-Dokument erst beim nächsten eigenen Schreiben (#274). Vom Server, denn
+ * getDoc antwortete aus dem Stand des Listeners.
+ */
 function useMediumLive(pfad) {
   const [id, setId] = useState();
   const [medium, setMedium] = useState();
-  useEffect(() => onSnapshot(pfadDok(pfad), d => {
-    if (d.exists()) setId(d.get("medium"));
-    else setMedium(null);
-  }, e => setMedium({ lesefehler: e.message })), [pfad]);
-  useEffect(() => id && onSnapshot(doc(kuenstler, "medien", id),
-    d => setMedium(d.exists() ? { id, ...d.data() } : null),
-    e => setMedium({ lesefehler: e.message })), [id]);
+  useEffect(() => {
+    let gefunden = false;
+    const ab = onSnapshot(pfadDok(pfad), d => {
+      if (d.exists()) { gefunden = true; setId(d.get("medium")); }
+      else setMedium(null);
+    }, e => setMedium({ lesefehler: e.message }));
+    const start = Date.now();
+    const takt = setInterval(async () => {
+      if (gefunden || Date.now() - start > HOECHSTENS) return clearInterval(takt);
+      const d = await getDocFromServer(pfadDok(pfad)).catch(() => null);
+      if (d?.exists()) { gefunden = true; setId(d.get("medium")); clearInterval(takt); }
+    }, NACHSEHEN);
+    return () => { ab(); clearInterval(takt); };
+  }, [pfad]);
+  useEffect(() => {
+    if (!id) return;
+    const ref = doc(kuenstler, "medien", id);
+    const zeigen = d => d.exists() && setMedium({ id, ...d.data() });
+    // Einmal vom Server, falls der Listener auch hier hinterherhinkt (#274).
+    getDocFromServer(ref).then(zeigen, () => {});
+    return onSnapshot(ref, d => d.exists() ? zeigen(d) : setMedium(null), e => setMedium({ lesefehler: e.message }));
+  }, [id]);
   return medium;
 }
 
