@@ -21,9 +21,9 @@ const { KUENSTLER, BUCKET, FIRESTORE_DATABASE = "werkverzeichnis" } = process.en
 if (!KUENSTLER || !BUCKET) throw new Error("KUENSTLER=<k> BUCKET=<bucket> node migrieren.js");
 
 /** Wie lange ein Lauf die anderen sperrt (so lang wie der Build höchstens); danach gilt er als abgebrochen. */
-const SPERRE = 30 * 60 * 1000;
+const SPERRE = 60 * 60 * 1000;
 /** Wie lange ein Lauf auf einen anderen wartet. */
-const WARTEN = 25 * 60 * 1000;
+const WARTEN = 45 * 60 * 1000;
 
 initializeApp();
 const db = getFirestore(FIRESTORE_DATABASE);
@@ -50,7 +50,7 @@ const sperren = () => db.runTransaction(async tx => {
 });
 let gesperrt;
 for (const bis = Date.now() + WARTEN; !(gesperrt = await sperren());) {
-  if (Date.now() > bis) throw new Error("Ein anderer Lauf sperrt seit über 25 min; Build später wiederholen.");
+  if (Date.now() > bis) throw new Error("Ein anderer Lauf sperrt seit über 45 min; Build später wiederholen.");
   console.log("Migrationen: ein anderer Lauf ist dabei, warte…");
   await new Promise(r => setTimeout(r, 15_000));
 }

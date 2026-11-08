@@ -52,4 +52,4 @@ steps:
       - BUILD_ID=$BUILD_ID
       - GOOGLE_CLOUD_PROJECT=$PROJECT_ID
 
-timeout: 1800s
+timeout: 3600s   # auch, damit die Migrationen auf einen anderen Lauf warten können (#261)
