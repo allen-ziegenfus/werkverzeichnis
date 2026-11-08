@@ -62,19 +62,21 @@ export default function WerkEditorSeite() {
   return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer }) => <WerkEditor nutzer={nutzer} />} />;
 }
 
-
 /**
  * Die nächste freie Inv. Nr. nach `invNr` (#240): die letzte Zahl darin
  * hochgezählt, führende Nullen bleiben (AZ-009 → AZ-010, OB1359 → OB1360).
- * Schon vergebene in `werke` werden übersprungen; ohne Zahl leer.
+ * Schon vergebene in `werke` werden übersprungen (nach Kennung und Inv. Nr.: alte
+ * Kennungen kommen aus slugify). Ohne Zahl oder ohne gültige Inv. Nr. leer.
  */
 export function naechsteInvNr(invNr, werke) {
   const teile = String(invNr ?? "").match(/^(.*?)(\d+)(\D*)$/);
   if (!teile) return "";
   const [, vorn, zahl, hinten] = teile;
-  const vergeben = new Set(werke.map(w => w.id));
+  const vergeben = new Set(werke.flatMap(w => [w.id, String(w.data.InvNr ?? "").toLowerCase()]));
   for (let n = Number(zahl) + 1, i = 0; i < 1000; n++, i++) {
     const neu = `${vorn}${String(n).padStart(zahl.length, "0")}${hinten}`;
+    // Wie in anlegen(): sonst schlüge der Vorschlag dort fehl (etwa „OB 1359“).
+    if (!/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(neu)) return "";
     if (!vergeben.has(neu.toLowerCase())) return neu;
   }
   return "";
@@ -394,6 +396,7 @@ function WerkEditor({ nutzer }) {
                 <div className="flex gap-2 flex-wrap items-end">
                   <label className="text-sm">Inv. Nr.
                     <input className="block border p-1 w-32 bg-white" autoFocus value={neu.InvNr}
+                           onFocus={e => e.target.select()}
                            onChange={e => setNeu({ ...neu, InvNr: e.target.value })} />
                   </label>
                   <label className="text-sm flex-1 min-w-40">Titel (optional)
