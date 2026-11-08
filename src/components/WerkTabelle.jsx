@@ -39,7 +39,7 @@ export default function WerkTabelle({ werke, veroeffentlicht, gruppen, onOeffnen
             <tr key={w.id} className={"cursor-pointer hover:bg-gray-50" + (w.data.ausgeblendet ? " text-gray-500" : "")}
                 onClick={() => { if (!getSelection()?.toString()) onOeffnen(w); }}>
               <td className="py-1">
-                <Vorschaubild key={w.data.images?.[0]} pfad={w.data.images?.[0]} />
+                <Vorschaubild key={w.data.images?.[0]} pfad={w.data.images?.[0]} ersatz={online?.bild} />
               </td>
               <td className="py-1 px-2 font-mono whitespace-nowrap">{w.data.InvNr}</td>
               <td className="py-1 px-2">

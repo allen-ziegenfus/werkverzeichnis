@@ -51,7 +51,9 @@ export default function BildListe({ bilder }) {
       <ul className="flex flex-wrap gap-3">
         {bilder.map(p => <Bild key={p} pfad={p} melden={melden} oeffnen={() => setOffen(p)} />)}
       </ul>
+      {/* on.view: offen folgt dem Blättern, sonst springt sie zurück, wenn ein weiteres Bild fertig wird. */}
       <Lightbox open={fertig.includes(offen)} close={() => setOffen(undefined)}
+                on={{ view: ({ index }) => fertig[index] && setOffen(fertig[index]) }}
                 index={Math.max(0, fertig.indexOf(offen))}
                 slides={fertig.map(p => ({ src: gross(media[p]), width: media[p].breite, height: media[p].hoehe,
                   alt: p.split("/").pop() }))} />
@@ -83,14 +85,17 @@ function Bild({ pfad, melden, oeffnen }) {
 }
 
 /** Das erste Bild eines Werks klein, für die Werktabelle; einmal gelesen und zwischengespeichert. */
-export function Vorschaubild({ pfad }) {
+export function Vorschaubild({ pfad, ersatz }) {
   const { data: medium } = useQuery({
     queryKey: ["medium", pfad], queryFn: () => mediumLesen(pfad), enabled: !!pfad, staleTime: 5 * 60 * 1000,
-    // Noch in Arbeit (gerade hochgeladen): nachsehen, bis es da ist.
-    refetchInterval: q => q.state.data === null ? 5000 : false,
+    // Noch in Arbeit (gerade hochgeladen): zwei Minuten lang nachsehen. Nicht
+    // länger: null ist auch ein Original, das nie verarbeitet wurde.
+    refetchInterval: q => q.state.data === null && q.state.dataUpdateCount < 24 ? 5000 : false,
   });
   const [kaputt, setKaputt] = useState(false);
-  if (medium?.art !== "bild" || kaputt) return <div className="w-12 h-12 bg-gray-100 rounded" />;
-  return <img src={klein(medium)} alt="" loading="lazy" className="w-12 h-12 object-cover rounded"
+  // ersatz: das veröffentlichte Bild, solange es keinen Eintrag gibt.
+  const src = medium?.art === "bild" ? klein(medium) : medium === null ? ersatz : undefined;
+  if (!src || kaputt) return <div className="w-12 h-12 bg-gray-100 rounded" />;
+  return <img src={src} alt="" loading="lazy" className="w-12 h-12 object-cover rounded"
               onError={() => setKaputt(true)} />;
 }

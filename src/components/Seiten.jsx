@@ -205,7 +205,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
       if (istNeu) return onSchliessen();
       client.invalidateQueries({ queryKey: SCHLUESSEL.seiten });
       // Vom Server: Mit dem Listener in useAbgleich käme sonst der Stand vor dieser Transaktion (#270).
-      const frisch = (await getDocFromServer(ref)).data();
+      const frisch = (await getDocFromServer(ref).catch(() => getDoc(ref))).data();
       setGeladenAm(frisch.updatedAt);
       setGespeichert(neu);
       // Das Formular zeigt danach die neue Fassung, außer jemand hat inzwischen
