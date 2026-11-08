@@ -7,7 +7,7 @@ import { db } from "./firebaseClient.js";
 import { marked } from "marked";
 import { gleicherWert, werkFeld, werkWert } from "./werkFeld.js";
 import { wann } from "./zeit.js";
-import { hauptknopfKlein } from "./knoepfe.js";
+import { veroeffentlichenKnopf } from "./knoepfe.js";
 import { client } from "./abfragen.js";
 
 /**
@@ -230,7 +230,7 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
         {" "}<span className={dunkel ? "text-stone-400" : "text-gray-600"}>{auf === nachOben ? "▾" : "▴"}</span>
       </button>
       {erlaubt && (
-        <button className={hauptknopfKlein} onClick={() => { setAuf(true); setFragen(true); }}
+        <button className={veroeffentlichenKnopf} onClick={() => { setAuf(true); setFragen(true); }}
                 disabled={!liste || (auf && fragen) || nichtsZuTun}
                 title={nichtsZuTun ? "Keine offenen Änderungen" : undefined}>Veröffentlichen</button>
       )}
@@ -266,7 +266,7 @@ function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
                onChange={e => setNotiz(e.target.value)} />
       </label>
       <div className="flex items-center gap-2">
-        <button className={hauptknopfKlein} disabled={sendet}>Jetzt veröffentlichen</button>
+        <button className={veroeffentlichenKnopf} disabled={sendet}>Jetzt veröffentlichen</button>
         <button type="button" className="underline" onClick={fertig}>Abbrechen</button>
         {beschaeftigt && <span className="text-gray-600">Läuft gerade; kommt danach dran.</span>}
       </div>
