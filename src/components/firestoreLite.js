@@ -7,6 +7,10 @@ import { app, DATENBANK, KUENSTLER } from "./firebaseClient.js";
  * #121) so hinterher wie ein Listener (#279). Hängt schon ein Listener am
  * Dokument, antwortet getDocFromServer sofort mit dessen altem Stand, auch
  * direkt nach einer eigenen Transaktion (#287).
+ *
+ * Lite-Snapshots haben eigene Klassen (Timestamp, Referenz, GeoPoint), die das
+ * volle SDK nicht schreibt. Heute geht nur updatedAt zurück, und nur zum
+ * Vergleichen (toMillis); ein Feld dieser Art dürfte nicht ins volle SDK zurück.
  */
 const lite = getFirestore(app, DATENBANK);
 const kuenstler = doc(lite, "artists", KUENSTLER);

@@ -116,7 +116,13 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
       const nr = ++letzte;
       if (!snap.exists()) { setFremd({ geloescht: true }); return; }
       const daten = snap.data();
-      if (eigene.current.has(daten.lastChange) || ms(daten.updatedAt) === ms(stand.updatedAt)) return;
+      if (ms(daten.updatedAt) === ms(stand.updatedAt)) return;
+      if (eigene.current.has(daten.lastChange)) {
+        // Eigenes Speichern, aber neuer als der Stand im Formular: Das Nachlesen
+        // danach brachte den alten (#287). Unverändert still übernehmen.
+        if (!geaendert && ms(daten.updatedAt) > ms(stand.updatedAt)) uebernehmen(daten);
+        return;
+      }
       const text = by => `Gerade von ${by ?? "jemand anderem"} gespeichert; der neue Stand ist übernommen.`;
       if (!geaendert) { uebernehmen(daten); setMeldung(text()); }
       else setFremd({ daten });
