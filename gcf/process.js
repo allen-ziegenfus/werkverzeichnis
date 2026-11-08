@@ -10,6 +10,10 @@
  *   R2:        <artist>/<md5>-<breite>.avif|webp   Bilder und erste Seiten von PDFs
  *              <artist>/<md5>.<endung>             Videos, unverändert kopiert
  *   Firestore: artists/<artist>/medien/<md5>       Breite, Höhe, Breiten, Formate, Vorschau
+ *              artists/<artist>/pfade/<pfad>        { medium: <md5> } je Objektpfad (#259)
+ *
+ * pfade, weil medien nur den ersten Pfad einer Datei kennt (dieselbe Datei an zwei
+ * Werken) und die Verwaltung so ohne Index vom Pfad zur Vorschau kommt.
  */
 import { createRequire } from "module";
 import path from "path";
@@ -37,6 +41,9 @@ export function kuenstlerVon(objektPfad) {
 }
 
 export const fingerabdruck = md5Base64 => Buffer.from(md5Base64, "base64").toString("hex");
+
+/** Kennung in pfade: der Objektpfad ohne „/“ (wie BildVorschau.jsx). */
+export const pfadSchluessel = objektPfad => encodeURIComponent(objektPfad);
 
 export function r2Client(accessKeyId, secretAccessKey) {
   return new S3Client({
@@ -67,8 +74,12 @@ export async function originalVerarbeiten({ datei, md5, kuenstlerDok, r2, copyri
   if (!kuenstler) return null;
   const id = fingerabdruck(md5);
   const eintrag = kuenstlerDok.collection("medien").doc(id);
+  const pfad = kuenstlerDok.collection("pfade").doc(pfadSchluessel(name));
   const vorhanden = await eintrag.get();
-  if (vorhanden.exists) return vorhanden.data();
+  if (vorhanden.exists) {
+    await pfad.set({ medium: id });
+    return vorhanden.data();
+  }
 
   const [bytes] = await datei.download();
   const basis = `${kuenstler}/${id}`;
@@ -86,6 +97,7 @@ export async function originalVerarbeiten({ datei, md5, kuenstlerDok, r2, copyri
 
   daten = { ...daten, original: name, erstellt: new Date() };
   await eintrag.set(daten);
+  await pfad.set({ medium: id });
   return daten;
 }
 

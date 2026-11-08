@@ -252,6 +252,12 @@ const faelle = [
     { vorhanden: { art: "bild" } }),
   fall("niemand schreibt Bildeinträge", "DENY", als(SUPER), "create", "artists/kutscher/medien/m1",
     { daten: { art: "bild" } }),
+  fall("Bearbeiter:in liest Pfade der Bilder", "ALLOW", als(EDITOR), "get", "artists/kutscher/pfade/p1",
+    { vorhanden: { medium: "m1" } }),
+  fall("Fremde liest keine Pfade der Bilder", "DENY", als(FREMDE), "get", "artists/kutscher/pfade/p1",
+    { vorhanden: { medium: "m1" } }),
+  fall("niemand schreibt Pfade der Bilder", "DENY", als(SUPER), "create", "artists/kutscher/pfade/p1",
+    { daten: { medium: "m1" } }),
   fall("niemand löscht den Seitenverlauf", "DENY", als(SUPER), "delete", "artists/kutscher/seitenverlauf/s1",
     { vorhanden: { seite: "kontakt", by: EDITOR, at: FRUEHER, vorher: null, nachher: null } }),
   // Werk anlegen (#179); die Werkgruppe objekte gibt es, andere nicht.

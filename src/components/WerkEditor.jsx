@@ -5,6 +5,7 @@ import {
 import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
 import { kuenstler, db } from "./firebaseClient.js";
+import BildListe from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
@@ -85,6 +86,7 @@ function WerkEditor({ nutzer }) {
   const [laedt, setLaedt] = useState();     // { name, anteil, von, bis } beim Hochladen (#180)
   const [bildFehler, setBildFehler] = useState(); // beim Knopf, nicht oben auf der Seite
   const [nichtAngehaengt, setNichtAngehaengt] = useState(); // { pfad, name }: im Bucket, aber nicht am Werk
+  const [bildHinweis, setBildHinweis] = useState(); // im Abschnitt Bilder, nicht beim Speichern-Knopf
   const [alles, setAlles] = useState(false);   // im Verlauf jeden Eintrag einzeln
   const einheitliche = useMemo(() => verlauf?.map(einheitlich), [verlauf]);
   const [neu, setNeu] = useState();   // { InvNr, Titel }, solange das Formular für ein neues Werk offen ist
@@ -104,7 +106,7 @@ function WerkEditor({ nutzer }) {
 
   async function oeffnen(w) {
     // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.
-    if (offen.current !== w.id) { setBildFehler(undefined); setNichtAngehaengt(undefined); }
+    if (offen.current !== w.id) { setBildFehler(undefined); setNichtAngehaengt(undefined); setBildHinweis(undefined); }
     offen.current = w.id;
     setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined); setVerlauf(undefined);
     const v = await getDocs(query(collection(kuenstler, "history"), where("work", "==", w.id)));
@@ -144,6 +146,7 @@ function WerkEditor({ nutzer }) {
    */
   async function schreiben(neu, extra, meldung, { pruefen = true } = {}) {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
+    if (meldung) setBildHinweis(undefined);   // nicht zwei grüne Meldungen; das Anhängen bringt keine mit
     const ref = doc(kuenstler, "works", werk.id);
     const eintrag = doc(collection(kuenstler, "history"));
     abgleich.eigene.current.add(eintrag.id);
@@ -233,14 +236,17 @@ function WerkEditor({ nutzer }) {
    * beim Öffnen: Wer gleichzeitig ein Bild anhängt, verliert es nicht. Steht der
    * Pfad schon dort (geschrieben, nur das Nachladen scheiterte), nicht noch einmal.
    */
-  const anhaengen = (pfad, namen) => schreiben(davor => ({ images: davor.images?.includes(pfad)
-    ? davor.images : [...(davor.images ?? []), pfad] }), {},
-    `Hochgeladen (${namen.join(", ")}). Auf der Website nach dem nächsten Veröffentlichen.`, { pruefen: false });
+  async function anhaengen(pfad, namen) {
+    const ok = await schreiben(davor => ({ images: davor.images?.includes(pfad)
+      ? davor.images : [...(davor.images ?? []), pfad] }), {}, undefined, { pruefen: false });
+    if (ok) setBildHinweis(`Hochgeladen und gespeichert (${namen.join(", ")}). Auf der Website nach dem nächsten Veröffentlichen.`);
+    return ok;
+  }
 
   async function bilderHochladen(dateien) {
     const abgelehnt = dateien.map(ablehnen).filter(Boolean);
     if (abgelehnt.length) { setBildFehler(abgelehnt.join(" ")); return; }
-    setBildFehler(undefined); setNichtAngehaengt(undefined); setHinweis(undefined);
+    setBildFehler(undefined); setNichtAngehaengt(undefined); setHinweis(undefined); setBildHinweis(undefined);
     const fertig = [];
     try {
       for (const [i, datei] of dateien.entries()) {
@@ -422,12 +428,25 @@ function WerkEditor({ nutzer }) {
               )}
             </label>
           ))}
-          <div className="space-y-1">
-            <span className="text-sm text-gray-600">Bilder</span>
+          <div className="flex gap-2 items-center">
+            <button className={hauptknopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
+              {speichert ? "Speichere…" : "Speichern"}
+            </button>
+            <button className={knopf} disabled={!geaendert.length || speichert}
+                    onClick={() => { setEntwurf({ ...werk.data }); abgleich.verworfen(); }}>Verwerfen</button>
+            {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
+            <button className={knopf + " ml-auto"} disabled={speichert || geaendert.length > 0}
+                    title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}
+                    onClick={() => ausblenden(!werk.data.ausgeblendet)}>
+              {werk.data.ausgeblendet ? "Einblenden" : "Ausblenden"}
+            </button>
+          </div>
+
+          {/* Eigener Abschnitt, nicht im Formular: Hochladen speichert gleich, ohne „Speichern“ (#259). */}
+          <section className="space-y-2 pt-4 mt-4 border-t" aria-labelledby="werk-bilder">
+            <h3 id="werk-bilder" className="text-lg">Bilder</h3>
             {werk.data.images?.length > 0 ? (
-              <ul className="text-sm list-disc pl-5">
-                {werk.data.images.map(p => <li key={p} className="break-all">{p.split("/").pop()}</li>)}
-              </ul>
+              <BildListe bilder={werk.data.images} />
             ) : <p className="text-sm text-gray-600">Noch keine Bilder.</p>}
             <div className="flex gap-2 items-center flex-wrap">
               {/* Ein Label als Knopf: Das Dateifeld selbst lässt sich nicht gestalten. */}
@@ -442,8 +461,9 @@ function WerkEditor({ nutzer }) {
                 <span className="text-sm" role="status">
                   Lade {laedt.bis > 1 && `${laedt.von}/${laedt.bis} `}„{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %
                 </span>
-              ) : <span className="text-sm text-gray-600">JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei.</span>}
+              ) : <span className="text-sm text-gray-600">JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei. Wird gleich gespeichert.</span>}
             </div>
+            {bildHinweis && <p className="text-sm text-green-700" role="status">{bildHinweis}</p>}
             {bildFehler && <p className="text-sm text-red-700" role="alert">{bildFehler}</p>}
             {nichtAngehaengt && (
               <p className="text-sm text-red-700" role="alert">
@@ -454,20 +474,7 @@ function WerkEditor({ nutzer }) {
                   Nochmal anhängen</button>
               </p>
             )}
-          </div>
-          <div className="flex gap-2 items-center">
-            <button className={hauptknopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
-              {speichert ? "Speichere…" : "Speichern"}
-            </button>
-            <button className={knopf} disabled={!geaendert.length || speichert}
-                    onClick={() => { setEntwurf({ ...werk.data }); abgleich.verworfen(); }}>Verwerfen</button>
-            {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
-            <button className={knopf + " ml-auto"} disabled={speichert || geaendert.length > 0}
-                    title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}
-                    onClick={() => ausblenden(!werk.data.ausgeblendet)}>
-              {werk.data.ausgeblendet ? "Einblenden" : "Ausblenden"}
-            </button>
-          </div>
+          </section>
 
           <div id="werk-verlauf" className="flex gap-2 items-baseline pt-4 scroll-mt-4">
             <h3 className="text-lg flex-1">Verlauf</h3>

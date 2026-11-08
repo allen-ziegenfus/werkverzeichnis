@@ -293,6 +293,10 @@ service cloud.firestore {
     match /artists/{kuenstler}/medien/{m} {
       allow read: if darf(kuenstler, "lesen");
     }
+    // Objektpfad -> medien-Eintrag, für die Vorschau in der Verwaltung (#259).
+    match /artists/{kuenstler}/pfade/{p} {
+      allow read: if darf(kuenstler, "lesen");
+    }
 
     // Veröffentlichen: Wer darf, fordert einen neuen Build der Seite an; die
     // Funktion `veroeffentlichen` (gcf/publish.js) startet Cloud Build und trägt
