@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
+  collection, deleteField, doc, getDoc, getDocFromServer, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
@@ -173,7 +173,8 @@ function WerkEditor({ nutzer }) {
           lastChange: eintrag.id,
         });
       });
-      const frisch = await getDoc(ref);
+      // Vom Server: Mit dem Listener in useAbgleich käme sonst der Stand vor dieser Transaktion (#270).
+      const frisch = await getDocFromServer(ref);
       const w = { id: werk.id, data: frisch.data() };
       client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
@@ -217,7 +218,7 @@ function WerkEditor({ nutzer }) {
           changes: Object.fromEntries(Object.entries(felder).map(([f, wert]) => [f, { from: null, to: wert }])) });
         tx.set(ref, { ...felder, werkgruppe: gruppe, updatedAt: serverTimestamp(), lastChange: eintrag.id });
       });
-      const w = { id, data: (await getDoc(ref)).data() };
+      const w = { id, data: (await getDocFromServer(ref)).data() };
       client.invalidateQueries({ queryKey: SCHLUESSEL.werke(gruppe) });
       setNeu(undefined);
       const hier = aktuelleGruppe.current === startGruppe && offen.current === startOffen;

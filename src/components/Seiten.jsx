@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocFromServer, getDocs, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { useQuery } from "@tanstack/react-query";
@@ -204,7 +204,8 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
       });
       if (istNeu) return onSchliessen();
       client.invalidateQueries({ queryKey: SCHLUESSEL.seiten });
-      const frisch = (await getDoc(ref)).data();
+      // Vom Server: Mit dem Listener in useAbgleich käme sonst der Stand vor dieser Transaktion (#270).
+      const frisch = (await getDocFromServer(ref)).data();
       setGeladenAm(frisch.updatedAt);
       setGespeichert(neu);
       // Das Formular zeigt danach die neue Fassung, außer jemand hat inzwischen
