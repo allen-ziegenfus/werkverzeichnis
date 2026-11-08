@@ -129,9 +129,11 @@ function WerkEditor({ nutzer }) {
     },
     setzeFeld: (f, v) => setEntwurf(e => ({ ...e, [f]: v })),
     wer: async l => (await getDoc(doc(collection(kuenstler, "history"), l))).get("by"),
+    gesperrt: !!laedt,
   });
   // Ein laufender Upload zählt mit: Tab zu bricht ihn ab, ein anderes Werk nähme die Ansicht weg (#180).
-  useUngespeichert(geaendert.length > 0 || !!laedt || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
+  // Eine nicht angehängte Datei auch: Weg damit läge sie verwaist im Bucket.
+  useUngespeichert(geaendert.length > 0 || !!laedt || !!(werk && nichtAngehaengt) || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
 
   /**
    * `neu` kann auch eine Funktion des Stands auf dem Server sein (Bilder anhängen, #180).
@@ -427,11 +429,11 @@ function WerkEditor({ nutzer }) {
             ) : <p className="text-sm text-gray-600">Noch keine Bilder.</p>}
             <div className="flex gap-2 items-center flex-wrap">
               {/* Ein Label als Knopf: Das Dateifeld selbst lässt sich nicht gestalten. */}
-              <label className={knopf + (laedt || speichert || geaendert.length ? " opacity-40 cursor-not-allowed" : " cursor-pointer")}
-                     title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}>
+              <label className={knopf + (laedt || speichert || geaendert.length || nichtAngehaengt ? " opacity-40 cursor-not-allowed" : " cursor-pointer")}
+                     title={nichtAngehaengt ? "Erst die hochgeladene Datei anhängen." : geaendert.length ? "Erst speichern oder verwerfen." : undefined}>
                 Bilder hochladen…
                 <input type="file" className="sr-only" accept={ANNEHMEN} multiple
-                       disabled={!!laedt || speichert || geaendert.length > 0}
+                       disabled={!!laedt || speichert || geaendert.length > 0 || !!nichtAngehaengt}
                        onChange={e => { const d = [...e.target.files]; e.target.value = ""; if (d.length) bilderHochladen(d); }} />
               </label>
               {laedt ? (
@@ -475,7 +477,7 @@ function WerkEditor({ nutzer }) {
           {verlauf?.length > 0 && !alles && (
             <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={werkFeld}
                           lang={f => LANG.includes(f)} bearbeitbar zuruecknehmen={zuruecknehmen}
-                          gesperrt={speichert ? "Speichert…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
+                          gesperrt={speichert ? "Speichert…" : laedt ? "Lädt hoch…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
           )}
           {alles && <ul className="text-sm space-y-2">
             {(verlauf ?? []).map(v => {
