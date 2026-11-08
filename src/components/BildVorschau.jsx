@@ -92,10 +92,10 @@ export function Vorschaubild({ pfad, ersatz }) {
     // länger: null ist auch ein Original, das nie verarbeitet wurde.
     refetchInterval: q => q.state.data === null && q.state.dataUpdateCount < 24 ? 5000 : false,
   });
-  const [kaputt, setKaputt] = useState(false);
+  const [kaputt, setKaputt] = useState();   // die Adresse, die nicht lud: ein kaputter Ersatz sperrt nicht das fertige Bild
   // ersatz: das veröffentlichte Bild, solange es keinen Eintrag gibt.
   const src = medium?.art === "bild" ? klein(medium) : medium === null ? ersatz : undefined;
-  if (!src || kaputt) return <div className="w-12 h-12 bg-gray-100 rounded" />;
+  if (!src || kaputt === src) return <div className="w-12 h-12 bg-gray-100 rounded" />;
   return <img src={src} alt="" loading="lazy" className="w-12 h-12 object-cover rounded"
-              onError={() => setKaputt(true)} />;
+              onError={() => setKaputt(src)} />;
 }
