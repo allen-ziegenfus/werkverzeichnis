@@ -8,8 +8,10 @@ export async function ausfuehren({ db, kuenstlerDok, bucket, log }) { … return
 
 exportiert. `gcf/migrieren.js` führt nach jedem Backend-Deploy die noch offenen
 Schritte der Reihe nach aus; der Stand steht je Seite in
-`artists/<k>/intern/schema`. Ein Schritt muss wiederholbar sein: Scheitert er,
-beginnt ihn der nächste Deploy von vorn. Er läuft nach dem Deploy der Funktionen
+`artists/<k>/intern/schema`. Ein Schritt muss wiederholbar sein, auch zweimal gleichzeitig (Werte setzen
+statt Zähler erhöhen): Scheitert er, beginnt ihn der nächste Deploy von vorn.
+Keine langen synchronen Schleifen; große Mengen in Stapeln mit `await`, damit
+der Lauf seine Sperre erneuern kann. Er läuft nach dem Deploy der Funktionen
 und Regeln desselben Merges, darf sich also auf sie verlassen.
 
 Seite, Regeln und Funktionen gehen nach dem Merge in beliebiger Reihenfolge
