@@ -6,7 +6,7 @@ import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielS
 import { useAbgleich } from "./Abgleich.jsx";
 import { kuenstler, db } from "./firebaseClient.js";
 import { vomServer } from "./firestoreLite.js";
-import BildListe from "./BildVorschau.jsx";
+import BildListe, { lokalMerken } from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
@@ -290,6 +290,7 @@ function WerkEditor({ nutzer }) {
         setLaedt({ name: datei.name, anteil: 0, von: i + 1, bis: dateien.length });
         const pfad = await hochladen({ werk: werk.id, datei, von: nutzer.email,
           fortschritt: anteil => setLaedt(l => l && { ...l, anteil }) });
+        lokalMerken(pfad, datei);
         // Scheitert das Anhängen, liegt die Datei schon im Bucket: nur das Anhängen wiederholen.
         if (!await anhaengen(pfad, [...fertig, datei.name])) {
           setNichtAngehaengt({ pfad, name: datei.name, fertig });
