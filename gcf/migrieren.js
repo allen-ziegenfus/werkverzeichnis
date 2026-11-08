@@ -20,8 +20,10 @@ import { getStorage } from "firebase-admin/storage";
 const { KUENSTLER, BUCKET, FIRESTORE_DATABASE = "werkverzeichnis" } = process.env;
 if (!KUENSTLER || !BUCKET) throw new Error("KUENSTLER=<k> BUCKET=<bucket> node migrieren.js");
 
-/** Wie lange ein Lauf die anderen sperrt; danach gilt er als abgebrochen. */
+/** Wie lange ein Lauf die anderen sperrt (so lang wie der Build höchstens); danach gilt er als abgebrochen. */
 const SPERRE = 30 * 60 * 1000;
+/** Wie lange ein Lauf auf einen anderen wartet. */
+const WARTEN = 25 * 60 * 1000;
 
 initializeApp();
 const db = getFirestore(FIRESTORE_DATABASE);
@@ -36,26 +38,40 @@ const schritte = (await readdir(ordner).catch(() => []))
   .map(([datei, nr, name]) => ({ datei, nr: Number(nr), name }))
   .sort((a, b) => a.nr - b.nr);
 
-// Zwei Deploys kurz hintereinander laufen sonst gleichzeitig.
+// Zwei Deploys kurz hintereinander laufen sonst gleichzeitig. Auf den anderen
+// warten statt aufgeben: Er kennt vielleicht die neuen Schritte nicht.
 const ich = `${process.env.BUILD_ID ?? "hand"}-${Date.now()}`;
-const version = await db.runTransaction(async tx => {
+const sperren = () => db.runTransaction(async tx => {
   const d = (await tx.get(stand)).data() ?? {};
   if (d.sperre && d.sperre.bis.toMillis() > Date.now()) return null;
   tx.set(stand, { version: d.version ?? 0, schritte: d.schritte ?? [],
-    sperre: { von: ich, bis: Timestamp.fromMillis(Date.now() + SPERRE) } });
-  return d.version ?? 0;
+    sperre: { von: ich, bis: Timestamp.fromMillis(Date.now() + SPERRE) } }, { merge: true });
+  return { version: d.version ?? 0, erledigt: d.schritte ?? [] };
 });
-if (version === null) {
-  console.log("Migrationen: ein anderer Lauf ist dabei, übersprungen.");
-  process.exit(0);
+let gesperrt;
+for (const bis = Date.now() + WARTEN; !(gesperrt = await sperren());) {
+  if (Date.now() > bis) throw new Error("Ein anderer Lauf sperrt seit über 25 min; Build später wiederholen.");
+  console.log("Migrationen: ein anderer Lauf ist dabei, warte…");
+  await new Promise(r => setTimeout(r, 15_000));
 }
+const { version, erledigt } = gesperrt;
 
 let fertig = version;
 try {
+  // Erst alles prüfen, dann ausführen: kein halber Lauf. Zwei Branches mit
+  // derselben Nummer fallen hier auf, statt dass einer still übersprungen wird.
+  const doppelt = schritte.find((s, i) => schritte[i + 1]?.nr === s.nr);
+  if (doppelt) throw new Error(`Schritt ${doppelt.nr} gibt es zweimal; umnummerieren.`);
+  for (const s of schritte.filter(s => s.nr <= version)) {
+    const war = erledigt.find(e => e.nr === s.nr);
+    if (war && war.name !== s.name) throw new Error(`${s.datei} passt nicht zum Stand (${s.nr} war ${war.name}); umnummerieren.`);
+  }
   const offen = schritte.filter(s => s.nr > version);
+  offen.forEach((s, i) => {
+    if (s.nr !== version + 1 + i) throw new Error(`Schritt ${version + 1 + i} fehlt (nächster ist ${s.datei}).`);
+  });
   console.log(`Migrationen für ${KUENSTLER}: Stand ${version}, ${offen.length} offen.`);
   for (const s of offen) {
-    if (s.nr !== fertig + 1) throw new Error(`Schritt ${fertig + 1} fehlt (nächster ist ${s.datei}).`);
     const start = Date.now();
     console.log(`→ ${s.datei}`);
     const { ausfuehren } = await import(new URL(s.datei, ordner));

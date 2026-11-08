@@ -17,3 +17,10 @@ live. Ein Schritt darf darum nichts voraussetzen, was erst die neue Seite
 schreibt, und alter Code muss mit den migrierten Daten weiterlaufen.
 
 Von Hand nur durch die Eigentümer:in, siehe Kopf von `gcf/migrieren.js`.
+
+Scheitert ein Schritt, ist der Backend-Build rot (Regeln und Funktionen sind
+dann schon deployt). Nach dem Beheben: neuen Schritt oder Fix mergen, oder den
+Build in Cloud Build wiederholen.
+
+Nach einem Revert steht der Stand weiter vorn als die Dateien; der Runner tut
+dann nichts. Ein Schritt darf darum auch alten Code nicht kaputt machen.
