@@ -495,8 +495,8 @@ function WerkEditor({ nutzer }) {
                   {verlauf.some(x => x.rueckgaengig === v.id) && <span className="text-gray-600"> · rückgängig gemacht</span>}
                   {" "}
                   <button className="underline disabled:no-underline disabled:opacity-40"
-                          disabled={speichert || geaendert.length > 0 || !kannZurueck}
-                          title={geaendert.length ? "Erst speichern oder verwerfen."
+                          disabled={speichert || !!laedt || geaendert.length > 0 || !kannZurueck}
+                          title={laedt ? "Lädt hoch…" : geaendert.length ? "Erst speichern oder verwerfen."
                             : !kannZurueck ? "Alle Felder wurden inzwischen erneut geändert." : undefined}
                           onClick={() => rueckgaengig(v)}>
                     Rückgängig
