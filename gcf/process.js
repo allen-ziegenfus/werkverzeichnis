@@ -93,7 +93,7 @@ export async function originalVerarbeiten({ datei, md5, kuenstlerDok, r2, copyri
     ausgaben = [];
   }
   // Fehler beim Hochladen dagegen werden geworfen, damit der Trigger es erneut versucht.
-  for (const a of ausgaben) await hochladen(r2, a.schluessel, a.inhalt, a.typ);
+  await Promise.all(ausgaben.map(a => hochladen(r2, a.schluessel, a.inhalt, a.typ)));
 
   daten = { ...daten, original: name, erstellt: new Date() };
   await eintrag.set(daten);
@@ -161,16 +161,15 @@ async function bildRendern(bytes, basis, copyright) {
   // Alle anderen Metadaten des Originals (Kamera, GPS, Verlauf) fallen weg.
   const exif = copyright ? { IFD0: { Copyright: copyright } } : undefined;
 
-  const ausgaben = [];
-  for (const b of breiten) {
-    for (const format of formate) {
-      let bild = sharp(aufrecht.data, { animated: animiert }).resize({ width: b, withoutEnlargement: true })
-        .toColorspace("srgb");
-      if (exif) bild = bild.withExif(exif);
-      bild = format === "avif" ? bild.avif({ quality: 50, effort: 4 }) : bild.webp({ quality: 80 });
-      ausgaben.push({ schluessel: `${basis}-${b}.${format}`, inhalt: await bild.toBuffer(), typ: `image/${format}` });
-    }
-  }
+  // Alle Fassungen gleichzeitig: Die Funktion hat mehrere vCPUs (index.js), und
+  // nacheinander brauchte ein Foto 35–45 s, davon das meiste AVIF in 2000 px (#295).
+  const ausgaben = await Promise.all(breiten.flatMap(b => formate.map(async format => {
+    let bild = sharp(aufrecht.data, { animated: animiert }).resize({ width: b, withoutEnlargement: true })
+      .toColorspace("srgb");
+    if (exif) bild = bild.withExif(exif);
+    bild = format === "avif" ? bild.avif({ quality: 50, effort: 4 }) : bild.webp({ quality: 80 });
+    return { schluessel: `${basis}-${b}.${format}`, inhalt: await bild.toBuffer(), typ: `image/${format}` };
+  })));
 
   // Eine winzige unscharfe Vorschau, die die Seite zeigt, bis das richtige Bild geladen ist.
   const vorschau = await sharp(aufrecht.data).resize({ width: 16 }).webp({ quality: 40 }).toBuffer();
