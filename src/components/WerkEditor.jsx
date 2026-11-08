@@ -5,6 +5,7 @@ import {
 import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
 import { kuenstler, db } from "./firebaseClient.js";
+import BildListe from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
@@ -235,7 +236,7 @@ function WerkEditor({ nutzer }) {
    */
   const anhaengen = (pfad, namen) => schreiben(davor => ({ images: davor.images?.includes(pfad)
     ? davor.images : [...(davor.images ?? []), pfad] }), {},
-    `Hochgeladen (${namen.join(", ")}). Auf der Website nach dem nächsten Veröffentlichen.`, { pruefen: false });
+    `Hochgeladen und am Werk gespeichert (${namen.join(", ")}); Speichern ist dafür nicht nötig. Auf der Website nach dem nächsten Veröffentlichen.`, { pruefen: false });
 
   async function bilderHochladen(dateien) {
     const abgelehnt = dateien.map(ablehnen).filter(Boolean);
@@ -425,9 +426,7 @@ function WerkEditor({ nutzer }) {
           <div className="space-y-1">
             <span className="text-sm text-gray-600">Bilder</span>
             {werk.data.images?.length > 0 ? (
-              <ul className="text-sm list-disc pl-5">
-                {werk.data.images.map(p => <li key={p} className="break-all">{p.split("/").pop()}</li>)}
-              </ul>
+              <BildListe bilder={werk.data.images} />
             ) : <p className="text-sm text-gray-600">Noch keine Bilder.</p>}
             <div className="flex gap-2 items-center flex-wrap">
               {/* Ein Label als Knopf: Das Dateifeld selbst lässt sich nicht gestalten. */}
@@ -442,7 +441,7 @@ function WerkEditor({ nutzer }) {
                 <span className="text-sm" role="status">
                   Lade {laedt.bis > 1 && `${laedt.von}/${laedt.bis} `}„{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %
                 </span>
-              ) : <span className="text-sm text-gray-600">JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei.</span>}
+              ) : <span className="text-sm text-gray-600">JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei. Wird gleich gespeichert.</span>}
             </div>
             {bildFehler && <p className="text-sm text-red-700" role="alert">{bildFehler}</p>}
             {nichtAngehaengt && (
