@@ -308,6 +308,28 @@ service cloud.firestore {
         && request.resource.data.status == "angefordert";
     }
 
+    // Bilder hochladen (#180): Wer Werke bearbeiten darf, fragt für ein
+    // vorhandenes Werk eine Upload-URL an; die Funktion `hochladen`
+    // (gcf/upload.js) prüft noch einmal und schreibt Status, URL und Pfad
+    // zurück. Lesen nur die eigene Anfrage: Die URL ist ein Schreibrecht.
+    // Typen und Größe wie TYPEN und HOECHSTENS dort.
+    match /artists/{kuenstler}/uploads/{u} {
+      allow get: if darf(kuenstler, "werke.bearbeiten") && resource.data.von == emailAdresse();
+      allow create: if darf(kuenstler, "werke.bearbeiten")
+        && request.resource.data.keys().hasOnly(["von", "angefordert", "status", "werk", "name", "typ", "groesse"])
+        && request.resource.data.von == emailAdresse()
+        && request.resource.data.angefordert == request.time
+        && request.resource.data.status == "angefordert"
+        && request.resource.data.werk is string
+        && exists(/databases/$(database)/documents/artists/$(kuenstler)/works/$(request.resource.data.werk))
+        && request.resource.data.name is string
+        && request.resource.data.name.matches('[a-z0-9][a-z0-9._-]{0,99}')
+        && request.resource.data.typ in ["image/jpeg", "image/png", "image/webp", "image/gif", "image/tiff", "application/pdf"]
+        && request.resource.data.groesse is int
+        && request.resource.data.groesse > 0
+        && request.resource.data.groesse <= 52428800;
+    }
+
     // Änderungsprotokoll, nur anfügen: wer, wann, welches Werk. Nie bearbeitet oder gelöscht.
     match /artists/{kuenstler}/history/{eintrag} {
       allow read: if darf(kuenstler, "lesen");

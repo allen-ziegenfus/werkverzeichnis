@@ -358,6 +358,28 @@ const faelle = [
     { daten: { ...gruppe, lastChange: 5 }, vorhanden: gruppe }),
   fall("niemand ändert den Werkgruppenverlauf", "DENY", als(SUPER), "update", "artists/kutscher/werkgruppenverlauf/g1",
     { daten: werkgruppenVerlauf(null, null), vorhanden: werkgruppenVerlauf(null, null) }),
+  // Bilder hochladen (#180).
+  ...(() => {
+    const werkDa = [{ function: "exists", args: [{ exactValue: `${wurzel}/artists/kutscher/works/ob1` }], result: { value: true } }];
+    const anfrage = { von: EDITOR, angefordert: JETZT, status: "angefordert", werk: "ob1", name: "scan.jpg", typ: "image/jpeg", groesse: 1000 };
+    const pfad = "artists/kutscher/uploads/u1";
+    return [
+      fall("Upload anfragen", "ALLOW", als(EDITOR), "create", pfad, { daten: anfrage, mocks: werkDa }),
+      fall("Upload ohne Werk", "DENY", als(EDITOR), "create", pfad, { daten: anfrage }),
+      fall("Upload im Namen einer anderen", "DENY", als(ADMIN), "create", pfad, { daten: anfrage, mocks: werkDa }),
+      fall("Upload mit eigenem Status", "DENY", als(EDITOR), "create", pfad, { daten: { ...anfrage, status: "bereit" }, mocks: werkDa }),
+      fall("Upload mit eigener URL", "DENY", als(EDITOR), "create", pfad, { daten: { ...anfrage, url: "https://x" }, mocks: werkDa }),
+      fall("Upload zu groß", "DENY", als(EDITOR), "create", pfad, { daten: { ...anfrage, groesse: 52428801 }, mocks: werkDa }),
+      fall("Upload Größe keine Zahl", "DENY", als(EDITOR), "create", pfad, { daten: { ...anfrage, groesse: "1000" }, mocks: werkDa }),
+      fall("Upload falscher Typ", "DENY", als(EDITOR), "create", pfad, { daten: { ...anfrage, typ: "text/html" }, mocks: werkDa }),
+      fall("Upload Name mit Pfad", "DENY", als(EDITOR), "create", pfad, { daten: { ...anfrage, name: "../x.jpg" }, mocks: werkDa }),
+      fall("Upload von Fremden", "DENY", als(FREMDE), "create", pfad, { daten: { ...anfrage, von: FREMDE }, mocks: werkDa }),
+      fall("eigene Upload-Anfrage lesen", "ALLOW", als(EDITOR), "get", pfad, { vorhanden: { ...anfrage, status: "bereit", url: "https://x" } }),
+      fall("fremde Upload-Anfrage lesen", "DENY", als(ADMIN), "get", pfad, { vorhanden: { ...anfrage, status: "bereit", url: "https://x" } }),
+      fall("Upload-Anfrage ändern", "DENY", als(EDITOR), "update", pfad,
+        { daten: { ...anfrage, status: "bereit" }, vorhanden: anfrage }),
+    ];
+  })(),
 ];
 
 const client = await new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] }).getClient();

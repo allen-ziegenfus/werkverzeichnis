@@ -108,6 +108,13 @@ const probleme: string[] = [];
 // Was auffällt, aber den Build nicht aufhält (auch nicht mit STRICT, #182).
 const hinweise: string[] = [];
 
+/** Der Freitext „Werkgruppe“ als Art (#189), außer er wiederholt nur den Namen der Werkgruppe. */
+function art(text: string | undefined, gruppe: { titel: string; kurztitel?: string }) {
+  const t = text?.trim();
+  const klein = (s?: string) => s?.trim().toLocaleLowerCase("de");
+  return !t || [gruppe.titel, gruppe.kurztitel].some(n => klein(n) === klein(t)) ? undefined : t;
+}
+
 async function bauen() {
   const [katalog, md5s] = TESTDATEN ? testdaten(TESTDATEN)
     : await Promise.all([firestoreKatalog(PROJEKT, DATENBANK, KUENSTLER), fingerabdruecke()]);
@@ -164,6 +171,11 @@ async function bauen() {
         Slug: werk.slug,
         WerkgruppeSlug: gruppe.slug,
         ...Object.fromEntries(WERK_FELDER.filter(f => f !== "InvNr").map(f => [f, werk[f]])),
+        // Der Name der Werkgruppe, zu der das Werk gehört (#189). Der alte Freitext
+        // „Werkgruppe“ ist oft eine Gattung (Luminogramm, Polaroid …); er steht als
+        // „Art“ da, wenn er nicht nur den Namen wiederholt.
+        Werkgruppe: gruppe.titel,
+        Art: art(werk.Werkgruppe, gruppe),
         Bilder: bilder,
         Thumbnail: vorschaubild(bilder[0]),
       });
