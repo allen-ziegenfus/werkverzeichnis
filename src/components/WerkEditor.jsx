@@ -88,10 +88,17 @@ function WerkEditor({ nutzer }) {
   const [nichtAngehaengt, setNichtAngehaengt] = useState(); // { pfad, name }: im Bucket, aber nicht am Werk
   const [bildHinweis, setBildHinweis] = useState(); // im Abschnitt Bilder, nicht beim Speichern-Knopf
   const [ziehen, setZiehen] = useState(false);       // Dateien werden über den Abschnitt Bilder gezogen (#270)
+  const zieht = useRef(0);                           // dragenter minus dragleave: relatedTarget fehlt in manchen Browsern
   // Daneben fallen gelassene Dateien öffnete der Browser selbst und verließe die Verwaltung.
+  // Der Abschnitt Bilder hat dann schon preventDefault gerufen; sonst „hier nicht ablegen“.
   useEffect(() => {
     if (!werk) return;
-    const nicht = e => { if ([...(e.dataTransfer?.types ?? [])].includes("Files")) e.preventDefault(); };
+    const nicht = e => {
+      if (e.type === "drop") { zieht.current = 0; setZiehen(false); }
+      if (e.defaultPrevented || ![...(e.dataTransfer?.types ?? [])].includes("Files")) return;
+      e.preventDefault();
+      if (e.type === "dragover") e.dataTransfer.dropEffect = "none";
+    };
     addEventListener("dragover", nicht); addEventListener("drop", nicht);
     return () => { removeEventListener("dragover", nicht); removeEventListener("drop", nicht); };
   }, [!!werk]);
@@ -455,19 +462,24 @@ function WerkEditor({ nutzer }) {
           {/* Dateien lassen sich auch hierher ziehen, unter denselben Bedingungen wie der Knopf (#270). */}
           <section className={"space-y-2 pt-4 mt-4 border-t rounded" + (ziehen ? " outline-dashed outline-2 outline-blue-500 bg-blue-50" : "")}
                    aria-labelledby="werk-bilder"
+                   onDragEnter={e => { if ([...e.dataTransfer.types].includes("Files")) zieht.current++; }}
                    onDragOver={e => {
                      if (![...e.dataTransfer.types].includes("Files")) return;
                      e.preventDefault();
-                     const gesperrt = !!laedt || speichert || geaendert.length > 0 || !!nichtAngehaengt;
-                     e.dataTransfer.dropEffect = gesperrt ? "none" : "copy";
-                     setZiehen(!gesperrt);
+                     // Gesperrt: Der Browser lässt dann nicht ablegen, darum den Grund schon jetzt zeigen.
+                     const grund = laedt ? "Lädt gerade hoch; weitere Dateien danach."
+                       : nichtAngehaengt ? "Erst die hochgeladene Datei anhängen."
+                       : geaendert.length ? "Erst speichern oder verwerfen, dann Bilder hochladen."
+                       : speichert ? "Speichert gerade." : undefined;
+                     e.dataTransfer.dropEffect = grund ? "none" : "copy";
+                     if (grund) setBildFehler(grund);
+                     setZiehen(!grund);
                    }}
-                   onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setZiehen(false); }}
+                   onDragLeave={() => { if (--zieht.current <= 0) { zieht.current = 0; setZiehen(false); } }}
                    onDrop={e => {
                      if (![...e.dataTransfer.types].includes("Files")) return;
-                     e.preventDefault(); setZiehen(false);
-                     if (laedt || speichert || nichtAngehaengt) return;
-                     if (geaendert.length) { setBildFehler("Erst speichern oder verwerfen, dann Bilder hochladen."); return; }
+                     e.preventDefault(); zieht.current = 0; setZiehen(false);
+                     if (laedt || speichert || nichtAngehaengt || geaendert.length) return;
                      const d = [...e.dataTransfer.files];
                      if (d.length) bilderHochladen(d);
                    }}>
