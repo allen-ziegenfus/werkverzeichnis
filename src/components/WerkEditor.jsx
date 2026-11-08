@@ -230,9 +230,11 @@ function WerkEditor({ nutzer }) {
   /**
    * Bilder hochladen (#180), nacheinander; jedes kommt gleich ans Werk, mit
    * Verlaufseintrag. Hängt an, was auf dem Server steht, nicht an den Stand
-   * beim Öffnen: Wer gleichzeitig ein Bild anhängt, verliert es nicht.
+   * beim Öffnen: Wer gleichzeitig ein Bild anhängt, verliert es nicht. Steht der
+   * Pfad schon dort (geschrieben, nur das Nachladen scheiterte), nicht noch einmal.
    */
-  const anhaengen = (pfad, namen) => schreiben(davor => ({ images: [...(davor.images ?? []), pfad] }), {},
+  const anhaengen = (pfad, namen) => schreiben(davor => ({ images: davor.images?.includes(pfad)
+    ? davor.images : [...(davor.images ?? []), pfad] }), {},
     `Hochgeladen (${namen.join(", ")}). Auf der Website nach dem nächsten Veröffentlichen.`, { pruefen: false });
 
   async function bilderHochladen(dateien) {
