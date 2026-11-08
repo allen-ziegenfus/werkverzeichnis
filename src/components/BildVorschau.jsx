@@ -40,26 +40,34 @@ function useMediumLive(pfad) {
   const [id, setId] = useState();
   const [medium, setMedium] = useState();
   useEffect(() => {
-    let gefunden = false;
+    let gefunden = false, aus = false, takt;
     const ab = onSnapshot(pfadDok(pfad), d => {
       if (d.exists()) { gefunden = true; setId(d.get("medium")); }
-      else setMedium(null);
+      else setMedium(m => m?.id ? m : null);
     }, e => setMedium({ lesefehler: e.message }));
+    // Nacheinander, nicht im festen Takt: bei langsamem Netz keine überlappenden Abfragen.
     const start = Date.now();
-    const takt = setInterval(async () => {
-      if (gefunden || Date.now() - start > HOECHSTENS) return clearInterval(takt);
+    const nachsehen = async () => {
+      if (aus || gefunden || Date.now() - start > HOECHSTENS) return;
       const d = await getDocFromServer(pfadDok(pfad)).catch(() => null);
-      if (d?.exists()) { gefunden = true; setId(d.get("medium")); clearInterval(takt); }
-    }, NACHSEHEN);
-    return () => { ab(); clearInterval(takt); };
+      if (aus) return;
+      if (d?.exists()) { gefunden = true; setId(d.get("medium")); }
+      else takt = setTimeout(nachsehen, NACHSEHEN);
+    };
+    takt = setTimeout(nachsehen, NACHSEHEN);
+    return () => { aus = true; ab(); clearTimeout(takt); };
   }, [pfad]);
   useEffect(() => {
     if (!id) return;
     const ref = doc(kuenstler, "medien", id);
     const zeigen = d => d.exists() && setMedium({ id, ...d.data() });
     // Einmal vom Server, falls der Listener auch hier hinterherhinkt (#274).
-    getDocFromServer(ref).then(zeigen, () => {});
-    return onSnapshot(ref, d => d.exists() ? zeigen(d) : setMedium(null), e => setMedium({ lesefehler: e.message }));
+    let aus = false;
+    getDocFromServer(ref).then(d => aus || zeigen(d), () => {});
+    // medien wird nie gelöscht: Ein schon gezeigter Eintrag bleibt, auch wenn der Listener noch hinterherhinkt.
+    const ab = onSnapshot(ref, d => d.exists() ? zeigen(d) : setMedium(m => m?.id ? m : null),
+      e => setMedium({ lesefehler: e.message }));
+    return () => { aus = true; ab(); };
   }, [id]);
   return medium;
 }
