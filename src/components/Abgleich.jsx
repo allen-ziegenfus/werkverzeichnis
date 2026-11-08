@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { getDoc, getDocFromServer, onSnapshot } from "firebase/firestore";
+import { getDoc, onSnapshot } from "firebase/firestore";
 import { KUENSTLER } from "./firebaseClient.js";
+import { vomServer } from "./firestoreLite.js";
 import { ENTWURF } from "./ungespeichert.js";
 import { Unterschied } from "./VerlaufListe.jsx";
 import { wann } from "./zeit.js";
@@ -147,8 +148,8 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
      * Eine Rücknahme schreibt nicht den Entwurf; dann nur den neuen Stand übernehmen.
      */
     async nachKonflikt({ ruecknahme = false } = {}) {
-      // Vom Server: Der Listener oben hinkt dem abgelehnten Speichern evtl. hinterher (#270).
-      const snap = await getDocFromServer(ref).catch(() => getDoc(ref));
+      // Vom Server, mit Lite: Der Listener oben hinkt dem abgelehnten Speichern evtl. hinterher (#270, #287).
+      const snap = await vomServer(ref).catch(() => getDoc(ref));
       // Inzwischen ein anderes Dokument geöffnet (Werk-Editor): nichts übernehmen.
       if (aktuell.current.schluessel !== schluessel) return;
       if (!snap.exists()) { setFremd({ geloescht: true }); return; }
