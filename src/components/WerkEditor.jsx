@@ -103,8 +103,8 @@ function WerkEditor({ nutzer }) {
     [werke, werkeAbfrage.isFetching]);
 
   async function oeffnen(w) {
-    // Ein anderes Werk: der Upload-Fehler des vorigen gehört nicht dazu.
-    if (offen.current !== w.id) setBildFehler(undefined);
+    // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.
+    if (offen.current !== w.id) { setBildFehler(undefined); setNichtAngehaengt(undefined); }
     offen.current = w.id;
     setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined); setVerlauf(undefined);
     const v = await getDocs(query(collection(kuenstler, "history"), where("work", "==", w.id)));
@@ -129,9 +129,11 @@ function WerkEditor({ nutzer }) {
     },
     setzeFeld: (f, v) => setEntwurf(e => ({ ...e, [f]: v })),
     wer: async l => (await getDoc(doc(collection(kuenstler, "history"), l))).get("by"),
+    gesperrt: !!laedt,
   });
   // Ein laufender Upload zählt mit: Tab zu bricht ihn ab, ein anderes Werk nähme die Ansicht weg (#180).
-  useUngespeichert(geaendert.length > 0 || !!laedt || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
+  // Eine nicht angehängte Datei auch: Weg damit läge sie verwaist im Bucket.
+  useUngespeichert(geaendert.length > 0 || !!laedt || !!(werk && nichtAngehaengt) || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
 
   /**
    * `neu` kann auch eine Funktion des Stands auf dem Server sein (Bilder anhängen, #180).
@@ -403,16 +405,17 @@ function WerkEditor({ nutzer }) {
           {werk.data.ausgeblendet && (
             <p className="border border-gray-400 bg-gray-100 rounded p-2 text-sm">Ausgeblendet: steht nicht auf der Website.</p>
           )}
+          {/* Während des Hochladens gesperrt: Das Anhängen lädt das Werk neu und nähme Eingaben mit (#180). */}
           {FELDER.map(f => (
             <label key={f} className="block">
               <span className="text-sm text-gray-600">{werkFeld(f)}</span>
               {f === "InvNr" ? (
                 <input className="border p-1 w-full bg-gray-100" value={entwurf[f] ?? ""} readOnly />
               ) : LANG.includes(f) || String(entwurf[f] ?? "").length > 80 ? (
-                <textarea className="border p-1 w-full" rows={3} value={entwurf[f] ?? ""}
+                <textarea className="border p-1 w-full disabled:bg-gray-100" rows={3} value={entwurf[f] ?? ""} disabled={!!laedt}
                           onChange={e => setEntwurf({ ...entwurf, [f]: e.target.value })} />
               ) : (
-                <input className="border p-1 w-full" value={entwurf[f] ?? ""}
+                <input className="border p-1 w-full disabled:bg-gray-100" value={entwurf[f] ?? ""} disabled={!!laedt}
                        onChange={e => setEntwurf({ ...entwurf, [f]: e.target.value })} />
               )}
             </label>
@@ -426,11 +429,11 @@ function WerkEditor({ nutzer }) {
             ) : <p className="text-sm text-gray-600">Noch keine Bilder.</p>}
             <div className="flex gap-2 items-center flex-wrap">
               {/* Ein Label als Knopf: Das Dateifeld selbst lässt sich nicht gestalten. */}
-              <label className={knopf + (laedt || speichert || geaendert.length ? " opacity-40 cursor-not-allowed" : " cursor-pointer")}
-                     title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}>
+              <label className={knopf + (laedt || speichert || geaendert.length || nichtAngehaengt ? " opacity-40 cursor-not-allowed" : " cursor-pointer")}
+                     title={nichtAngehaengt ? "Erst die hochgeladene Datei anhängen." : geaendert.length ? "Erst speichern oder verwerfen." : undefined}>
                 Bilder hochladen…
                 <input type="file" className="sr-only" accept={ANNEHMEN} multiple
-                       disabled={!!laedt || speichert || geaendert.length > 0}
+                       disabled={!!laedt || speichert || geaendert.length > 0 || !!nichtAngehaengt}
                        onChange={e => { const d = [...e.target.files]; e.target.value = ""; if (d.length) bilderHochladen(d); }} />
               </label>
               {laedt ? (
@@ -443,7 +446,8 @@ function WerkEditor({ nutzer }) {
             {nichtAngehaengt && (
               <p className="text-sm text-red-700" role="alert">
                 „{nichtAngehaengt.name}“ ist hochgeladen, aber nicht am Werk.{" "}
-                <button className="underline disabled:opacity-40" disabled={speichert}
+                <button className="underline disabled:opacity-40" disabled={speichert || geaendert.length > 0}
+                        title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}
                         onClick={async () => { if (await anhaengen(nichtAngehaengt.pfad, [...nichtAngehaengt.fertig, nichtAngehaengt.name])) setNichtAngehaengt(undefined); }}>
                   Nochmal anhängen</button>
               </p>
@@ -473,7 +477,7 @@ function WerkEditor({ nutzer }) {
           {verlauf?.length > 0 && !alles && (
             <VerlaufListe eintraege={einheitliche} ist={werk.data} gleich={gleich} name={werkFeld}
                           lang={f => LANG.includes(f)} bearbeitbar zuruecknehmen={zuruecknehmen}
-                          gesperrt={speichert ? "Speichert…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
+                          gesperrt={speichert ? "Speichert…" : laedt ? "Lädt hoch…" : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
           )}
           {alles && <ul className="text-sm space-y-2">
             {(verlauf ?? []).map(v => {
@@ -491,8 +495,8 @@ function WerkEditor({ nutzer }) {
                   {verlauf.some(x => x.rueckgaengig === v.id) && <span className="text-gray-600"> · rückgängig gemacht</span>}
                   {" "}
                   <button className="underline disabled:no-underline disabled:opacity-40"
-                          disabled={speichert || geaendert.length > 0 || !kannZurueck}
-                          title={geaendert.length ? "Erst speichern oder verwerfen."
+                          disabled={speichert || !!laedt || geaendert.length > 0 || !kannZurueck}
+                          title={laedt ? "Lädt hoch…" : geaendert.length ? "Erst speichern oder verwerfen."
                             : !kannZurueck ? "Alle Felder wurden inzwischen erneut geändert." : undefined}
                           onClick={() => rueckgaengig(v)}>
                     Rückgängig

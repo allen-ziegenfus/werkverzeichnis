@@ -49,9 +49,10 @@ const entfernen = s => { try { localStorage.removeItem(s); } catch { /* gesperrt
  * - wer(lastChange): wer gespeichert hat (aus dem Verlauf); name(feld): Anzeige
  * - ich: wer angemeldet ist; Entwürfe gehören zu einer Person (Abmelden löscht sie)
  * - aktiv: false für ein neues, noch nicht angelegtes Dokument (dann ist ref null)
+ * - gesperrt: Knöpfe, die das Formular ändern, gehen nicht (etwa beim Hochladen, #180)
  */
 export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, stand, entwurf, geaendert,
-  uebernehmen, setzeFeld, wer, aktiv = true }) {
+  uebernehmen, setzeFeld, wer, aktiv = true, gesperrt = false }) {
   const schluessel = `${ENTWURF}${ich}:${KUENSTLER}:${art}:${id}`;
   const auswahl = d => Object.fromEntries(felder.map(f => [f, d?.[f] ?? null]));
   const [fremd, setFremd] = useState();         // { daten, by } oder { geloescht: true }
@@ -159,7 +160,7 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
       abgleichen(auswahl(stand), entwurf, snap.data(), "Inzwischen woanders gespeichert; zusammengeführt.");
     },
     hinweise: (
-      <Hinweise gefunden={gefunden} name={name} fremd={fremd} konflikte={konflikte} meldung={meldung}
+      <Hinweise gefunden={gefunden} name={name} fremd={fremd} konflikte={konflikte} meldung={meldung} gesperrt={gesperrt}
         wiederherstellen={() => {
           setGefunden(null);
           abgleichen(gefunden.basis, gefunden.entwurf, aktuell.current.stand, "Entwurf wiederhergestellt.");
@@ -176,13 +177,13 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
 
 const kurz = w => !String(w ?? "").includes("\n") && String(w ?? "").length <= 120;
 
-function Hinweise({ gefunden, name, fremd, konflikte, meldung, wiederherstellen, verwerfen, zusammenfuehren, waehlen }) {
+function Hinweise({ gefunden, name, fremd, konflikte, meldung, gesperrt, wiederherstellen, verwerfen, zusammenfuehren, waehlen }) {
   return (
     <>
       {gefunden && (
         <div className="border border-amber-400 bg-amber-50 rounded p-2 text-sm flex gap-2 items-center flex-wrap">
           <span className="flex-1">Ungespeicherter Entwurf vom {wann({ toDate: () => new Date(gefunden.at) })}.</span>
-          <button className={knopf} onClick={wiederherstellen}>Wiederherstellen</button>
+          <button className={knopf} disabled={gesperrt} onClick={wiederherstellen}>Wiederherstellen</button>
           <button className={knopf} onClick={verwerfen}>Verwerfen</button>
         </div>
       )}
@@ -192,7 +193,7 @@ function Hinweise({ gefunden, name, fremd, konflikte, meldung, wiederherstellen,
       {fremd?.daten && (
         <div className="border border-amber-400 bg-amber-50 rounded p-2 text-sm flex gap-2 items-center flex-wrap">
           <span className="flex-1">Gerade von {fremd.by ?? "jemand anderem"} gespeichert ({wann(fremd.daten.updatedAt)}).</span>
-          <button className={knopf} onClick={zusammenfuehren}>Mit meinen Änderungen zusammenführen</button>
+          <button className={knopf} disabled={gesperrt} onClick={zusammenfuehren}>Mit meinen Änderungen zusammenführen</button>
         </div>
       )}
       {meldung && !fremd && <p className="text-sm text-amber-800">{meldung}</p>}
@@ -206,8 +207,8 @@ function Hinweise({ gefunden, name, fremd, konflikte, meldung, wiederherstellen,
             </div>
           ) : <Unterschied von={k.ihr} zu={k.mein} beschriftung="Unterschied (− gespeichert, + meins)" />}
           <div className="flex gap-2 flex-wrap">
-            <button className={knopf} onClick={() => waehlen(k.feld, k.mein)}>Meins nehmen</button>
-            <button className={knopf} onClick={() => waehlen(k.feld, k.ihr)}>Gespeichertes behalten</button>
+            <button className={knopf} disabled={gesperrt} onClick={() => waehlen(k.feld, k.mein)}>Meins nehmen</button>
+            <button className={knopf} disabled={gesperrt} onClick={() => waehlen(k.feld, k.ihr)}>Gespeichertes behalten</button>
           </div>
         </div>
       ))}
