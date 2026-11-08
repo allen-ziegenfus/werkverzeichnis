@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
+  collection, deleteField, doc, getDoc, getDocFromServer, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
@@ -87,6 +87,22 @@ function WerkEditor({ nutzer }) {
   const [bildFehler, setBildFehler] = useState(); // beim Knopf, nicht oben auf der Seite
   const [nichtAngehaengt, setNichtAngehaengt] = useState(); // { pfad, name }: im Bucket, aber nicht am Werk
   const [bildHinweis, setBildHinweis] = useState(); // im Abschnitt Bilder, nicht beim Speichern-Knopf
+  const [ziehen, setZiehen] = useState(false);       // Dateien werden über den Abschnitt Bilder gezogen (#270)
+  const [ziehGrund, setZiehGrund] = useState();     // warum gerade nicht abgelegt werden kann, nur beim Ziehen
+  const zieht = useRef(0);                           // dragenter minus dragleave: relatedTarget fehlt in manchen Browsern
+  // Daneben fallen gelassene Dateien öffnete der Browser selbst und verließe die Verwaltung.
+  // Der Abschnitt Bilder hat dann schon preventDefault gerufen; sonst „hier nicht ablegen“.
+  useEffect(() => {
+    if (!werk) return;
+    const nicht = e => {
+      if (e.type === "drop") { zieht.current = 0; setZiehen(false); setZiehGrund(undefined); }
+      if (e.defaultPrevented || ![...(e.dataTransfer?.types ?? [])].includes("Files")) return;
+      e.preventDefault();
+      if (e.type === "dragover") e.dataTransfer.dropEffect = "none";
+    };
+    addEventListener("dragover", nicht); addEventListener("drop", nicht);
+    return () => { removeEventListener("dragover", nicht); removeEventListener("drop", nicht); };
+  }, [!!werk]);
   const [alles, setAlles] = useState(false);   // im Verlauf jeden Eintrag einzeln
   const einheitliche = useMemo(() => verlauf?.map(einheitlich), [verlauf]);
   const [neu, setNeu] = useState();   // { InvNr, Titel }, solange das Formular für ein neues Werk offen ist
@@ -173,7 +189,8 @@ function WerkEditor({ nutzer }) {
           lastChange: eintrag.id,
         });
       });
-      const frisch = await getDoc(ref);
+      // Vom Server: Mit dem Listener in useAbgleich käme sonst der Stand vor dieser Transaktion (#270).
+      const frisch = await getDocFromServer(ref).catch(() => getDoc(ref));
       const w = { id: werk.id, data: frisch.data() };
       client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
@@ -217,7 +234,7 @@ function WerkEditor({ nutzer }) {
           changes: Object.fromEntries(Object.entries(felder).map(([f, wert]) => [f, { from: null, to: wert }])) });
         tx.set(ref, { ...felder, werkgruppe: gruppe, updatedAt: serverTimestamp(), lastChange: eintrag.id });
       });
-      const w = { id, data: (await getDoc(ref)).data() };
+      const w = { id, data: (await getDocFromServer(ref).catch(() => getDoc(ref))).data() };
       client.invalidateQueries({ queryKey: SCHLUESSEL.werke(gruppe) });
       setNeu(undefined);
       const hier = aktuelleGruppe.current === startGruppe && offen.current === startOffen;
@@ -443,7 +460,30 @@ function WerkEditor({ nutzer }) {
           </div>
 
           {/* Eigener Abschnitt, nicht im Formular: Hochladen speichert gleich, ohne „Speichern“ (#259). */}
-          <section className="space-y-2 pt-4 mt-4 border-t" aria-labelledby="werk-bilder">
+          {/* Dateien lassen sich auch hierher ziehen, unter denselben Bedingungen wie der Knopf (#270). */}
+          <section className={"space-y-2 pt-4 mt-4 border-t rounded" + (ziehen ? " outline-dashed outline-2 outline-blue-500 bg-blue-50" : "")}
+                   aria-labelledby="werk-bilder"
+                   onDragEnter={e => { if ([...e.dataTransfer.types].includes("Files")) zieht.current++; }}
+                   onDragOver={e => {
+                     if (![...e.dataTransfer.types].includes("Files")) return;
+                     e.preventDefault();
+                     // Gesperrt: Der Browser lässt dann nicht ablegen, darum den Grund schon jetzt zeigen.
+                     const grund = laedt ? "Lädt gerade hoch; weitere Dateien danach."
+                       : nichtAngehaengt ? "Erst die hochgeladene Datei anhängen."
+                       : geaendert.length ? "Erst speichern oder verwerfen, dann Bilder hochladen."
+                       : speichert ? "Speichert gerade." : undefined;
+                     e.dataTransfer.dropEffect = grund ? "none" : "copy";
+                     setZiehGrund(grund);
+                     setZiehen(!grund);
+                   }}
+                   onDragLeave={() => { if (--zieht.current <= 0) { zieht.current = 0; setZiehen(false); setZiehGrund(undefined); } }}
+                   onDrop={e => {
+                     if (![...e.dataTransfer.types].includes("Files")) return;
+                     e.preventDefault(); zieht.current = 0; setZiehen(false); setZiehGrund(undefined);
+                     if (laedt || speichert || nichtAngehaengt || geaendert.length) return;
+                     const d = [...e.dataTransfer.files];
+                     if (d.length) bilderHochladen(d);
+                   }}>
             <h3 id="werk-bilder" className="text-lg">Bilder</h3>
             {werk.data.images?.length > 0 ? (
               <BildListe bilder={werk.data.images} />
@@ -461,9 +501,10 @@ function WerkEditor({ nutzer }) {
                 <span className="text-sm" role="status">
                   Lade {laedt.bis > 1 && `${laedt.von}/${laedt.bis} `}„{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %
                 </span>
-              ) : <span className="text-sm text-gray-600">JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei. Wird gleich gespeichert.</span>}
+              ) : <span className="text-sm text-gray-600">oder Dateien hierher ziehen. JPEG, PNG, WebP, GIF, TIFF oder PDF, bis 50 MB je Datei. Wird gleich gespeichert.</span>}
             </div>
             {bildHinweis && <p className="text-sm text-green-700" role="status">{bildHinweis}</p>}
+            {ziehGrund && <p className="text-sm text-red-700" role="status">{ziehGrund}</p>}
             {bildFehler && <p className="text-sm text-red-700" role="alert">{bildFehler}</p>}
             {nichtAngehaengt && (
               <p className="text-sm text-red-700" role="alert">

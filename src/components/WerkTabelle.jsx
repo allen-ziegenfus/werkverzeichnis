@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import { Vorschaubild } from "./BildVorschau.jsx";
 
 /**
  * Die Werke einer Werkgruppe als Tabelle (#248): kleines Bild, Inv. Nr., Titel,
- * Jahr und je Zeile ein Menü. Ein Klick auf die Zeile öffnet das Werk.
+ * Jahr und je Zeile ein Menü. Ein Klick auf die Zeile öffnet das Werk. Das Bild
+ * ist das erste des Werks, wie es jetzt ist, auch vor dem Veröffentlichen (#270).
  *
  * - veroeffentlicht: Map Werk-ID → { gruppe, bild } aus der veröffentlichten
  *   Website (useVeroeffentlicht); was dort fehlt, ist (noch) nicht online und
- *   hat weder Bild noch Link. Der Link nimmt die veröffentlichte Werkgruppe:
+ *   hat keinen Link. Der Link nimmt die veröffentlichte Werkgruppe:
  *   Ein verschobenes oder ausgeblendetes Werk bleibt bis zum nächsten
  *   Veröffentlichen dort.
  * - gruppen: die Werkgruppen ({ id, titel }), für „noch unter …“.
@@ -37,7 +39,7 @@ export default function WerkTabelle({ werke, veroeffentlicht, gruppen, onOeffnen
             <tr key={w.id} className={"cursor-pointer hover:bg-gray-50" + (w.data.ausgeblendet ? " text-gray-500" : "")}
                 onClick={() => { if (!getSelection()?.toString()) onOeffnen(w); }}>
               <td className="py-1">
-                <Vorschau key={online?.bild} src={online?.bild} />
+                <Vorschaubild key={w.data.images?.[0]} pfad={w.data.images?.[0]} ersatz={online?.bild} />
               </td>
               <td className="py-1 px-2 font-mono whitespace-nowrap">{w.data.InvNr}</td>
               <td className="py-1 px-2">
@@ -61,12 +63,6 @@ export default function WerkTabelle({ werke, veroeffentlicht, gruppen, onOeffnen
       </tbody>
     </table>
   );
-}
-
-function Vorschau({ src }) {
-  const [kaputt, setKaputt] = useState(false);
-  if (!src || kaputt) return <div className="w-12 h-12 bg-gray-100 rounded" />;
-  return <img src={src} alt="" loading="lazy" className="w-12 h-12 object-cover rounded" onError={() => setKaputt(true)} />;
 }
 
 /**
