@@ -171,7 +171,8 @@ async function bildRendern(bytes, basis, copyright, zeiten = {}) {
     let bild = sharp(aufrecht.data, { animated: animiert }).resize({ width: b, withoutEnlargement: true })
       .toColorspace("srgb");
     if (exif) bild = bild.withExif(exif);
-    bild = format === "avif" ? bild.avif({ quality: 50, effort: 4 }) : bild.webp({ quality: 80 });
+    // effort 3 statt 4: etwa viermal schneller, Dateien ~3 % größer (#301).
+    bild = format === "avif" ? bild.avif({ quality: 50, effort: 3 }) : bild.webp({ quality: 80 });
     // „Fertig nach“, ab dem gemeinsamen Start: Der libuv-Pool lässt nur 4
     // gleichzeitig rechnen, die Wartezeit steckt mit drin. Keine Einzeldauer.
     const t = Date.now();
