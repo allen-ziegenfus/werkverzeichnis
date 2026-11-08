@@ -61,14 +61,15 @@ export const bilder = onObjectFinalized({
   if (!kuenstler) return;                   // kein Original, das wir verarbeiten
   const kuenstlerDok = db.collection("artists").doc(kuenstler);
   const copyright = (await kuenstlerDok.get()).get("copyright");
+  const zeiten = {};
   const ergebnis = await originalVerarbeiten({
     datei: getStorage().bucket(BUCKET).file(name), md5: md5Hash, kuenstlerDok, r2: await r2Einmal(),
-    copyright: copyright ? `© ${copyright}` : undefined,
+    copyright: copyright ? `© ${copyright}` : undefined, zeiten,
   });
   // Dauer und Threads, um #295 nach dem Deploy zu messen: Zeigt die Instanz mehr
   // Kerne als die vier vCPUs, überbuchen die parallelen Pipelines.
   logger.info(`${name}: ${ergebnis?.art}`, { breiten: ergebnis?.breiten, dauerMs: Date.now() - start,
-    kerne: os.availableParallelism(), sharpThreads: sharp.concurrency() });
+    kerne: os.availableParallelism(), sharpThreads: sharp.concurrency(), zeiten });
 });
 
 export { veroeffentlichen, buildStatus } from "./publish.js";
