@@ -30,8 +30,9 @@ steps:
       # Die Funktionen lesen daraus, welche Seite sie veröffentlichen (#109)
       # und welche Buckets sie lesen und beschreiben (#137). Halb angelegte
       # Funktionen erst löschen, ein gescheiterter Deploy einmal wiederholen (#169).
+      # MALLOC_ARENA_MAX: weniger glibc-Arenen, gegen Fragmentierung mit sharp-Threads (#299).
       - >-
-        printf 'KUENSTLER=%s\nBRANCH=%s\nBUCKET=%s\nR2_BUCKET=%s\n'
+        printf 'KUENSTLER=%s\nBRANCH=%s\nBUCKET=%s\nR2_BUCKET=%s\nMALLOC_ARENA_MAX=2\n'
         '${_ARTIST}' '$BRANCH_NAME' '${_BUCKET}' '${_R2_BUCKET}' > gcf/.env
         && (cd gcf && npm ci)
         && PROJEKT=$PROJECT_ID node tools/funktionen_aufraeumen.mjs

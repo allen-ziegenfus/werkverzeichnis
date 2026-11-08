@@ -67,8 +67,9 @@ async function hochladen(r2, schluessel, inhalt, typ) {
  * ihre MD5, wie GCS sie meldet (base64), `kuenstlerDok` das Firestore-Dokument
  * der Künstler:in. Tut nichts, wenn dieser Fingerabdruck schon erledigt ist.
  * Gibt zurück, was eingetragen wurde, oder null für nicht behandelte Dateien.
+ * `zeiten` (optional) bekommt die Dauer je Schritt in ms, fürs Log (#299).
  */
-export async function originalVerarbeiten({ datei, md5, kuenstlerDok, r2, copyright }) {
+export async function originalVerarbeiten({ datei, md5, kuenstlerDok, r2, copyright, zeiten = {} }) {
   const name = datei.name;
   const kuenstler = kuenstlerVon(name);
   if (!kuenstler) return null;
@@ -85,7 +86,7 @@ export async function originalVerarbeiten({ datei, md5, kuenstlerDok, r2, copyri
   const basis = `${kuenstler}/${id}`;
   let daten, ausgaben;
   try {
-    ({ daten, ausgaben } = await rendern(name, bytes, basis, copyright));
+    ({ daten, ausgaben } = await rendern(name, bytes, basis, copyright, zeiten));
   } catch (e) {
     // Eine Datei, die sharp nicht lesen kann, wird durch Wiederholen nicht besser:
     // eintragen und weiter.
@@ -102,7 +103,7 @@ export async function originalVerarbeiten({ datei, md5, kuenstlerDok, r2, copyri
 }
 
 /** Die Dateien zu einem Original und sein Eintrag. Nur sharp, kein Netz. */
-async function rendern(name, bytes, basis, copyright) {
+async function rendern(name, bytes, basis, copyright, zeiten) {
   if (VIDEO.test(name)) {
     const endung = name.match(VIDEO)[1].toLowerCase();
     return {
@@ -114,11 +115,11 @@ async function rendern(name, bytes, basis, copyright) {
   if (PDF.test(name)) {
     // Die erste Seite steht für das Dokument (meist gescannte Drucke).
     const { png, seiten } = await ersteSeiteVonPdf(bytes);
-    const ergebnis = await bildRendern(png, basis, copyright);
+    const ergebnis = await bildRendern(png, basis, copyright, zeiten);
     return { ...ergebnis, daten: { ...ergebnis.daten, quelle: "pdf", seiten } };
   }
   if (!BILD.test(name)) return { daten: { art: "nicht unterstützt" }, ausgaben: [] };
-  return bildRendern(bytes, basis, copyright);
+  return bildRendern(bytes, basis, copyright, zeiten);
 }
 
 /** Erste Seite eines PDFs als PNG, PDF_GROESSE an der langen Seite. pdf.js, erst bei Bedarf geladen. */
@@ -147,12 +148,14 @@ async function ersteSeiteVonPdf(bytes) {
 }
 
 /** Breiten × Formate für ein Rasterbild, dazu sein Eintrag. */
-async function bildRendern(bytes, basis, copyright) {
+async function bildRendern(bytes, basis, copyright, zeiten = {}) {
   // Animierte GIF/WebP bleiben animiert, nur als WebP (sharp kann AVIF nicht animieren).
   const meta = await sharp(bytes, { animated: true }).metadata();
   const animiert = (meta.pages ?? 1) > 1;
   // Die Ausrichtung wird zuerst angewendet, damit Breite und Höhe wie angezeigt sind.
+  const t = Date.now();
   const aufrecht = await sharp(bytes, { animated: animiert }).rotate().toBuffer({ resolveWithObject: true });
+  zeiten.aufrecht = Date.now() - t;
   const breite = aufrecht.info.width;
   const hoehe = animiert ? meta.pageHeight ?? aufrecht.info.height : aufrecht.info.height;
   const breiten = [...new Set([...BREITEN.filter(b => b < breite), Math.min(breite, BREITEN.at(-1))])]
@@ -163,13 +166,20 @@ async function bildRendern(bytes, basis, copyright) {
 
   // Alle Fassungen gleichzeitig: Die Funktion hat mehrere vCPUs (index.js), und
   // nacheinander brauchte ein Foto 35–45 s, davon das meiste AVIF in 2000 px (#295).
+  const tAlle = Date.now();
   const ausgaben = await Promise.all(breiten.flatMap(b => formate.map(async format => {
     let bild = sharp(aufrecht.data, { animated: animiert }).resize({ width: b, withoutEnlargement: true })
       .toColorspace("srgb");
     if (exif) bild = bild.withExif(exif);
     bild = format === "avif" ? bild.avif({ quality: 50, effort: 4 }) : bild.webp({ quality: 80 });
-    return { schluessel: `${basis}-${b}.${format}`, inhalt: await bild.toBuffer(), typ: `image/${format}` };
+    // „Fertig nach“, ab dem gemeinsamen Start: Der libuv-Pool lässt nur 4
+    // gleichzeitig rechnen, die Wartezeit steckt mit drin. Keine Einzeldauer.
+    const t = Date.now();
+    const inhalt = await bild.toBuffer();
+    zeiten[`${b}.${format}`] = Date.now() - t;
+    return { schluessel: `${basis}-${b}.${format}`, inhalt, typ: `image/${format}` };
   })));
+  zeiten.fassungen = Date.now() - tAlle;
 
   // Eine winzige unscharfe Vorschau, die die Seite zeigt, bis das richtige Bild geladen ist.
   const vorschau = await sharp(aufrecht.data).resize({ width: 16 }).webp({ quality: 40 }).toBuffer();

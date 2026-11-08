@@ -14,6 +14,11 @@ import os from "node:os";
 import sharp from "sharp";
 import { kuenstlerVon, originalVerarbeiten, r2Client } from "./process.js";
 
+// Threads je sharp-Pipeline wie vCPUs (cpu unten). Auf Linux mit glibc ist der
+// Standard 1; dann lief das AVIF in 2000 px allein auf einem Thread (#299).
+const VCPUS = 4;
+sharp.concurrency(VCPUS);
+
 // Setzt die Firebase CLI beim Deployen und in der Funktion (#109); BUCKET
 // kommt aus gcf/.env (#137).
 const PROJEKT = process.env.GCLOUD_PROJECT;
@@ -43,7 +48,7 @@ export const bilder = onObjectFinalized({
   // Vier vCPUs für die parallelen Fassungen (process.js, #295); 4 GiB, weil die
   // Fassungen eines großen Originals gleichzeitig im Speicher liegen.
   memory: "4GiB",
-  cpu: 4,
+  cpu: VCPUS,
   timeoutSeconds: 300,
   concurrency: 1,
   maxInstances: 10,
@@ -56,14 +61,15 @@ export const bilder = onObjectFinalized({
   if (!kuenstler) return;                   // kein Original, das wir verarbeiten
   const kuenstlerDok = db.collection("artists").doc(kuenstler);
   const copyright = (await kuenstlerDok.get()).get("copyright");
+  const zeiten = {};
   const ergebnis = await originalVerarbeiten({
     datei: getStorage().bucket(BUCKET).file(name), md5: md5Hash, kuenstlerDok, r2: await r2Einmal(),
-    copyright: copyright ? `© ${copyright}` : undefined,
+    copyright: copyright ? `© ${copyright}` : undefined, zeiten,
   });
   // Dauer und Threads, um #295 nach dem Deploy zu messen: Zeigt die Instanz mehr
   // Kerne als die vier vCPUs, überbuchen die parallelen Pipelines.
   logger.info(`${name}: ${ergebnis?.art}`, { breiten: ergebnis?.breiten, dauerMs: Date.now() - start,
-    kerne: os.availableParallelism(), sharpThreads: sharp.concurrency() });
+    kerne: os.availableParallelism(), sharpThreads: sharp.concurrency(), zeiten });
 });
 
 export { veroeffentlichen, buildStatus } from "./publish.js";
