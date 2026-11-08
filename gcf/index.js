@@ -14,6 +14,11 @@ import os from "node:os";
 import sharp from "sharp";
 import { kuenstlerVon, originalVerarbeiten, r2Client } from "./process.js";
 
+// Threads je sharp-Pipeline wie vCPUs (cpu unten). Auf Linux mit glibc ist der
+// Standard 1; dann lief das AVIF in 2000 px allein auf einem Thread (#299).
+const VCPUS = 4;
+sharp.concurrency(VCPUS);
+
 // Setzt die Firebase CLI beim Deployen und in der Funktion (#109); BUCKET
 // kommt aus gcf/.env (#137).
 const PROJEKT = process.env.GCLOUD_PROJECT;
@@ -43,7 +48,7 @@ export const bilder = onObjectFinalized({
   // Vier vCPUs für die parallelen Fassungen (process.js, #295); 4 GiB, weil die
   // Fassungen eines großen Originals gleichzeitig im Speicher liegen.
   memory: "4GiB",
-  cpu: 4,
+  cpu: VCPUS,
   timeoutSeconds: 300,
   concurrency: 1,
   maxInstances: 10,
