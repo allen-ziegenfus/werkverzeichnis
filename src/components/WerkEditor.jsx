@@ -103,8 +103,8 @@ function WerkEditor({ nutzer }) {
     [werke, werkeAbfrage.isFetching]);
 
   async function oeffnen(w) {
-    // Ein anderes Werk: der Upload-Fehler des vorigen gehört nicht dazu.
-    if (offen.current !== w.id) setBildFehler(undefined);
+    // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.
+    if (offen.current !== w.id) { setBildFehler(undefined); setNichtAngehaengt(undefined); }
     offen.current = w.id;
     setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined); setVerlauf(undefined);
     const v = await getDocs(query(collection(kuenstler, "history"), where("work", "==", w.id)));
@@ -403,16 +403,17 @@ function WerkEditor({ nutzer }) {
           {werk.data.ausgeblendet && (
             <p className="border border-gray-400 bg-gray-100 rounded p-2 text-sm">Ausgeblendet: steht nicht auf der Website.</p>
           )}
+          {/* Während des Hochladens gesperrt: Das Anhängen lädt das Werk neu und nähme Eingaben mit (#180). */}
           {FELDER.map(f => (
             <label key={f} className="block">
               <span className="text-sm text-gray-600">{werkFeld(f)}</span>
               {f === "InvNr" ? (
                 <input className="border p-1 w-full bg-gray-100" value={entwurf[f] ?? ""} readOnly />
               ) : LANG.includes(f) || String(entwurf[f] ?? "").length > 80 ? (
-                <textarea className="border p-1 w-full" rows={3} value={entwurf[f] ?? ""}
+                <textarea className="border p-1 w-full disabled:bg-gray-100" rows={3} value={entwurf[f] ?? ""} disabled={!!laedt}
                           onChange={e => setEntwurf({ ...entwurf, [f]: e.target.value })} />
               ) : (
-                <input className="border p-1 w-full" value={entwurf[f] ?? ""}
+                <input className="border p-1 w-full disabled:bg-gray-100" value={entwurf[f] ?? ""} disabled={!!laedt}
                        onChange={e => setEntwurf({ ...entwurf, [f]: e.target.value })} />
               )}
             </label>
@@ -443,7 +444,8 @@ function WerkEditor({ nutzer }) {
             {nichtAngehaengt && (
               <p className="text-sm text-red-700" role="alert">
                 „{nichtAngehaengt.name}“ ist hochgeladen, aber nicht am Werk.{" "}
-                <button className="underline disabled:opacity-40" disabled={speichert}
+                <button className="underline disabled:opacity-40" disabled={speichert || geaendert.length > 0}
+                        title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}
                         onClick={async () => { if (await anhaengen(nichtAngehaengt.pfad, [...nichtAngehaengt.fertig, nichtAngehaengt.name])) setNichtAngehaengt(undefined); }}>
                   Nochmal anhängen</button>
               </p>
