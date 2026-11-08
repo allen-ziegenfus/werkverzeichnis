@@ -38,8 +38,10 @@ async function r2Einmal() {
 export const bilder = onObjectFinalized({
   bucket: BUCKET,
   region: "europe-west3",
-  memory: "2GiB",
-  cpu: 1,
+  // Vier vCPUs für die parallelen Fassungen (process.js, #295); 4 GiB, weil die
+  // Fassungen eines großen Originals gleichzeitig im Speicher liegen.
+  memory: "4GiB",
+  cpu: 4,
   timeoutSeconds: 300,
   concurrency: 1,
   maxInstances: 10,
