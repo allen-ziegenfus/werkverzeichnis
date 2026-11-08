@@ -41,6 +41,9 @@ console.log(`${dateien.length} originals, ${dateien.length - offen.length} alrea
 const zaehler = {};
 let naechste = 0, fertig = 0;
 const start = Date.now();
+// Jedes Original rendert seine Fassungen parallel (#295); gleichzeitig laufen
+// trotzdem höchstens so viele sharp-Pipelines, wie der libuv-Pool Threads hat
+// (UV_THREADPOOL_SIZE, Standard 4), über alle Arbeiter zusammen.
 await Promise.all(Array.from({ length: Math.max(2, os.cpus().length - 2) }, async () => {
   while (naechste < offen.length) {
     const datei = offen[naechste++];

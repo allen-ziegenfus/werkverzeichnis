@@ -10,6 +10,8 @@ import { getStorage } from "firebase-admin/storage";
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { logger } from "firebase-functions";
+import os from "node:os";
+import sharp from "sharp";
 import { kuenstlerVon, originalVerarbeiten, r2Client } from "./process.js";
 
 // Setzt die Firebase CLI beim Deployen und in der Funktion (#109); BUCKET
@@ -48,6 +50,7 @@ export const bilder = onObjectFinalized({
   retry: true,
   serviceAccount: `bilder-function@${PROJEKT}.iam.gserviceaccount.com`,
 }, async ereignis => {
+  const start = Date.now();
   const { name, md5Hash } = ereignis.data;
   const kuenstler = kuenstlerVon(name);
   if (!kuenstler) return;                   // kein Original, das wir verarbeiten
@@ -57,7 +60,10 @@ export const bilder = onObjectFinalized({
     datei: getStorage().bucket(BUCKET).file(name), md5: md5Hash, kuenstlerDok, r2: await r2Einmal(),
     copyright: copyright ? `© ${copyright}` : undefined,
   });
-  logger.info(`${name}: ${ergebnis?.art}`, { breiten: ergebnis?.breiten });
+  // Dauer und Threads, um #295 nach dem Deploy zu messen: Zeigt die Instanz mehr
+  // Kerne als die vier vCPUs, überbuchen die parallelen Pipelines.
+  logger.info(`${name}: ${ergebnis?.art}`, { breiten: ergebnis?.breiten, dauerMs: Date.now() - start,
+    kerne: os.availableParallelism(), sharpThreads: sharp.concurrency() });
 });
 
 export { veroeffentlichen, buildStatus } from "./publish.js";
