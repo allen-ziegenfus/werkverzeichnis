@@ -39,4 +39,17 @@ steps:
         --project $PROJECT_ID --non-interactive --force; }
         && { deploy || { echo "Noch einmal in 60 s (Rechte wirken manchmal verzögert, #169)"; sleep 60; deploy; }; }
 
+  # Offene Datenmigrationen (gcf/migrationen/, #261), nach Regeln und Funktionen.
+  - id: migrationen
+    name: node:22
+    dir: gcf
+    entrypoint: node
+    args: [migrieren.js]
+    env:
+      - KUENSTLER=${_ARTIST}
+      - BUCKET=${_BUCKET}
+      - FIRESTORE_DATABASE=${_FIRESTORE_DATABASE}
+      - BUILD_ID=$BUILD_ID
+      - GOOGLE_CLOUD_PROJECT=$PROJECT_ID
+
 timeout: 1800s
