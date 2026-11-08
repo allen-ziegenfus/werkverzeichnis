@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  collection, deleteField, doc, getDoc, getDocFromServer, getDocs, query, runTransaction, serverTimestamp, where,
+  collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
 import { kuenstler, db } from "./firebaseClient.js";
+import { vomServer } from "./firestoreLite.js";
 import BildListe from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
@@ -208,8 +209,8 @@ function WerkEditor({ nutzer }) {
           lastChange: eintrag.id,
         });
       });
-      // Vom Server: Mit dem Listener in useAbgleich käme sonst der Stand vor dieser Transaktion (#270).
-      const frisch = await getDocFromServer(ref).catch(() => getDoc(ref));
+      // Vom Server, mit Lite: Mit dem Listener in useAbgleich käme sonst der Stand vor dieser Transaktion (#270, #287).
+      const frisch = await vomServer(ref).catch(() => getDoc(ref));
       const w = { id: werk.id, data: frisch.data() };
       client.setQueryData(SCHLUESSEL.werke(gruppe), ws => ws?.map(x => x.id === w.id ? w : x));
       await oeffnen(w);
@@ -253,7 +254,7 @@ function WerkEditor({ nutzer }) {
           changes: Object.fromEntries(Object.entries(felder).map(([f, wert]) => [f, { from: null, to: wert }])) });
         tx.set(ref, { ...felder, werkgruppe: gruppe, updatedAt: serverTimestamp(), lastChange: eintrag.id });
       });
-      const w = { id, data: (await getDocFromServer(ref).catch(() => getDoc(ref))).data() };
+      const w = { id, data: (await vomServer(ref).catch(() => getDoc(ref))).data() };
       client.invalidateQueries({ queryKey: SCHLUESSEL.werke(gruppe) });
       setNeu(undefined);
       const hier = aktuelleGruppe.current === startGruppe && offen.current === startOffen;

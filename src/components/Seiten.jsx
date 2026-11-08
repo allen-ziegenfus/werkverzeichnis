@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { collection, doc, getDoc, getDocFromServer, getDocs, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
 import { useQuery } from "@tanstack/react-query";
 import { client, SCHLUESSEL, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
 import { db, KUENSTLER } from "./firebaseClient.js";
+import { vomServer } from "./firestoreLite.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
@@ -204,8 +205,8 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
       });
       if (istNeu) return onSchliessen();
       client.invalidateQueries({ queryKey: SCHLUESSEL.seiten });
-      // Vom Server: Mit dem Listener in useAbgleich käme sonst der Stand vor dieser Transaktion (#270).
-      const frisch = (await getDocFromServer(ref).catch(() => getDoc(ref))).data();
+      // Vom Server, mit Lite: Mit dem Listener in useAbgleich käme sonst der Stand vor dieser Transaktion (#270, #287).
+      const frisch = (await vomServer(ref).catch(() => getDoc(ref))).data();
       setGeladenAm(frisch.updatedAt);
       setGespeichert(neu);
       // Das Formular zeigt danach die neue Fassung, außer jemand hat inzwischen

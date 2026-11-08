@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { getDoc, getDocFromServer, onSnapshot } from "firebase/firestore";
+import { getDoc, onSnapshot } from "firebase/firestore";
 import { KUENSTLER } from "./firebaseClient.js";
+import { vomServer } from "./firestoreLite.js";
 import { ENTWURF } from "./ungespeichert.js";
 import { Unterschied } from "./VerlaufListe.jsx";
 import { wann } from "./zeit.js";
@@ -115,7 +116,13 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
       const nr = ++letzte;
       if (!snap.exists()) { setFremd({ geloescht: true }); return; }
       const daten = snap.data();
-      if (eigene.current.has(daten.lastChange) || ms(daten.updatedAt) === ms(stand.updatedAt)) return;
+      if (ms(daten.updatedAt) === ms(stand.updatedAt)) return;
+      if (eigene.current.has(daten.lastChange)) {
+        // Eigenes Speichern, aber neuer als der Stand im Formular: Das Nachlesen
+        // danach brachte den alten (#287). Unverändert still übernehmen.
+        if (!geaendert && ms(daten.updatedAt) > ms(stand.updatedAt)) uebernehmen(daten);
+        return;
+      }
       const text = by => `Gerade von ${by ?? "jemand anderem"} gespeichert; der neue Stand ist übernommen.`;
       if (!geaendert) { uebernehmen(daten); setMeldung(text()); }
       else setFremd({ daten });
@@ -147,8 +154,8 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
      * Eine Rücknahme schreibt nicht den Entwurf; dann nur den neuen Stand übernehmen.
      */
     async nachKonflikt({ ruecknahme = false } = {}) {
-      // Vom Server: Der Listener oben hinkt dem abgelehnten Speichern evtl. hinterher (#270).
-      const snap = await getDocFromServer(ref).catch(() => getDoc(ref));
+      // Vom Server, mit Lite: Der Listener oben hinkt dem abgelehnten Speichern evtl. hinterher (#270, #287).
+      const snap = await vomServer(ref).catch(() => getDoc(ref));
       // Inzwischen ein anderes Dokument geöffnet (Werk-Editor): nichts übernehmen.
       if (aktuell.current.schluessel !== schluessel) return;
       if (!snap.exists()) { setFremd({ geloescht: true }); return; }
