@@ -7,8 +7,8 @@
     "node": "22"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1162.0",
-    "@google-cloud/cloudbuild": "^6.4.0",
+    "@aws-sdk/client-s3": "^3.1165.0",
+    "@google-cloud/cloudbuild": "^6.5.0",
     "@google-cloud/secret-manager": "^7.2.0",
     "@napi-rs/canvas": "^1.1.0",
     "firebase-admin": "^14.5.0",
