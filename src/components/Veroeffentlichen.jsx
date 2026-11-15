@@ -192,7 +192,8 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
  * auf den Stand klappt die Einzelheiten auf (Tafel), nach oben in der Leiste
  * unten, nach unten im Kopf. „Veröffentlichen“ klappt sie mit einem Feld für
  * eine Notiz auf; erst der Knopf dort legt die Anfrage an. `dunkel` für den
- * dunklen Kopf der Verwaltung (#278); die Tafel bleibt hell.
+ * dunklen Kopf der Verwaltung (#278), „Alles veröffentlicht“ dort rosa wie in
+ * Horsts Entwurf; die Tafel bleibt hell.
  */
 export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten = false, nachOben = false, dunkel = false, className = "" }) {
   const v = useVeroeffentlichung(kuenstlerId, ich);
@@ -225,7 +226,7 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
           : beschaeftigt ? <span><Dreht dunkel={dunkel} />Veröffentlichung läuft …</span>
           : letzte?.status === "fehler" ? <span className={rot}>Letzte Veröffentlichung fehlgeschlagen</span>
           : n === undefined ? <span>…</span>
-          : n === 0 ? <span className={dunkel ? "text-green-400" : "text-green-700"}>Alles veröffentlicht</span>
+          : n === 0 ? <span className={dunkel ? "text-pink-400" : "text-green-700"}>Alles veröffentlicht</span>
           : <span>● {anzahl(n)} offene Änderung{n === 1 ? "" : "en"}</span>}
         {" "}<span className={dunkel ? "text-stone-400" : "text-gray-600"}>{auf === nachOben ? "▾" : "▴"}</span>
       </button>
