@@ -5,6 +5,7 @@ import { feldweiseSpeichern, gleich } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import FelderBearbeiten, { felderFehler } from "./FelderBearbeiten.jsx";
 import Skelett from "./Skelett.jsx";
+import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf } from "./knoepfe.js";
 import { felderVon, gueltigeFelder, STANDARD_FELDER } from "../werkverzeichnis/felder.js";
@@ -62,6 +63,10 @@ function Einstellungen({ ich }) {
   const unbrauchbar = entwurf?.felder !== undefined && entwurf.felder === stand?.felder && !gueltigeFelder(entwurf.felder);
   const felder = entwurf?.felder === undefined || unbrauchbar ? STANDARD_FELDER : entwurf.felder;
   const felderProblem = entwurf && felderFehler(felder);
+  // Vor dem Verlassen warnen (#324); ohne gespeicherte Liste zählen die Standardfelder als Stand.
+  const alsListe = l => l === undefined ? STANDARD_FELDER : l;
+  useUngespeichert(!!entwurf && !!stand && Object.keys({ ...entwurf, ...stand })
+    .some(k => k === "felder" ? !gleich(alsListe(entwurf.felder), alsListe(stand.felder)) : entwurf[k] !== stand[k]));
 
   async function speichern() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);

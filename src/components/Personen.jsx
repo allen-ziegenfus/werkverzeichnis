@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { ROLLEN_NAMEN, ROLLEN } from "../werkverzeichnis/permissions.js";
 import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
-import { feldweiseSpeichern, rollenPfad } from "./feldweise.js";
+import { feldweiseSpeichern, gleich, rollenPfad } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
+import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
 
@@ -28,6 +29,7 @@ function Personen({ ich }) {
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
+  useUngespeichert(!!rollen && !!stand && !gleich(rollen, stand));   // #324
 
   // Aus dem Cache, wenn schon geladen; neuere Daten ersetzen nur, was noch nicht geändert ist.
   const { data, error } = useKuenstler();
@@ -81,6 +83,7 @@ function Personen({ ich }) {
 function Rollen({ rollen, ich, onAenderung, nurLesen = false }) {
   const [eingabe, setEingabe] = useState("");
   const [rolle, setRolle] = useState("editor");
+  useUngespeichert(!!eingabe.trim());   // eingetippt, aber nicht hinzugefügt (#324)
   const email = eingabe.trim().toLowerCase();
   const gueltig = istEmail(email) && !(email in rollen);
   const hinzufuegen = () => { if (gueltig) { onAenderung({ ...rollen, [email]: rolle }); setEingabe(""); } };

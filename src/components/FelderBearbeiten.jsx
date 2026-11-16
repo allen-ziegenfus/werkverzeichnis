@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { HOECHSTENS_FELDER, neuerSchluessel } from "../werkverzeichnis/felder.js";
 import { knopf, knopfKlein } from "./knoepfe.js";
+import { useUngespeichert } from "./ungespeichert.js";
 
 /**
  * Die Felder der Werke bearbeiten (#256): umbenennen, ordnen, neu anlegen,
@@ -25,6 +26,7 @@ export function felderFehler(felder) {
 /** `gespeichert`: die Schlüssel der gespeicherten Liste; ein Feld, das noch nicht drin ist, lässt sich ganz entfernen. */
 export default function FelderBearbeiten({ felder, setFelder, gespeichert, gesperrt }) {
   const [neu, setNeu] = useState("");
+  useUngespeichert(!!neu.trim());   // eingetippt, aber nicht mit „+ Feld“ angelegt (#324)
   const aendern = (schluessel, werte) => setFelder(felder.map(f => f.schluessel === schluessel ? { ...f, ...werte } : f));
   const aktiv = felder.filter(f => !f.archiviert);
   const archiviert = felder.filter(f => f.archiviert);
