@@ -279,8 +279,11 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
   async function zuruecknehmen() {
     const teile = [werke.length && `${werke.length} Werk(e)`, seiten.length && `${seiten.length} Seite(n)`,
       werkgruppen.length && `${werkgruppen.length} Werkgruppe(n)`, einstellungen && "die Einstellungen"].filter(Boolean);
+    const angelegt = werke.filter(w => w.angelegt).length;
     if (!window.confirm(`${teile.join(" und ")} auf den Stand vor dieser Veröffentlichung zurücksetzen?\n\n`
-      + "Was seitdem noch einmal geändert wurde, bleibt. Online geht es mit der nächsten Veröffentlichung.")) return;
+      + "Was seitdem noch einmal geändert wurde, bleibt. Online geht es mit der nächsten Veröffentlichung."
+      + (angelegt ? `\n\n${angelegt} hier angelegte(s) Werk(e) werden geleert und ausgeblendet, sofern seitdem nicht erneut geändert; `
+        + "sie bleiben in der Verwaltung, die Inv. Nr. bleibt vergeben." : ""))) return;
     setLaeuft(true); setFehler(undefined); setErgebnis(undefined);
     let zurueck = 0, geblieben = 0;
     try {

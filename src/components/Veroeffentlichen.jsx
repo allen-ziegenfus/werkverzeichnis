@@ -87,8 +87,9 @@ export const werkAenderung = (w, werkFeld) =>
  * Setzt die netto geänderten Felder eines Werks (aus netto()) auf ihren Wert
  * davor zurück, als neue Änderung mit Verlaufseintrag. Felder, deren Wert sich
  * inzwischen noch einmal geändert hat, bleiben. Gibt die zurückgesetzten Felder.
- * Ein seitdem angelegtes Werk wird außerdem ausgeblendet: Löschen erlauben die
- * Regeln nicht, die Inv. Nr. bleibt vergeben (#283).
+ * Ein seitdem angelegtes Werk wird außerdem ausgeblendet, wenn keins seiner
+ * Felder geblieben ist: Löschen erlauben die Regeln nicht, die Inv. Nr. bleibt
+ * vergeben (#283).
  */
 export async function werkZuruecksetzen(kuenstlerId, ich, w) {
   const ref = doc(db, "artists", kuenstlerId, "works", w.werk);
@@ -98,7 +99,9 @@ export async function werkZuruecksetzen(kuenstlerId, ich, w) {
     // Nach Inhalt: Bilder sind Listen, die nie === sind (#275).
     let zurueck = Object.entries(w.felder).filter(([f, c]) => gleicherWert(daten[f] ?? null, c.to));
     // Vorher gab es das angelegte Werk nicht: ausblenden. from/to wie in w.felder, also vom Ziel aus.
-    if (w.angelegt && !daten.ausgeblendet) {
+    // Nur, wenn alles zurückgesetzt wird: Ein seitdem erneut geändertes Werk ist gepflegt und bleibt.
+    const alles = Object.keys(w.felder).every(f => f === "ausgeblendet" || zurueck.some(([z]) => z === f));
+    if (w.angelegt && alles && !daten.ausgeblendet) {
       zurueck = [...zurueck.filter(([f]) => f !== "ausgeblendet"), ["ausgeblendet", { from: true, to: daten.ausgeblendet ?? null }]];
     }
     if (!zurueck.length) return [];
