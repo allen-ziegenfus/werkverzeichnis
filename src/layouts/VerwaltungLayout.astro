@@ -17,7 +17,8 @@ const { titel } = Astro.props;
 ---
 
 <!DOCTYPE html>
-<html lang="de">
+<!-- Fokus und Sprünge landen unter dem stehenden Kopf und der Werkleiste (#260). -->
+<html lang="de" class="[scroll-padding-top:calc(var(--kopf-sichtbar,0px)+var(--werkleiste,0px)+0.5rem)]">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
