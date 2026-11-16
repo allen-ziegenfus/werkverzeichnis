@@ -145,9 +145,12 @@ function WerkEditor({ nutzer }) {
 
   async function oeffnen(w) {
     // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.
-    if (offen.current !== w.id) { setBildFehler(undefined); setNichtAngehaengt(undefined); setBildHinweis(undefined); }
+    // Dasselbe Werk (nach dem Speichern): Der alte Verlauf bleibt stehen, bis der neue
+    // da ist; sonst wird die Seite kurz kürzer und springt (#260).
+    const anderes = offen.current !== w.id;
+    if (anderes) { setBildFehler(undefined); setNichtAngehaengt(undefined); setBildHinweis(undefined); setVerlauf(undefined); }
     offen.current = w.id;
-    setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined); setVerlauf(undefined);
+    setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined);
     const v = await getDocs(query(collection(kuenstler, "history"), where("work", "==", w.id)));
     if (offen.current !== w.id) return;
     setVerlauf(v.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.at?.toMillis() - a.at?.toMillis()));
