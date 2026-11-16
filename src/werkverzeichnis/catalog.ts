@@ -83,8 +83,16 @@ export interface Katalog {
 /** Eine leere Zeichenkette gilt als nicht vorhanden; Zahlen (z. B. aus einem Import) als Text. */
 const wert = (v: unknown) => typeof v === "number" ? String(v) : typeof v === "string" && v.trim() !== "" ? v : undefined;
 
-/** Die vorhandenen Werte eines Werk-Dokuments zu den Feldern der Liste. */
-export function werteVon(d: Record<string, unknown>, felder: Feld[]): Record<string, string> {
+/**
+ * Die vorhandenen Werte eines Werk-Dokuments zu den Feldern der Liste. Andere
+ * Werte als Text und Zahlen (Ja/Nein, Listen …, etwa aus einem Import) fallen
+ * weg; `melden` bekommt dann den Schlüssel.
+ */
+export function werteVon(d: Record<string, unknown>, felder: Feld[], melden = (_: string) => {}): Record<string, string> {
+  for (const f of felder) {
+    const v = d[f.schluessel];
+    if (v != null && typeof v !== "string" && typeof v !== "number") melden(f.schluessel);
+  }
   return Object.fromEntries(felder.map(f => [f.schluessel, wert(d[f.schluessel])])
     .filter((e): e is [string, string] => e[1] !== undefined));
 }
@@ -132,7 +140,8 @@ export async function firestoreKatalog(projekt: string, datenbank: string, kuens
       probleme.push(`work ${d.id}: id does not match its Inv. Nr. "${w.InvNr}"`);
     }
     werke.push({ InvNr: w.InvNr, Titel: wert(w.Titel), slug: d.id, werkgruppe: w.werkgruppe, images: w.images,
-      werte: werteVon(w, felder), ...(w.ausgeblendet === true && { ausgeblendet: true }) });
+      werte: werteVon(w, felder, f => probleme.push(`work ${d.id}: field "${f}" is not text, left out`)),
+      ...(w.ausgeblendet === true && { ausgeblendet: true }) });
   }
 
   const seiten: Seite[] = ss.docs.map(d => {
