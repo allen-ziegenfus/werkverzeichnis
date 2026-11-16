@@ -56,8 +56,11 @@ function Einstellungen({ ich }) {
   const setze = (k, v) => { setEntwurf(e => ({ ...e, [k]: v })); setHinweis(undefined); };
   // Ohne gespeicherte Liste stehen die Standardfelder im Formular; geschrieben wird sie erst, wenn sich etwas ändert.
   // Eine unbrauchbare gespeicherte Liste (die Regeln prüfen die Einträge nicht
-  // einzeln) zeigt die Standardfelder; ändert man sie, ersetzt Speichern die Liste.
-  const felder = felderVon(entwurf);
+  // einzeln) zeigt, solange unangetastet, die Standardfelder; ändert man sie,
+  // ersetzt Speichern die Liste. Nur dann: Ein Entwurf mit leerem Namen ist
+  // ebenfalls „ungültig“, muss aber sichtbar bleiben und Speichern sperren.
+  const unbrauchbar = entwurf?.felder !== undefined && entwurf.felder === stand?.felder && !gueltigeFelder(entwurf.felder);
+  const felder = entwurf?.felder === undefined || unbrauchbar ? STANDARD_FELDER : entwurf.felder;
   const felderProblem = entwurf && felderFehler(felder);
 
   async function speichern() {
@@ -65,8 +68,13 @@ function Einstellungen({ ich }) {
     try {
       // Namen ohne Leerzeichen am Rand; die Liste bleibt weg, solange sie die Standardliste ist.
       // Eine unbrauchbare, nicht angefasste Liste bleibt, wie sie ist (nicht geändert, nicht geschrieben).
-      const mein = gueltigeFelder(entwurf.felder)
+      const mein = entwurf.felder && !unbrauchbar
         ? { ...entwurf, felder: entwurf.felder.map(f => ({ ...f, name: f.name.trim() })) } : { ...entwurf };
+      // Nie eine unbrauchbare Liste schreiben; felderFehler sollte das schon gesperrt haben.
+      if (mein.felder && !unbrauchbar && !gueltigeFelder(mein.felder)) {
+        setFehler("Die Felder der Werke sind unvollständig; nichts gespeichert.");
+        return;
+      }
       // Hin und zurück geändert: keine Liste schreiben, damit Änderungen an STANDARD_FELDER weiter gelten.
       if (stand.felder === undefined && gleich(mein.felder, STANDARD_FELDER)) delete mein.felder;
       const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein, lesen, ergaenzen: true,
