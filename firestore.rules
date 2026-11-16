@@ -48,12 +48,14 @@ service cloud.firestore {
 
     function gueltigerKuenstler(d) {
       return d.keys().hasOnly(["titel", "websiteTitel", "titelZeile1", "titelZeile2",
-                               "copyright", "roles", "updatedAt", "lastChange"])
+                               "copyright", "felder", "roles", "updatedAt", "lastChange"])
         && d.titel is string && d.titel.size() > 0
         && d.websiteTitel is string && d.titelZeile1 is string
         && d.titelZeile2 is string && d.copyright is string
         && d.roles is map && d.roles.size() <= 50
         && d.roles.values().hasOnly(berechtigungen().keys())
+        // Die Felder der Werke (#256); jedes einzelne prüft die Verwaltung (felder.js).
+        && (!("felder" in d) || (d.felder is list && d.felder.size() <= 100))
         && (d.get("lastChange", null) == null || d.lastChange is string)
         && d.updatedAt == request.time;
     }
@@ -71,13 +73,26 @@ service cloud.firestore {
                "copyright": d.get("copyright", "") };
     }
 
+    // Einstellungen samt Feldliste, zum Vergleichen. Die Feldliste nicht in
+    // einstellungen(): Einträge ohne sie (Code vor #256) bleiben gültig,
+    // solange keine gespeichert ist.
+    function eingestellt(d) {
+      return [einstellungen(d), d.get("felder", null)];
+    }
+
+    // vorher bzw. nachher eines Verlaufseintrags passt zum Dokument d.
+    function passtZu(m, d) {
+      return m.diff(einstellungen(d)).affectedKeys().hasOnly(["felder"])
+        && m.get("felder", null) == d.get("felder", null);
+    }
+
     function einstellungsverlauf(kuenstler, eintrag) {
       return /databases/$(database)/documents/artists/$(kuenstler)/einstellungsverlauf/$(eintrag);
     }
 
     function einstellungenMitVerlauf(kuenstler, d) {
       return !exists(einstellungsverlauf(kuenstler, d.lastChange))
-        && getAfter(einstellungsverlauf(kuenstler, d.lastChange)).data.nachher == einstellungen(d);
+        && passtZu(getAfter(einstellungsverlauf(kuenstler, d.lastChange)).data.nachher, d);
     }
 
     match /artists/{kuenstler} {
@@ -93,7 +108,7 @@ service cloud.firestore {
         && (darf(kuenstler, "rollen.verwalten")
             || !request.resource.data.diff(resource.data).affectedKeys().hasAny(["roles"]))
         // Einstellungen nur mit Verlaufseintrag; reine Rollenänderungen ohne.
-        && (einstellungen(request.resource.data) == einstellungen(resource.data)
+        && (eingestellt(request.resource.data) == eingestellt(resource.data)
             ? !neuerEintrag(request.resource.data, resource.data) || einstellungenMitVerlauf(kuenstler, request.resource.data)
             : neuerEintrag(request.resource.data, resource.data) && einstellungenMitVerlauf(kuenstler, request.resource.data));
 
@@ -102,7 +117,7 @@ service cloud.firestore {
     }
 
     // Jede Änderung der Einstellungen, nur anfügen: vorher und nachher die
-    // Felder aus einstellungen(), ohne Rollen (eigene Berechtigung).
+    // Felder aus einstellungen() und die Feldliste, ohne Rollen (eigene Berechtigung).
     match /artists/{kuenstler}/einstellungsverlauf/{eintrag} {
       allow read: if darf(kuenstler, "lesen");
       allow create: if darf(kuenstler, "einstellungen.bearbeiten")
@@ -110,9 +125,9 @@ service cloud.firestore {
         && (!("rueckgaengig" in request.resource.data) || request.resource.data.rueckgaengig is string)
         && request.resource.data.by == emailAdresse()
         && request.resource.data.at == request.time
-        && request.resource.data.vorher == einstellungen(get(/databases/$(database)/documents/artists/$(kuenstler)).data)
+        && passtZu(request.resource.data.vorher, get(/databases/$(database)/documents/artists/$(kuenstler)).data)
         && getAfter(/databases/$(database)/documents/artists/$(kuenstler)).data.get("lastChange", null) == eintrag
-        && request.resource.data.nachher == einstellungen(getAfter(/databases/$(database)/documents/artists/$(kuenstler)).data);
+        && passtZu(request.resource.data.nachher, getAfter(/databases/$(database)/documents/artists/$(kuenstler)).data);
     }
 
     function gueltigeWerkgruppe(d) {

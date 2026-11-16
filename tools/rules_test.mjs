@@ -88,6 +88,11 @@ const einstellungsEintrag = nachher => [{ function: "getAfter",
   args: [{ exactValue: `${wurzel}/artists/kutscher/einstellungsverlauf/e1` }], result: { value: { data: { nachher } } } }];
 const kuenstlerDanach = d => [{ function: "getAfter", args: [{ exactValue: KUENSTLER }], result: { value: { data: d } } }];
 const einstellungsVerlauf = (vorher, nachher) => ({ by: "admin@example.org", at: JETZT, vorher, nachher });
+// Feldliste (#256): gehört zu den Einstellungen, steht aber nur in Einträgen, die sie kennen.
+const FELDER = [{ schluessel: "Jahr", name: "Jahr", lang: false, oeffentlich: true, archiviert: false }];
+const mitFelder = (d, felder = FELDER) => ({ ...d, felder });
+const kutscherFelder = { ...kutscher, felder: FELDER, lastChange: "e1" };
+const kuenstlerDavor = d => [{ function: "get", args: [{ exactValue: KUENSTLER }], result: { value: { data: d } } }];
 const werkgruppenFassung = ({ titel, kurztitel = null, reihenfolge, cover = null }) => ({ titel, kurztitel, reihenfolge, cover });
 const gruppeNeu = { ...gruppe, titel: "Fotos", lastChange: "g1" };
 const FOTOGRAFIE = `${wurzel}/artists/kutscher/werkgruppen/fotografie`;
@@ -325,6 +330,35 @@ const faelle = [
     { daten: { ...einstellungsVerlauf(einstellungen(kutscher), einstellungen(kutscherNeu)), by: EDITOR }, mocks: kuenstlerDanach(kutscherNeu) }),
   fall("Bearbeiter:in schreibt keinen Einstellungsverlauf", "DENY", als(EDITOR), "create", "artists/kutscher/einstellungsverlauf/e1",
     { daten: { ...einstellungsVerlauf(einstellungen(kutscher), einstellungen(kutscherNeu)), by: EDITOR }, mocks: kuenstlerDanach(kutscherNeu) }),
+  fall("Feldliste mit Verlaufseintrag", "ALLOW", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherFelder, updatedAt: JETZT }, vorhanden: kutscher, mocks: einstellungsEintrag(mitFelder(einstellungen(kutscher))) }),
+  fall("Feldliste ohne Verlaufseintrag", "DENY", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscher, felder: FELDER, updatedAt: JETZT }, vorhanden: kutscher }),
+  fall("Feldliste mit Eintrag ohne sie", "DENY", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherFelder, updatedAt: JETZT }, vorhanden: kutscher, mocks: einstellungsEintrag(einstellungen(kutscher)) }),
+  fall("Feldliste keine Liste", "DENY", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherFelder, felder: { Jahr: true }, updatedAt: JETZT }, vorhanden: kutscher,
+      mocks: einstellungsEintrag(mitFelder(einstellungen(kutscher), { Jahr: true })) }),
+  fall("Feldliste zu lang", "DENY", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherFelder, felder: Array(101).fill(FELDER[0]), updatedAt: JETZT }, vorhanden: kutscher,
+      mocks: einstellungsEintrag(mitFelder(einstellungen(kutscher), Array(101).fill(FELDER[0]))) }),
+  fall("Feldliste ohne Berechtigung", "DENY", als(EDITOR), "update", "artists/kutscher",
+    { daten: { ...kutscherFelder, updatedAt: JETZT }, vorhanden: kutscher, mocks: einstellungsEintrag(mitFelder(einstellungen(kutscher))) }),
+  fall("Einstellungen bei Feldliste, Eintrag mit ihr", "ALLOW", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherFelder, titel: "Neu", lastChange: "e1", updatedAt: JETZT }, vorhanden: { ...kutscherFelder, lastChange: "e0" },
+      mocks: einstellungsEintrag(mitFelder(einstellungen(kutscherNeu))) }),
+  fall("Einstellungen bei Feldliste, Eintrag ohne sie", "DENY", als(ADMIN), "update", "artists/kutscher",
+    { daten: { ...kutscherFelder, titel: "Neu", lastChange: "e1", updatedAt: JETZT }, vorhanden: { ...kutscherFelder, lastChange: "e0" },
+      mocks: einstellungsEintrag(einstellungen(kutscherNeu)) }),
+  fall("Einstellungsverlauf mit Feldliste", "ALLOW", als(ADMIN), "create", "artists/kutscher/einstellungsverlauf/e1",
+    { daten: einstellungsVerlauf(einstellungen(kutscher), mitFelder(einstellungen(kutscher))), mocks: kuenstlerDanach(kutscherFelder) }),
+  fall("Einstellungsverlauf mit falscher Feldliste", "DENY", als(ADMIN), "create", "artists/kutscher/einstellungsverlauf/e1",
+    { daten: einstellungsVerlauf(einstellungen(kutscher), mitFelder(einstellungen(kutscher), [])), mocks: kuenstlerDanach(kutscherFelder) }),
+  fall("Einstellungsverlauf ohne die vorhandene Feldliste", "DENY", als(ADMIN), "create", "artists/kutscher/einstellungsverlauf/e1",
+    { daten: einstellungsVerlauf(einstellungen(kutscher), einstellungen(kutscherNeu)),
+      mocks: [...kuenstlerDavor({ ...kutscher, felder: FELDER }), ...kuenstlerDanach({ ...kutscherNeu, felder: FELDER })] }),
+  fall("Einstellungsverlauf mit fremdem Schlüssel", "DENY", als(ADMIN), "create", "artists/kutscher/einstellungsverlauf/e1",
+    { daten: einstellungsVerlauf(einstellungen(kutscher), { ...einstellungen(kutscherNeu), roles: {} }), mocks: kuenstlerDanach(kutscherNeu) }),
   fall("Werkgruppe mit Verlaufseintrag", "ALLOW", als(ADMIN), "update", "artists/kutscher/werkgruppen/fotografie",
     { daten: gruppeNeu, vorhanden: gruppe, mocks: werkgruppenEintrag(werkgruppenFassung(gruppeNeu)) }),
   fall("Werkgruppe mit lastChange ohne Eintrag", "DENY", als(ADMIN), "update", "artists/kutscher/werkgruppen/fotografie",
