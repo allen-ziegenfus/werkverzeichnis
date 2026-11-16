@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { collection, serverTimestamp } from "firebase/firestore";
 import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
-import { feldweiseSpeichern } from "./feldweise.js";
+import { feldweiseSpeichern, gleich } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import FelderBearbeiten, { felderFehler } from "./FelderBearbeiten.jsx";
 import Skelett from "./Skelett.jsx";
@@ -62,7 +62,9 @@ function Einstellungen({ ich }) {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     try {
       // Namen ohne Leerzeichen am Rand; die Liste bleibt weg, solange sie die Standardliste ist.
-      const mein = entwurf.felder ? { ...entwurf, felder: entwurf.felder.map(f => ({ ...f, name: f.name.trim() })) } : entwurf;
+      const mein = entwurf.felder ? { ...entwurf, felder: entwurf.felder.map(f => ({ ...f, name: f.name.trim() })) } : { ...entwurf };
+      // Hin und zurück geändert: keine Liste schreiben, damit Änderungen an STANDARD_FELDER weiter gelten.
+      if (stand.felder === undefined && gleich(mein.felder, STANDARD_FELDER)) delete mein.felder;
       const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein, lesen, ergaenzen: true,
         verlauf: { sammlung: collection(kuenstler, "einstellungsverlauf"),
           eintrag: (vorher, nachher) => ({ by: ich, at: serverTimestamp(), vorher, nachher }) } });

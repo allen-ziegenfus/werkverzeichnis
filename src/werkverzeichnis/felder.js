@@ -35,8 +35,10 @@ export const STANDARD_FELDER = [
 /** Höchstens so viele Felder; dieselbe Grenze steht in firestore.rules. */
 export const HOECHSTENS_FELDER = 100;
 
-// Namen am Werk-Dokument, die verwaltet werden oder fest sind; kein Feld darf so heißen.
-const VERGEBEN = ["InvNr", "Titel", "werkgruppe", "images", "updatedAt", "lastChange", "ausgeblendet", "slug"];
+// Namen am Werk-Dokument, die verwaltet werden oder fest sind, und die festen
+// Schlüssel im JSON der Website (build_data.ts); kein Feld darf so heißen.
+const VERGEBEN = ["InvNr", "Titel", "werkgruppe", "images", "updatedAt", "lastChange", "ausgeblendet", "slug",
+  "InventoryNumber", "Slug", "WerkgruppeSlug", "Art", "Bilder", "Thumbnail"];
 
 /** Ist `d` eine brauchbare Feldliste? */
 export function gueltigeFelder(d) {

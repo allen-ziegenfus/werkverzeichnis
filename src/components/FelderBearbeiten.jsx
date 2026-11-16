@@ -14,7 +14,10 @@ export function felderFehler(felder) {
   const namen = felder.map(f => f.name.trim().toLowerCase());
   if (namen.some(n => !n)) return "Jedes Feld braucht einen Namen.";
   const doppelt = namen.find((n, i) => namen.indexOf(n) !== i);
-  if (doppelt) return `Den Namen „${felder.find(f => f.name.trim().toLowerCase() === doppelt).name.trim()}“ gibt es zweimal.`;
+  if (!doppelt) return;
+  const beide = felder.filter(f => f.name.trim().toLowerCase() === doppelt);
+  return `Den Namen „${beide[0].name.trim()}“ gibt es zweimal`
+    + (beide.some(f => f.archiviert) ? " (einmal archiviert; lieber wiederherstellen)." : ".");
 }
 
 /** `gespeichert`: die Schlüssel der gespeicherten Liste; ein Feld, das noch nicht drin ist, lässt sich ganz entfernen. */
@@ -58,14 +61,15 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, gespe
                 <button className={knopfKlein} disabled={gesperrt || i === aktiv.length - 1} onClick={() => schieben(f.schluessel, 1)}
                         aria-label={`${f.name} nach unten`} title="Nach unten">↓</button>
               </span>
-              <label className="flex-1 min-w-0">
-                <span className="sr-only">Name</span>
+              <div className="flex-1 min-w-0">
                 <input className="border p-1 w-full disabled:bg-gray-100" value={f.name} disabled={gesperrt}
+                       aria-label={`Name des Felds ${f.schluessel}`}
+                       aria-describedby={f.name.trim() !== f.schluessel ? `feld-${f.schluessel}` : undefined}
                        onChange={e => aendern(f.schluessel, { name: e.target.value })} />
                 {f.name.trim() !== f.schluessel && (
-                  <span className="block text-xs text-gray-500">gespeichert als {f.schluessel}</span>
+                  <span id={`feld-${f.schluessel}`} className="block text-xs text-gray-500">gespeichert als {f.schluessel}</span>
                 )}
-              </label>
+              </div>
             </div>
             <label className="text-sm flex items-center gap-1">
               <input type="checkbox" checked={f.lang} disabled={gesperrt}
