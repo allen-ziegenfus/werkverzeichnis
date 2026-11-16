@@ -207,6 +207,8 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
   const [fragen, setFragen] = useState(false);   // Tafel mit Notizfeld
   const ref = useRef();
   const rot = dunkel ? "text-red-400" : "text-red-700";
+  // Fehler mit Zeichen, nicht nur rot: im dunklen Kopf liegt Rot nah am Rosa von „Alles veröffentlicht“.
+  const warnung = <span aria-hidden="true">⚠ </span>;
 
   useEffect(() => {
     if (!auf) { setFragen(false); return; }
@@ -222,9 +224,9 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
   return (
     <span ref={ref} className={`relative flex items-center gap-2 ${className}`}>
       <button className="hover:underline text-left" aria-expanded={auf} onClick={() => setAuf(!auf)}>
-        {fehler ? <span className={rot}>{fehler}</span>
+        {fehler ? <span className={rot}>{warnung}{fehler}</span>
           : beschaeftigt ? <span><Dreht dunkel={dunkel} />Veröffentlichung läuft …</span>
-          : letzte?.status === "fehler" ? <span className={rot}>Letzte Veröffentlichung fehlgeschlagen</span>
+          : letzte?.status === "fehler" ? <span className={rot}>{warnung}Letzte Veröffentlichung fehlgeschlagen</span>
           : n === undefined ? <span>…</span>
           : n === 0 ? <span className={dunkel ? "text-pink-400" : "text-green-700"}>Alles veröffentlicht</span>
           : <span>● {anzahl(n)} offene Änderung{n === 1 ? "" : "en"}</span>}
