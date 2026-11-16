@@ -8,7 +8,9 @@ import { useZugang } from "./Zugang.jsx";
 
 /**
  * Kopf der Verwaltung: Reiter für die Bereiche, die man darf, der Stand der
- * Veröffentlichung, zurück zur Website und Abmelden.
+ * Veröffentlichung, zurück zur Website und Abmelden. Dunkel, damit man sofort
+ * sieht, dass man in der Verwaltung ist (#278); der aktive Reiter ist hell wie
+ * der Inhalt darunter.
  */
 
 const link = "underline hover:no-underline";
@@ -18,12 +20,12 @@ export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
   const bereiche = nutzer && wer ? BEREICHE.filter(b => darf(wer, b.berechtigung)) : [];
 
   return (
-    <header className="border-b border-gray-400 bg-gray-200 text-sm">
+    <header className="border-b border-stone-950 bg-stone-900 text-stone-100 text-sm">
       <div className="max-w-5xl mx-auto px-4 pt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <a href="/verwaltung/" className="text-base">
           <b>Verwaltung</b> · {kuenstlerName}
         </a>
-        <span className="ml-auto text-gray-600">
+        <span className="ml-auto text-stone-300">
           <a className={link} href="/">← Zur Website</a>
           {nutzer && (
             <>
@@ -38,8 +40,9 @@ export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
         <nav className="flex gap-1 overflow-x-auto -mb-px">
           {bereiche.map(b => (
             <a key={b.pfad} href={b.pfad}
+               aria-current={b.pfad === aktiv ? "page" : undefined}
                className={"px-3 py-1.5 border border-b-0 rounded-t whitespace-nowrap " + (b.pfad === aktiv
-                 ? "bg-white border-gray-400" : "border-transparent hover:bg-gray-100")}>
+                 ? "bg-white text-black border-stone-950" : "border-transparent hover:bg-stone-700")}>
               {b.titel}
             </a>
           ))}
@@ -47,7 +50,7 @@ export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
         {nutzer && wer && darf(wer, "lesen") && (
           <Stand kuenstlerId={KUENSTLER} ich={nutzer.email} erlaubt={darf(wer, "veroeffentlichen")}
                  darfWerke={darf(wer, "werke.bearbeiten")} darfSeiten={darf(wer, "seiten.bearbeiten")}
-                 className="ml-auto pb-1.5" />
+                 dunkel className="ml-auto pb-1.5" />
         )}
       </div>
       {!bereiche.length && <div className="h-2" />}
