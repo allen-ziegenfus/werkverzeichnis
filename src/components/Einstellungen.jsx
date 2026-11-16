@@ -7,7 +7,7 @@ import FelderBearbeiten, { felderFehler } from "./FelderBearbeiten.jsx";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf } from "./knoepfe.js";
-import { STANDARD_FELDER } from "../werkverzeichnis/felder.js";
+import { felderVon, gueltigeFelder, STANDARD_FELDER } from "../werkverzeichnis/felder.js";
 
 /**
  * Einstellungen der Künstler:in dieser Website. Speichert nur die geänderten
@@ -55,14 +55,18 @@ function Einstellungen({ ich }) {
 
   const setze = (k, v) => { setEntwurf(e => ({ ...e, [k]: v })); setHinweis(undefined); };
   // Ohne gespeicherte Liste stehen die Standardfelder im Formular; geschrieben wird sie erst, wenn sich etwas ändert.
-  const felder = entwurf?.felder ?? STANDARD_FELDER;
+  // Eine unbrauchbare gespeicherte Liste (die Regeln prüfen die Einträge nicht
+  // einzeln) zeigt die Standardfelder; ändert man sie, ersetzt Speichern die Liste.
+  const felder = felderVon(entwurf);
   const felderProblem = entwurf && felderFehler(felder);
 
   async function speichern() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     try {
       // Namen ohne Leerzeichen am Rand; die Liste bleibt weg, solange sie die Standardliste ist.
-      const mein = entwurf.felder ? { ...entwurf, felder: entwurf.felder.map(f => ({ ...f, name: f.name.trim() })) } : { ...entwurf };
+      // Eine unbrauchbare, nicht angefasste Liste bleibt, wie sie ist (nicht geändert, nicht geschrieben).
+      const mein = gueltigeFelder(entwurf.felder)
+        ? { ...entwurf, felder: entwurf.felder.map(f => ({ ...f, name: f.name.trim() })) } : { ...entwurf };
       // Hin und zurück geändert: keine Liste schreiben, damit Änderungen an STANDARD_FELDER weiter gelten.
       if (stand.felder === undefined && gleich(mein.felder, STANDARD_FELDER)) delete mein.felder;
       const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein, lesen, ergaenzen: true,
@@ -100,7 +104,7 @@ function Einstellungen({ ich }) {
 
       <h2 className="pt-4 text-lg font-semibold">Felder der Werke</h2>
       <FelderBearbeiten felder={felder} setFelder={f => setze("felder", f)} gesperrt={speichert}
-                        gespeichert={new Set((stand.felder ?? STANDARD_FELDER).map(f => f.schluessel))} />
+                        gespeichert={new Set(felderVon(stand).map(f => f.schluessel))} />
 
       <div className="flex flex-wrap gap-2 items-center">
         <button className={hauptknopf} onClick={speichern} disabled={speichert || !entwurf.titel.trim() || !!felderProblem}>
