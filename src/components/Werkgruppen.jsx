@@ -5,6 +5,7 @@ import { darf } from "../werkverzeichnis/permissions.js";
 import { client, SCHLUESSEL, useWerkgruppen } from "./abfragen.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
+import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf } from "./knoepfe.js";
 
@@ -29,6 +30,7 @@ export default function WerkgruppenSeite() {
 function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
   const { data: gruppen, error: ladefehler } = useWerkgruppen();
   const [titel, setTitel] = useState("");
+  useUngespeichert(!!titel.trim());   // neue Werkgruppe eingetippt, aber nicht hinzugefügt (#324)
   const [fehler, setFehler] = useState();
   const sammlung = collection(db, "artists", kuenstlerId, "werkgruppen");
   const verlauf = collection(db, "artists", kuenstlerId, "werkgruppenverlauf");
