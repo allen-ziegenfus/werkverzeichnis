@@ -172,15 +172,17 @@ function WerkEditor({ nutzer }) {
   // Formular, bis gespeichert oder verworfen, statt still zu verschwinden.
   const nochGeaendert = werk ? ARCHIVIERT.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [];
   const FELDER = useMemo(() => [...LISTE, ...nochGeaendert], [LISTE, nochGeaendert.join("\n")]);
-  const BEARBEITBAR = useMemo(() => [...LISTE_BEARBEITBAR, ...nochGeaendert], [LISTE_BEARBEITBAR, nochGeaendert.join("\n")]);
+  const ABGLEICH = useMemo(() => [...LISTE_BEARBEITBAR, ...ARCHIVIERT], [LISTE_BEARBEITBAR, ARCHIVIERT]);
   const geaendert = useMemo(() => werk
     ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk, FELDER]);
   // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
   const abgleich = useAbgleich({
     art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk && !!kuenstlerDaten, ref: werk ? doc(kuenstler, "works", werk.id) : null,
-    felder: BEARBEITBAR, gleich, name: werkFeld,
+    // Archivierte mit: Ein gesicherter Entwurf mit Änderungen daran wird so angeboten
+    // (dann mit „archiviert“ im Formular), statt verworfen oder beschnitten.
+    felder: ABGLEICH, gleich, name: werkFeld,
     stand: werk?.data ?? {},
-    entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf, BEARBEITBAR]),
+    entwurf: useMemo(() => Object.fromEntries(ABGLEICH.map(f => [f, entwurf[f] ?? null])), [entwurf, ABGLEICH]),
     geaendert: geaendert.length > 0,
     uebernehmen: (d, e) => {
       const w = { id: werk.id, data: d };
