@@ -4,7 +4,19 @@
     "websiteTitel": "Werkverzeichnis von Erika Beispiel (Testdaten)",
     "titelZeile1": "Werkverzeichnis von",
     "titelZeile2": "Erika Beispiel (Testdaten)",
-    "copyright": "Erika Beispiel"
+    "copyright": "Erika Beispiel",
+    "felder": [
+      { "schluessel": "Werkgruppe", "name": "Art", "lang": false, "oeffentlich": true, "archiviert": false },
+      { "schluessel": "Jahr", "name": "Jahr", "lang": false, "oeffentlich": true, "archiviert": false },
+      { "schluessel": "Maße", "name": "Maße", "lang": false, "oeffentlich": true, "archiviert": false },
+      { "schluessel": "Provenienz", "name": "Provenienz", "lang": true, "oeffentlich": true, "archiviert": false },
+      { "schluessel": "Material", "name": "Material", "lang": true, "oeffentlich": false, "archiviert": false },
+      { "schluessel": "Technik", "name": "Technik", "lang": false, "oeffentlich": true, "archiviert": false },
+      { "schluessel": "Beschreibung", "name": "Beschreibung", "lang": true, "oeffentlich": true, "archiviert": false },
+      { "schluessel": "Zustand", "name": "Erhaltung", "lang": false, "oeffentlich": true, "archiviert": false },
+      { "schluessel": "Standort", "name": "Standort", "lang": false, "oeffentlich": false, "archiviert": false },
+      { "schluessel": "Foto", "name": "Foto", "lang": false, "oeffentlich": true, "archiviert": true }
+    ]
   },
   "werkgruppen": [
     { "slug": "objekte", "titel": "Objekte", "reihenfolge": 1, "cover": "artists/test/objekte.jpg" },
@@ -14,7 +26,8 @@
   "werke": [
     { "slug": "ob1", "werkgruppe": "objekte", "InvNr": "OB1", "Titel": "Kiste mit Deckel", "Werkgruppe": "Objekt-Kasten", "Jahr": "1970",
       "Material": "Holz, bemalt", "Maße": "20 x 30 x 10 cm", "Beschreibung": "Ein Werk mit einem Bild.",
-      "Zustand": "gut", "Standort": "Atelier", "images": ["artists/test/ob1.jpg"] },
+      "Zustand": "gut", "Standort": "Atelier", "Provenienz": "Sammlung der Künstlerin (Testdaten)",
+      "Foto": "archiviert, steht nicht auf der Website", "images": ["artists/test/ob1.jpg"] },
     { "slug": "ob2-a-b", "werkgruppe": "objekte", "InvNr": "OB2 A/B", "Titel": "Zwei Teile", "Jahr": "1972-1974",
       "Beschreibung": "Ein Werk mit zwei Bildern und einer Jahresspanne.",
       "images": ["artists/test/ob2a.jpg", "artists/test/ob2b.jpg"] },
