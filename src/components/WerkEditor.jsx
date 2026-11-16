@@ -37,6 +37,7 @@ function editorFelder(liste) {
     FELDER: felder, BEARBEITBAR: felder.filter(f => f !== "InvNr"),
     LANG: aktiv.filter(f => f.lang).map(f => f.schluessel),
     INTERN: aktiv.filter(f => !f.oeffentlich).map(f => f.schluessel),
+    ARCHIVIERT: liste.filter(f => f.archiviert).map(f => f.schluessel),
     werkFeld: feldNamen(liste),
   };
 }
@@ -100,10 +101,12 @@ function WerkEditor({ nutzer }) {
   const werkeAbfrage = useWerke(gruppe);
   const { data: werke, error: werkeFehler } = werkeAbfrage;
   const { data: veroeffentlicht } = useVeroeffentlicht();
-  // Bis das Künstler-Dokument da ist, die Standardfelder.
-  const { data: kuenstlerDaten } = useKuenstler();
-  const { FELDER, BEARBEITBAR, LANG, INTERN, werkFeld } = useMemo(() => editorFelder(felderVon(kuenstlerDaten)), [kuenstlerDaten]);
-  const ladefehler = gruppenFehler ?? werkeFehler;
+  // Das Formular wartet auf die Feldliste: Mit den Standardfeldern wären archivierte
+  // bearbeitbar, und ein gesicherter Entwurf eigener Felder ginge verloren (Abgleich.jsx).
+  const { data: kuenstlerDaten, error: kuenstlerFehler } = useKuenstler();
+  const { FELDER: LISTE, BEARBEITBAR: LISTE_BEARBEITBAR, ARCHIVIERT, LANG, INTERN, werkFeld } =
+    useMemo(() => editorFelder(felderVon(kuenstlerDaten)), [kuenstlerDaten]);
+  const ladefehler = gruppenFehler ?? werkeFehler ?? kuenstlerFehler;
   const [suche, setSuche] = useState("");
   const [werk, setWerk] = useState();               // {id, data} wie geladen
   const [entwurf, setEntwurf] = useState({});
@@ -165,11 +168,16 @@ function WerkEditor({ nutzer }) {
     setVerlauf(v.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.at?.toMillis() - a.at?.toMillis()));
   }
 
+  // Inzwischen archiviert, aber hier schon geändert (die Liste lädt neu): bleibt im
+  // Formular, bis gespeichert oder verworfen, statt still zu verschwinden.
+  const nochGeaendert = werk ? ARCHIVIERT.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [];
+  const FELDER = useMemo(() => [...LISTE, ...nochGeaendert], [LISTE, nochGeaendert.join("\n")]);
+  const BEARBEITBAR = useMemo(() => [...LISTE_BEARBEITBAR, ...nochGeaendert], [LISTE_BEARBEITBAR, nochGeaendert.join("\n")]);
   const geaendert = useMemo(() => werk
     ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk, FELDER]);
   // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
   const abgleich = useAbgleich({
-    art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk, ref: werk ? doc(kuenstler, "works", werk.id) : null,
+    art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk && !!kuenstlerDaten, ref: werk ? doc(kuenstler, "works", werk.id) : null,
     felder: BEARBEITBAR, gleich, name: werkFeld,
     stand: werk?.data ?? {},
     entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf, BEARBEITBAR]),
@@ -465,7 +473,8 @@ function WerkEditor({ nutzer }) {
         </>
       )}
 
-      {werk && (
+      {werk && !kuenstlerDaten && !ladefehler && <Skelett />}
+      {werk && kuenstlerDaten && (
         <div className="space-y-3">
           {/* Gesperrt während des Speicherns und Hochladens: danach öffnet schreiben() das Werk neu (#213, #180). */}
           {/* Bleibt beim Scrollen unter dem Kopf stehen: welches Werk offen ist, Speichern (#260). */}
@@ -497,6 +506,7 @@ function WerkEditor({ nutzer }) {
               <span className="text-sm text-gray-600">
                 {werkFeld(f)}
                 {INTERN.includes(f) && <span className="ml-2 text-xs rounded bg-gray-200 px-1" title="Steht nicht auf der Website.">intern</span>}
+                {nochGeaendert.includes(f) && <span className="ml-2 text-xs rounded bg-amber-100 px-1" title="Inzwischen in den Einstellungen archiviert.">archiviert</span>}
               </span>
               {f === "InvNr" ? (
                 <input className="border p-1 w-full bg-gray-100" value={entwurf[f] ?? ""} readOnly />
