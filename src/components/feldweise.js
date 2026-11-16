@@ -21,16 +21,21 @@ import { db } from "./firebaseClient.js";
  * inzwischen etwas anderes geändert haben.
  */
 const w = v => v ?? null;
+// Nach Inhalt: Listen (die Feldliste, #256) kommen bei jedem Lesen als neues
+// Objekt, Maps darin aus Firestore vielleicht mit anderer Reihenfolge der Schlüssel.
+const inhalt = v => JSON.stringify(v ?? null, (_, x) => x && typeof x === "object" && !Array.isArray(x)
+  ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : x);
+export const gleich = (a, b) => inhalt(a) === inhalt(b);
 
 export async function feldweiseSpeichern({ ref, stand, mein, lesen, pfad = k => k, ergaenzen = false, verlauf }) {
   const schluessel = [...new Set([...Object.keys(stand), ...Object.keys(mein)])];
-  const geaendert = schluessel.filter(k => w(stand[k]) !== w(mein[k]));
+  const geaendert = schluessel.filter(k => !gleich(stand[k], mein[k]));
   const ergebnis = await runTransaction(db, async tx => {
     const roh = (await tx.get(ref)).data() ?? {};
     const jetzt = lesen(roh);
-    const konflikte = geaendert.filter(k => w(jetzt[k]) !== w(stand[k]) && w(jetzt[k]) !== w(mein[k]));
+    const konflikte = geaendert.filter(k => !gleich(jetzt[k], stand[k]) && !gleich(jetzt[k], mein[k]));
     const alle = new Set([...Object.keys(jetzt), ...schluessel]);
-    const fremd = [...alle].some(k => !geaendert.includes(k) && w(jetzt[k]) !== w(stand[k]));
+    const fremd = [...alle].some(k => !geaendert.includes(k) && !gleich(jetzt[k], stand[k]));
     const schreiben = [...new Set([...geaendert,
       ...(ergaenzen ? Object.keys(mein).filter(k => !(k in roh)) : [])])];
     if (!konflikte.length && schreiben.length) {

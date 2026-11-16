@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { collection, serverTimestamp } from "firebase/firestore";
 import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
-import { feldweiseSpeichern } from "./feldweise.js";
+import { feldweiseSpeichern, gleich } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
+import FelderBearbeiten, { felderFehler } from "./FelderBearbeiten.jsx";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf } from "./knoepfe.js";
+import { STANDARD_FELDER } from "../werkverzeichnis/felder.js";
 
 /**
  * Einstellungen der Künstler:in dieser Website. Speichert nur die geänderten
@@ -22,8 +24,15 @@ export const EINSTELLUNGEN = [
   ["titelZeile2", "Titel mobil, Zeile 2"],
   ["copyright", "Copyright"],
 ];
-/** Die Felder aus dem Dokument, fehlende leer; wie einstellungen() in firestore.rules. */
-export const lesen = d => Object.fromEntries(EINSTELLUNGEN.map(([k]) => [k, d[k] ?? ""]));
+/**
+ * Die Felder aus dem Dokument, fehlende leer; wie einstellungen() in
+ * firestore.rules. Dazu die Feldliste der Werke (#256), nur wenn gespeichert:
+ * Die Regeln verlangen sie im Verlauf genau dann.
+ */
+export const lesen = d => ({ ...Object.fromEntries(EINSTELLUNGEN.map(([k]) => [k, d[k] ?? ""])),
+  ...(d.felder !== undefined && { felder: d.felder }) });
+/** Beschriftung eines Schlüssels aus lesen(), für den Verlauf. */
+export const einstellungsName = k => k === "felder" ? "Felder der Werke" : EINSTELLUNGEN.find(([x]) => x === k)?.[1] ?? k;
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 
 export default function EinstellungenSeite() {
@@ -45,19 +54,26 @@ function Einstellungen({ ich }) {
   useEffect(() => { if (error) setFehler(meldung(error)); }, [error]);
 
   const setze = (k, v) => { setEntwurf(e => ({ ...e, [k]: v })); setHinweis(undefined); };
+  // Ohne gespeicherte Liste stehen die Standardfelder im Formular; geschrieben wird sie erst, wenn sich etwas ändert.
+  const felder = entwurf?.felder ?? STANDARD_FELDER;
+  const felderProblem = entwurf && felderFehler(felder);
 
   async function speichern() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
     try {
-      const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein: entwurf, lesen, ergaenzen: true,
+      // Namen ohne Leerzeichen am Rand; die Liste bleibt weg, solange sie die Standardliste ist.
+      const mein = entwurf.felder ? { ...entwurf, felder: entwurf.felder.map(f => ({ ...f, name: f.name.trim() })) } : { ...entwurf };
+      // Hin und zurück geändert: keine Liste schreiben, damit Änderungen an STANDARD_FELDER weiter gelten.
+      if (stand.felder === undefined && gleich(mein.felder, STANDARD_FELDER)) delete mein.felder;
+      const r = await feldweiseSpeichern({ ref: kuenstler, stand, mein, lesen, ergaenzen: true,
         verlauf: { sammlung: collection(kuenstler, "einstellungsverlauf"),
           eintrag: (vorher, nachher) => ({ by: ich, at: serverTimestamp(), vorher, nachher }) } });
       setEntwurf(r.formular); setStand(r.stand);
       // Der Cache bekommt nur, was gespeichert ist.
       client.setQueryData(SCHLUESSEL.kuenstler, d => d && { ...d, ...r.stand });
       if (r.konflikte.length) {
-        const name = k => EINSTELLUNGEN.find(([x]) => x === k)[1];
-        setFehler(`Inzwischen woanders geändert: ${r.konflikte.map(k => `${name(k)} (jetzt „${r.stand[k]}“)`).join(", ")}. `
+        setFehler(`Inzwischen woanders geändert: ${r.konflikte.map(k => k === "felder" ? einstellungsName(k)
+          : `${einstellungsName(k)} (jetzt „${r.stand[k]}“)`).join(", ")}. `
           + "Nichts gespeichert; erneut speichern übernimmt die Werte von hier.");
         return;
       }
@@ -82,12 +98,17 @@ function Einstellungen({ ich }) {
         </label>
       ))}
 
-      <div className="flex gap-2 items-center">
-        <button className={hauptknopf} onClick={speichern} disabled={speichert || !entwurf.titel.trim()}>
+      <h2 className="pt-4 text-lg font-semibold">Felder der Werke</h2>
+      <FelderBearbeiten felder={felder} setFelder={f => setze("felder", f)} gesperrt={speichert}
+                        gespeichert={new Set((stand.felder ?? STANDARD_FELDER).map(f => f.schluessel))} />
+
+      <div className="flex flex-wrap gap-2 items-center">
+        <button className={hauptknopf} onClick={speichern} disabled={speichert || !entwurf.titel.trim() || !!felderProblem}>
           {speichert ? "Speichere…" : "Speichern"}
         </button>
         {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
         {fehler && <span className="text-red-700 text-sm">{fehler}</span>}
+        {!fehler && felderProblem && <span className="text-red-700 text-sm">{felderProblem}</span>}
       </div>
     </div>
   );

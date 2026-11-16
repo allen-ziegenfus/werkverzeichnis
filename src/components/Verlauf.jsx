@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-  collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, where,
+  collection, deleteField, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { darf } from "../werkverzeichnis/permissions.js";
-import { EINSTELLUNGEN, lesen as einstellungenLesen } from "./Einstellungen.jsx";
+import { einstellungsName, lesen as einstellungenLesen } from "./Einstellungen.jsx";
+import { gleich } from "./feldweise.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
 import { werkFeld } from "./werkFeld.js";
@@ -171,7 +172,7 @@ async function aenderungen(kuenstlerId, von, bis) {
 }
 
 const unterschiede = (a, b) => [...new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])]
-  .filter(k => (a?.[k] ?? null) !== (b?.[k] ?? null));
+  .filter(k => !gleich(a?.[k], b?.[k]));
 
 /** Je Schlüssel der Stand vor dem ersten Eintrag gegen den nach dem letzten; ohne Unterschied fällt er heraus. */
 function nettoFassungen(eintraege, schluessel) {
@@ -210,13 +211,16 @@ async function einstellungenZuruecksetzen(kuenstlerId, ich, x) {
   const ref = doc(db, "artists", kuenstlerId);
   return runTransaction(db, async tx => {
     const ist = einstellungenLesen((await tx.get(ref)).data() ?? {});
-    const zurueck = x.felder.filter(k => ist[k] === x.nachher[k]);
+    const zurueck = x.felder.filter(k => gleich(ist[k], x.nachher[k]));
     if (!zurueck.length) return false;
     const werte = Object.fromEntries(zurueck.map(k => [k, x.vorher[k]]));
+    // Gab es davor keine Feldliste (#256), fällt sie wieder weg.
+    const nachher = Object.fromEntries(Object.entries({ ...ist, ...werte }).filter(([, v]) => v !== undefined));
     const eintrag = doc(collection(ref, "einstellungsverlauf"));
-    tx.set(eintrag, { by: ich, at: serverTimestamp(), vorher: ist, nachher: { ...ist, ...werte } });
+    tx.set(eintrag, { by: ich, at: serverTimestamp(), vorher: ist, nachher });
     // Alle Felder: Älteren Dokumenten fehlt vielleicht eins, die Regeln verlangen alle.
-    tx.update(ref, { ...ist, ...werte, updatedAt: serverTimestamp(), lastChange: eintrag.id });
+    tx.update(ref, { ...nachher, ...("felder" in ist && !("felder" in nachher) && { felder: deleteField() }),
+      updatedAt: serverTimestamp(), lastChange: eintrag.id });
     return true;
   });
 }
@@ -316,7 +320,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
     ...a.werkgruppenOhne.map(g => ["go" + g.id, `Werkgruppe „${g.titel || g.id}“`, ohneVerlauf, ""]),
     ...a.medien.map(m => ["m" + m.id, "Bild verarbeitet", m.original?.split("/").pop() ?? m.id, ""]),
     ...(a.einstellungen ? [["e", "Einstellungen",
-      a.einstellungen.felder.map(k => EINSTELLUNGEN.find(([x]) => x === k)?.[1] ?? k).join(", "),
+      a.einstellungen.felder.map(einstellungsName).join(", "),
       [...a.einstellungen.von].join(", ")]] : []),
     ...(a.kuenstlerGeaendert ? [["eo", "Einstellungen oder Personen", ohneVerlauf, ""]] : []),
   ];
