@@ -12,20 +12,20 @@
 const feld = (schluessel, name, { lang = false, oeffentlich = true } = {}) =>
   ({ schluessel, name, lang, oeffentlich, archiviert: false });
 
-// Reihenfolge wie bisher im Editor; „Werkgruppe“ ist der Freitext „Art“ (#189).
+// Reihenfolge wie bisher auf der Werkseite (#258); „Werkgruppe“ ist der Freitext „Art“ (#189).
 export const STANDARD_FELDER = [
   feld("Werkgruppe", "Art"),
   feld("Jahr", "Jahr"),
   feld("Maße", "Maße"),
-  // Steht im JSON der Seite, aber nicht auf der Werkseite.
-  feld("Material", "Material", { lang: true, oeffentlich: false }),
-  feld("Technik", "Technik"),
-  feld("Beschreibung", "Beschreibung", { lang: true }),
-  feld("Zustand", "Zustand"),
-  feld("Standort", "Standort"),
-  feld("Signatur", "Signatur"),
-  feld("Auflage", "Auflage"),
   feld("Anzahl", "Anzahl"),
+  feld("Signatur", "Signatur"),
+  feld("Zustand", "Zustand"),
+  feld("Beschreibung", "Beschreibung", { lang: true }),
+  feld("Standort", "Standort"),
+  feld("Technik", "Technik"),
+  // Stand im JSON der Seite, aber nie auf der Werkseite.
+  feld("Material", "Material", { lang: true, oeffentlich: false }),
+  feld("Auflage", "Auflage"),
   feld("Foto", "Foto"),
   feld("Ausstellung", "Ausstellung", { lang: true }),
   feld("Literatur", "Literatur", { lang: true }),
