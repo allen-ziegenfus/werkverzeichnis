@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
-import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
+import { client, SCHLUESSEL, useKuenstler, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
 import { useHoeheAls } from "./hoehe.js";
 import { kuenstler, db } from "./firebaseClient.js";
@@ -12,7 +12,8 @@ import Skelett from "./Skelett.jsx";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import WerkTabelle from "./WerkTabelle.jsx";
-import { gleicherWert, werkFeld, werkWert } from "./werkFeld.js";
+import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
+import { felderVon } from "../werkverzeichnis/felder.js";
 import { ANNEHMEN, ablehnen, hochladen } from "./hochladen.js";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
@@ -25,15 +26,20 @@ import { hauptknopf, knopf } from "./knoepfe.js";
  * Verlaufseintrag mitbringen.
  */
 
-// Die Felder, die der Editor zeigt, in dieser Reihenfolge. Alles andere am
-// Dokument (werkgruppe, images, updatedAt, lastChange, ausgeblendet) wird verwaltet, nicht bearbeitet.
-// Der Freitext „Werkgruppe“ heißt hier „Art“ (#189): Die Website zeigt als Werkgruppe
-// deren Namen, den Freitext als Art, wenn er abweicht.
-const FELDER = ["InvNr", "Titel", "Werkgruppe", "Jahr", "Maße", "Material", "Technik",
-  "Beschreibung", "Zustand", "Standort", "Signatur", "Auflage", "Anzahl", "Foto",
-  "Ausstellung", "Literatur", "Bibliographie"];
-const BEARBEITBAR = FELDER.filter(f => f !== "InvNr");
-const LANG = ["Beschreibung", "Ausstellung", "Literatur", "Bibliographie", "Material"];
+// Die Felder, die der Editor zeigt, in dieser Reihenfolge: Inv. Nr. und Titel,
+// dann die nicht archivierten aus der Feldliste der Künstler:in (#257). Alles
+// andere am Dokument (werkgruppe, images, updatedAt, lastChange, ausgeblendet,
+// archivierte Felder) wird verwaltet bzw. bleibt, nicht bearbeitet.
+function editorFelder(liste) {
+  const aktiv = liste.filter(f => !f.archiviert);
+  const felder = ["InvNr", "Titel", ...aktiv.map(f => f.schluessel)];
+  return {
+    FELDER: felder, BEARBEITBAR: felder.filter(f => f !== "InvNr"),
+    LANG: aktiv.filter(f => f.lang).map(f => f.schluessel),
+    INTERN: aktiv.filter(f => !f.oeffentlich).map(f => f.schluessel),
+    werkFeld: feldNamen(liste),
+  };
+}
 
 // Bilder (#180) sind Listen: nach Inhalt vergleichen, nicht nach Objekt.
 
@@ -94,6 +100,9 @@ function WerkEditor({ nutzer }) {
   const werkeAbfrage = useWerke(gruppe);
   const { data: werke, error: werkeFehler } = werkeAbfrage;
   const { data: veroeffentlicht } = useVeroeffentlicht();
+  // Bis das Künstler-Dokument da ist, die Standardfelder.
+  const { data: kuenstlerDaten } = useKuenstler();
+  const { FELDER, BEARBEITBAR, LANG, INTERN, werkFeld } = useMemo(() => editorFelder(felderVon(kuenstlerDaten)), [kuenstlerDaten]);
   const ladefehler = gruppenFehler ?? werkeFehler;
   const [suche, setSuche] = useState("");
   const [werk, setWerk] = useState();               // {id, data} wie geladen
@@ -157,13 +166,13 @@ function WerkEditor({ nutzer }) {
   }
 
   const geaendert = useMemo(() => werk
-    ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk]);
+    ? FELDER.filter(f => (entwurf[f] ?? "") !== (werk.data[f] ?? "")) : [], [entwurf, werk, FELDER]);
   // Entwurf im Browser, Speichern anderer live, Zusammenführen (#203).
   const abgleich = useAbgleich({
     art: "werk", id: werk?.id, ich: nutzer.email, aktiv: !!werk, ref: werk ? doc(kuenstler, "works", werk.id) : null,
     felder: BEARBEITBAR, gleich, name: werkFeld,
     stand: werk?.data ?? {},
-    entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf]),
+    entwurf: useMemo(() => Object.fromEntries(BEARBEITBAR.map(f => [f, entwurf[f] ?? null])), [entwurf, BEARBEITBAR]),
     geaendert: geaendert.length > 0,
     uebernehmen: (d, e) => {
       const w = { id: werk.id, data: d };
@@ -312,7 +321,7 @@ function WerkEditor({ nutzer }) {
   }
 
   const speichern = () => schreiben(Object.fromEntries(geaendert.map(f => [f, entwurf[f]])), {},
-    `Gespeichert (${geaendert.join(", ")}).`);
+    `Gespeichert (${geaendert.map(werkFeld).join(", ")}).`);
 
   /**
    * Ausblenden statt löschen (#181): Das Werk bleibt mit Inv. Nr., Bildern und
@@ -440,6 +449,7 @@ function WerkEditor({ nutzer }) {
           )}
           {treffer.length > 0 && (
             <WerkTabelle werke={treffer} veroeffentlicht={veroeffentlicht} gruppen={gruppen}
+                         jahr={FELDER.includes("Jahr") ? werkFeld("Jahr") : null}
                          onOeffnen={w => verlassen() && (setNeu(undefined), oeffnen(w))}
                          onVerlauf={async w => {
                            if (!verlassen()) return;
@@ -484,7 +494,10 @@ function WerkEditor({ nutzer }) {
           {/* Während des Hochladens gesperrt: Das Anhängen lädt das Werk neu und nähme Eingaben mit (#180). */}
           {FELDER.map(f => (
             <label key={f} className="block">
-              <span className="text-sm text-gray-600">{werkFeld(f)}</span>
+              <span className="text-sm text-gray-600">
+                {werkFeld(f)}
+                {INTERN.includes(f) && <span className="ml-2 text-xs rounded bg-gray-200 px-1" title="Steht nicht auf der Website.">intern</span>}
+              </span>
               {f === "InvNr" ? (
                 <input className="border p-1 w-full bg-gray-100" value={entwurf[f] ?? ""} readOnly />
               ) : LANG.includes(f) || String(entwurf[f] ?? "").length > 80 ? (

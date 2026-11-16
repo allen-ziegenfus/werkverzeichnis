@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc, collection, deleteField, doc, limit, onSnapshot, orderBy, query, runTransaction,
   serverTimestamp, where,
 } from "firebase/firestore";
 import { db } from "./firebaseClient.js";
 import { marked } from "marked";
-import { gleicherWert, werkFeld, werkWert } from "./werkFeld.js";
+import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
+import { felderVon } from "../werkverzeichnis/felder.js";
 import { wann } from "./zeit.js";
 import { veroeffentlichenKnopf } from "./knoepfe.js";
 import { client } from "./abfragen.js";
@@ -103,6 +104,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
   const [zuletzt, setZuletzt] = useState();  // null: nie veröffentlicht
   const [aenderungen, setAenderungen] = useState();
   const [fehler, setFehler] = useState();
+  const [felder, setFelder] = useState(); // Feldliste der Werke, für die Namen (#257)
   const sammlung = collection(db, "artists", kuenstlerId, "veroeffentlichungen");
 
   useEffect(() => onSnapshot(query(sammlung, orderBy("angefordert", "desc"), limit(5)),
@@ -135,6 +137,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     // Die Einstellungen der Künstler:in (Titel, Copyright) baut catalog.ts mit ein.
     // updatedAt ändert sich auch bei Rollen; dann zählt eine Änderung zu viel.
     const einstellungen = onSnapshot(doc(db, "artists", kuenstlerId), d => {
+      setFelder(felderVon(d.data()));
       const t = d.get("updatedAt");
       setAenderungen(a => ({ ...a, einstellungen:
         t && (!zuletzt || t.toMillis() > zuletzt.toMillis()) ? [{ id: "einstellungen", updatedAt: t }] : [] }));
@@ -182,7 +185,7 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     }
   }
 
-  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, netto: n || undefined, zuViele, offen, fehler,
+  return { liste, zuletzt, aenderungen: geladen ? aenderungen : undefined, netto: n || undefined, zuViele, offen, fehler, felder,
     beschaeftigt, veroeffentlichen, zuruecksetzen };
 }
 
@@ -279,7 +282,8 @@ function Notiz({ veroeffentlichen, beschaeftigt, fertig }) {
 }
 
 /** Was seit der letzten Veröffentlichung geändert wurde, und die letzten Veröffentlichungen. */
-function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke, darfSeiten, zuruecksetzen, trotzdem }) {
+function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, felder, darfWerke, darfSeiten, zuruecksetzen, trotzdem }) {
+  const werkFeld = useMemo(() => feldNamen(felder ?? felderVon()), [felder]);
   const [laeuft, setLaeuft] = useState();   // Werk, das gerade zurückgesetzt wird
   const [hinweis, setHinweis] = useState();
   const von = s => [...s].join(", ");
@@ -292,7 +296,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, darfWerke,
     const felder = await zuruecksetzen(w);
     setLaeuft(undefined);
     if (felder) setHinweis(felder.length
-      ? `Werk ${w.werk} zurückgesetzt (${felder.join(", ")}).`
+      ? `Werk ${w.werk} zurückgesetzt (${felder.map(werkFeld).join(", ")}).`
       : `Werk ${w.werk}: inzwischen erneut geändert, nichts zurückgesetzt.`);
   }
 
