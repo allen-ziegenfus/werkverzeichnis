@@ -3,6 +3,7 @@
  * (artists/{artist} und seine Sammlungen werkgruppen, works, seiten, medien).
  */
 import { slugify } from "./slugify.js";
+import { felderVon } from "./felder.js";
 
 /** Einstellungen der Seite, aus dem Künstler-Dokument (bearbeitet in der Verwaltungsseite). */
 export interface Kuenstler {
@@ -22,20 +23,24 @@ export interface Werkgruppe {
   cover?: string;
 }
 
-/** Die Felder eines Werks, in der Reihenfolge, die das JSON der Seite immer hatte. */
-export const WERK_FELDER = [
-  "InvNr", "Anzahl", "Werkgruppe", "Maße", "Material", "Beschreibung", "Jahr", "Zustand",
-  "Standort", "Titel", "Technik", "Auflage", "Signatur", "Foto", "Ausstellung", "Literatur",
-  "Bibliographie",
-] as const;
+/** Ein Feld der Werke aus der Feldliste der Künstler:in (felder.js, #255). */
+export interface Feld {
+  schluessel: string;
+  name: string;
+  lang: boolean;
+  oeffentlich: boolean;
+  archiviert: boolean;
+}
 
 export type Werk = {
-  slug: string; werkgruppe: string; InvNr: string;
+  slug: string; werkgruppe: string; InvNr: string; Titel?: string;
   /** Bilder in Cloud Storage (Objektpfade), in Reihenfolge; das erste ist das Vorschaubild. */
   images?: string[];
   /** In der Verwaltung ausgeblendet (#181); der Bau lässt es aus. */
   ausgeblendet?: true;
-} & Partial<Record<(typeof WERK_FELDER)[number], string>>;
+  /** Die Werte der Felder aus der Feldliste, auch interner; was davon ins JSON geht, entscheidet der Bau. */
+  werte: Record<string, string>;
+};
 
 export interface Seite {
   slug: string;
@@ -62,6 +67,8 @@ export interface Medium {
 
 export interface Katalog {
   kuenstler: Kuenstler;
+  /** Die Feldliste (#256), ohne gespeicherte die Standardfelder. */
+  felder: Feld[];
   werkgruppen: Werkgruppe[];
   werke: Werk[];
   seiten: Seite[];
@@ -73,8 +80,14 @@ export interface Katalog {
   gelesen?: string;
 }
 
-/** Eine leere Zeichenkette gilt als nicht vorhanden. */
-const wert = (v: string | undefined) => (v && v.trim() !== "" ? v : undefined);
+/** Eine leere Zeichenkette gilt als nicht vorhanden; Zahlen (z. B. aus einem Import) als Text. */
+const wert = (v: unknown) => typeof v === "number" ? String(v) : typeof v === "string" && v.trim() !== "" ? v : undefined;
+
+/** Die vorhandenen Werte eines Werk-Dokuments zu den Feldern der Liste. */
+export function werteVon(d: Record<string, unknown>, felder: Feld[]): Record<string, string> {
+  return Object.fromEntries(felder.map(f => [f.schluessel, wert(d[f.schluessel])])
+    .filter((e): e is [string, string] => e[1] !== undefined));
+}
 
 /**
  * Läuft mit den Google-Zugangsdaten des Builds, für die die Sicherheitsregeln
@@ -96,6 +109,7 @@ export async function firestoreKatalog(projekt: string, datenbank: string, kuens
   if (!k.exists) throw new Error(`artist "${kuenstlerId}" not in Firestore`);
   const { titel, websiteTitel, titelZeile1, titelZeile2, copyright } = k.data()!;
   const kuenstler = { titel, websiteTitel, titelZeile1, titelZeile2, copyright };
+  const felder: Feld[] = felderVon(k.data());
   const medien = new Map(ms.docs.map(d => [d.id, d.data() as Medium]));
 
   const werkgruppen: Werkgruppe[] = wg.docs.map(d => {
@@ -117,11 +131,8 @@ export async function firestoreKatalog(projekt: string, datenbank: string, kuens
     if (d.id !== slugify(w.InvNr ?? "", { lower: true })) {
       probleme.push(`work ${d.id}: id does not match its Inv. Nr. "${w.InvNr}"`);
     }
-    const felder = Object.fromEntries(WERK_FELDER
-      .map(f => [f, wert(w[f])])
-      .filter(([, v]) => v !== undefined));
-    werke.push({ ...felder, InvNr: w.InvNr, slug: d.id, werkgruppe: w.werkgruppe, images: w.images,
-      ...(w.ausgeblendet === true && { ausgeblendet: true }) });
+    werke.push({ InvNr: w.InvNr, Titel: wert(w.Titel), slug: d.id, werkgruppe: w.werkgruppe, images: w.images,
+      werte: werteVon(w, felder), ...(w.ausgeblendet === true && { ausgeblendet: true }) });
   }
 
   const seiten: Seite[] = ss.docs.map(d => {
@@ -129,5 +140,5 @@ export async function firestoreKatalog(projekt: string, datenbank: string, kuens
     return { slug: d.id, titel: s.titel, kategorie: s.kategorie, reihenfolge: s.reihenfolge, text: s.text };
   }).sort((a, b) => a.reihenfolge - b.reihenfolge);
 
-  return { kuenstler, werkgruppen, werke, seiten, medien, probleme, gelesen: gelesen.toDate().toISOString() };
+  return { kuenstler, felder, werkgruppen, werke, seiten, medien, probleme, gelesen: gelesen.toDate().toISOString() };
 }

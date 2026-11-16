@@ -38,7 +38,7 @@ export const HOECHSTENS_FELDER = 100;
 // Namen am Werk-Dokument, die verwaltet werden oder fest sind, und die festen
 // Schlüssel im JSON der Website (build_data.ts); kein Feld darf so heißen.
 const VERGEBEN = ["InvNr", "Titel", "werkgruppe", "images", "updatedAt", "lastChange", "ausgeblendet", "slug",
-  "InventoryNumber", "Slug", "WerkgruppeSlug", "Art", "Bilder", "Thumbnail"];
+  "InventoryNumber", "Slug", "WerkgruppeSlug", "Art", "Bilder", "Thumbnail", "Eigenschaften"];
 
 /** Ist `d` eine brauchbare Feldliste? */
 export function gueltigeFelder(d) {
