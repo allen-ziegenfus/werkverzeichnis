@@ -6,7 +6,7 @@ import { darf } from "../werkverzeichnis/permissions.js";
 import { einstellungsName, lesen as einstellungenLesen } from "./Einstellungen.jsx";
 import { gleich } from "./feldweise.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
-import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
+import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkAenderung, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
 import { feldNamen } from "./werkFeld.js";
 import { felderVon } from "../werkverzeichnis/felder.js";
 import Skelett from "./Skelett.jsx";
@@ -311,7 +311,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
   const ohneVerlauf = <span className="text-gray-600">ohne Verlauf</span>;
   // Je Zeile: Schlüssel, was, welche Änderung, von wem.
   const zeilen = [
-    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).map(feldNamen(a.felder)).join(", "), [...w.von].join(", ")]),
+    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, werkAenderung(w, feldNamen(a.felder)), [...w.von].join(", ")]),
     ...n.seiten.map(s => ["s" + s.seite, `Seite „${seitenName(s)}“`,
       !s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
         : seitenUnterschiede(s.vorher, s.nachher).map(k => SEITENFELDER[k]).join(", "),

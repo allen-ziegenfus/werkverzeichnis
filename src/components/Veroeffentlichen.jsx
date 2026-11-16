@@ -44,12 +44,17 @@ export const seitenGleich = (a, b) => (!a && !b) || (!!a && !!b && !seitenUnters
  * Stand vor dem ersten Eintrag gegen den nach dem letzten, je Feld. Felder, die
  * wieder beim veröffentlichten Wert sind, zählen nicht; ein Werk ohne solche
  * Felder fällt heraus. Ebenso Seiten, über ihre ganzen Fassungen.
+ *
+ * Die Inv. Nr. ändert sich nie und steht nicht in `felder`; steht sie mit
+ * from: null im Verlauf, ist das Werk seitdem angelegt (`angelegt`, #179). Ein
+ * angelegtes Werk zählt auch ohne weitere Felder, ausgeblendet nicht (#283).
  */
 export function netto(history, seitenverlauf) {
   const werke = new Map();
   for (const h of [...history].sort((a, b) => zeit(a.at) - zeit(b.at))) {
     const w = werke.get(h.work) ?? { werk: h.work, felder: {}, von: new Set() };
     for (const [f, c] of Object.entries(h.changes ?? {})) {
+      if (f === "InvNr") { if (c.from == null) w.angelegt = true; continue; }
       w.felder[f] = { from: f in w.felder ? w.felder[f].from : c.from ?? null, to: c.to ?? null };
     }
     w.von.add(h.by);
@@ -69,15 +74,21 @@ export function netto(history, seitenverlauf) {
     seiten.set(e.seite, s);
   }
   return {
-    werke: [...werke.values()].filter(w => Object.keys(w.felder).length),
+    werke: [...werke.values()].filter(w => w.angelegt ? !w.felder.ausgeblendet?.to : Object.keys(w.felder).length),
     seiten: [...seiten.values()].filter(s => !seitenGleich(s.vorher, s.nachher)),
   };
 }
+
+/** Was an einem Werk aus netto() geändert ist, für Listen: „angelegt“ oder die Felder. */
+export const werkAenderung = (w, werkFeld) =>
+  [w.angelegt && "angelegt", ...Object.keys(w.felder).map(werkFeld)].filter(Boolean).join(", ");
 
 /**
  * Setzt die netto geänderten Felder eines Werks (aus netto()) auf ihren Wert
  * davor zurück, als neue Änderung mit Verlaufseintrag. Felder, deren Wert sich
  * inzwischen noch einmal geändert hat, bleiben. Gibt die zurückgesetzten Felder.
+ * Ein seitdem angelegtes Werk wird außerdem ausgeblendet: Löschen erlauben die
+ * Regeln nicht, die Inv. Nr. bleibt vergeben (#283).
  */
 export async function werkZuruecksetzen(kuenstlerId, ich, w) {
   const ref = doc(db, "artists", kuenstlerId, "works", w.werk);
@@ -85,7 +96,11 @@ export async function werkZuruecksetzen(kuenstlerId, ich, w) {
   return runTransaction(db, async tx => {
     const daten = (await tx.get(ref)).data() ?? {};
     // Nach Inhalt: Bilder sind Listen, die nie === sind (#275).
-    const zurueck = Object.entries(w.felder).filter(([f, c]) => gleicherWert(daten[f] ?? null, c.to));
+    let zurueck = Object.entries(w.felder).filter(([f, c]) => gleicherWert(daten[f] ?? null, c.to));
+    // Vorher gab es das angelegte Werk nicht: ausblenden. from/to wie in w.felder, also vom Ziel aus.
+    if (w.angelegt && !daten.ausgeblendet) {
+      zurueck = [...zurueck.filter(([f]) => f !== "ausgeblendet"), ["ausgeblendet", { from: true, to: daten.ausgeblendet ?? null }]];
+    }
     if (!zurueck.length) return [];
     tx.set(eintrag, { work: w.werk, by: ich, at: serverTimestamp(), zurueckgesetzt: true,
       changes: Object.fromEntries(zurueck.map(([f, c]) => [f, { from: c.to, to: c.from }])) });
@@ -289,8 +304,12 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, felder, da
   const von = s => [...s].join(", ");
 
   async function zurueck(w) {
-    const text = ["Auf den veröffentlichten Stand zurücksetzen?", "",
-      ...Object.entries(w.felder).map(([f, c]) => `  ${werkFeld(f)}: „${werkWert(c.to)}“ → „${werkWert(c.from)}“`)].join("\n");
+    const text = [w.angelegt
+      ? `Werk ${w.werk} ist noch nie veröffentlicht. Zurücksetzen leert seine Felder und blendet es aus; `
+        + "es bleibt in der Verwaltung, die Inv. Nr. bleibt vergeben."
+      : "Auf den veröffentlichten Stand zurücksetzen?", "",
+      ...Object.entries(w.felder).filter(([f]) => f !== "ausgeblendet")
+        .map(([f, c]) => `  ${werkFeld(f)}: „${werkWert(c.to)}“ → „${werkWert(c.from)}“`)].join("\n");
     if (!window.confirm(text)) return;
     setLaeuft(w.werk); setHinweis(undefined);
     const felder = await zuruecksetzen(w);
@@ -306,7 +325,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, felder, da
         {darfWerke
           ? <a className="underline" href={`/verwaltung/werke/?werk=${encodeURIComponent(w.werk)}`}>Werk {w.werk}</a>
           : <>Werk {w.werk}</>}
-        : {Object.keys(w.felder).map(werkFeld).join(", ")} · {von(w.von)}
+        : {werkAenderung(w, werkFeld)} · {von(w.von)}
         {darfWerke && <> · <button className="underline disabled:opacity-40" disabled={!!laeuft}
           onClick={() => zurueck(w)}>{laeuft === w.werk ? "setzt zurück…" : "Zurücksetzen"}</button></>}
       </> })),
