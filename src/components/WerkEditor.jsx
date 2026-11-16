@@ -4,6 +4,7 @@ import {
 } from "firebase/firestore";
 import { client, SCHLUESSEL, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
+import { useHoeheAls } from "./hoehe.js";
 import { kuenstler, db } from "./firebaseClient.js";
 import { vomServer } from "./firestoreLite.js";
 import BildListe, { lokalMerken } from "./BildVorschau.jsx";
@@ -109,6 +110,8 @@ function WerkEditor({ nutzer }) {
   const [bildHinweis, setBildHinweis] = useState(); // im Abschnitt Bilder, nicht beim Speichern-Knopf
   const [ziehen, setZiehen] = useState(false);       // Dateien werden über den Abschnitt Bilder gezogen (#270)
   const [ziehGrund, setZiehGrund] = useState();     // warum gerade nicht abgelegt werden kann, nur beim Ziehen
+  const [leiste, setLeiste] = useState();          // Werkleiste oben, für scroll-padding (#260)
+  useHoeheAls("--werkleiste", leiste);
   const zieht = useRef(0);                           // dragenter minus dragleave: relatedTarget fehlt in manchen Browsern
   // Daneben fallen gelassene Dateien öffnete der Browser selbst und verließe die Verwaltung.
   // Der Abschnitt Bilder hat dann schon preventDefault gerufen; sonst „hier nicht ablegen“.
@@ -142,9 +145,12 @@ function WerkEditor({ nutzer }) {
 
   async function oeffnen(w) {
     // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.
-    if (offen.current !== w.id) { setBildFehler(undefined); setNichtAngehaengt(undefined); setBildHinweis(undefined); }
+    // Dasselbe Werk (nach dem Speichern): Der alte Verlauf bleibt stehen, bis der neue
+    // da ist; sonst wird die Seite kurz kürzer und springt (#260).
+    const anderes = offen.current !== w.id;
+    if (anderes) { setBildFehler(undefined); setNichtAngehaengt(undefined); setBildHinweis(undefined); setVerlauf(undefined); }
     offen.current = w.id;
-    setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined); setVerlauf(undefined);
+    setWerk(w); setEntwurf({ ...w.data }); setHinweis(undefined); setFehler(undefined);
     const v = await getDocs(query(collection(kuenstler, "history"), where("work", "==", w.id)));
     if (offen.current !== w.id) return;
     setVerlauf(v.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.at?.toMillis() - a.at?.toMillis()));
@@ -373,7 +379,7 @@ function WerkEditor({ nutzer }) {
 
   return (
     <div className="space-y-4">
-      {fehler && <p className="text-red-700">{fehler}</p>}
+      {fehler && !werk && <p className="text-red-700">{fehler}</p>}
       {ladefehler && <p className="text-red-700">{ladefehler.code === "permission-denied"
         ? `Kein Zugriff mit ${nutzer.email}.` : ladefehler.message}</p>}
 
@@ -452,11 +458,24 @@ function WerkEditor({ nutzer }) {
       {werk && (
         <div className="space-y-3">
           {/* Gesperrt während des Speicherns und Hochladens: danach öffnet schreiben() das Werk neu (#213, #180). */}
-          <div className="flex gap-2 items-center">
+          {/* Bleibt beim Scrollen unter dem Kopf stehen: welches Werk offen ist, Speichern (#260). */}
+          <div ref={setLeiste} className="sticky top-[var(--kopf-sichtbar,0px)] z-30 -mx-4 px-4 py-2 bg-white border-b flex flex-wrap gap-x-3 gap-y-1 items-center">
             <button className="underline text-sm disabled:opacity-40" disabled={speichert || !!laedt}
-                    onClick={() => verlassen() && setWerk(undefined)}>← Zurück zur Liste</button>
-            <button className={knopf + " ml-auto"} disabled={speichert || !!laedt} onClick={naechstesWerk}
+                    onClick={() => verlassen() && setWerk(undefined)}>
+              ← <span className="sm:hidden">Liste</span><span className="hidden sm:inline">Zurück zur Liste</span>
+            </button>
+            <span className="order-first w-full sm:order-none sm:w-auto sm:flex-1 min-w-0 truncate font-semibold">
+              {werk.data.InvNr}{werk.data.Titel && ` · ${werk.data.Titel}`}
+            </span>
+            <button className={hauptknopf + " ml-auto sm:ml-0"} disabled={!geaendert.length || speichert || !!laedt || abgleich.konflikte.length > 0} onClick={speichern}>
+              {speichert ? "Speichere…" : "Speichern"}
+            </button>
+            <button className={knopf} disabled={speichert || !!laedt} onClick={naechstesWerk}
                     title="Neues Werk in dieser Werkgruppe, Inv. Nr. hochgezählt">+ Neues Werk</button>
+            {/* Rückmeldung zum Speichern hier, wo man sie sieht, egal welcher Knopf (#260). */}
+            <p role="status" className="w-full text-sm empty:-mt-1">
+              {fehler ? <span className="text-red-700">{fehler}</span> : hinweis && <span className="text-green-700">{hinweis}</span>}
+            </p>
           </div>
           {abgleich.hinweise}
           {werk.data.ausgeblendet && (
@@ -478,12 +497,12 @@ function WerkEditor({ nutzer }) {
             </label>
           ))}
           <div className="flex gap-2 items-center">
-            <button className={hauptknopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
+            {/* Speichern unten noch einmal: Nach dem letzten Feld sucht man es hier. */}
+            <button className={hauptknopf} disabled={!geaendert.length || speichert || !!laedt || abgleich.konflikte.length > 0} onClick={speichern}>
               {speichert ? "Speichere…" : "Speichern"}
             </button>
             <button className={knopf} disabled={!geaendert.length || speichert}
                     onClick={() => { setEntwurf({ ...werk.data }); abgleich.verworfen(); }}>Verwerfen</button>
-            {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
             <button className={knopf + " ml-auto"} disabled={speichert || geaendert.length > 0}
                     title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}
                     onClick={() => ausblenden(!werk.data.ausgeblendet)}>
