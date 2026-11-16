@@ -7,7 +7,7 @@ import FelderBearbeiten, { felderFehler } from "./FelderBearbeiten.jsx";
 import Skelett from "./Skelett.jsx";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf } from "./knoepfe.js";
-import { STANDARD_FELDER } from "../werkverzeichnis/felder.js";
+import { felderVon, STANDARD_FELDER } from "../werkverzeichnis/felder.js";
 
 /**
  * Einstellungen der Künstler:in dieser Website. Speichert nur die geänderten
@@ -55,7 +55,9 @@ function Einstellungen({ ich }) {
 
   const setze = (k, v) => { setEntwurf(e => ({ ...e, [k]: v })); setHinweis(undefined); };
   // Ohne gespeicherte Liste stehen die Standardfelder im Formular; geschrieben wird sie erst, wenn sich etwas ändert.
-  const felder = entwurf?.felder ?? STANDARD_FELDER;
+  // Eine unbrauchbare gespeicherte Liste (die Regeln prüfen die Einträge nicht
+  // einzeln) zeigt die Standardfelder; Speichern ersetzt sie dann.
+  const felder = felderVon(entwurf);
   const felderProblem = entwurf && felderFehler(felder);
 
   async function speichern() {
@@ -100,7 +102,7 @@ function Einstellungen({ ich }) {
 
       <h2 className="pt-4 text-lg font-semibold">Felder der Werke</h2>
       <FelderBearbeiten felder={felder} setFelder={f => setze("felder", f)} gesperrt={speichert}
-                        gespeichert={new Set((stand.felder ?? STANDARD_FELDER).map(f => f.schluessel))} />
+                        gespeichert={new Set(felderVon(stand).map(f => f.schluessel))} />
 
       <div className="flex flex-wrap gap-2 items-center">
         <button className={hauptknopf} onClick={speichern} disabled={speichert || !entwurf.titel.trim() || !!felderProblem}>

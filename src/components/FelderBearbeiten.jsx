@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { neuerSchluessel } from "../werkverzeichnis/felder.js";
+import { HOECHSTENS_FELDER, neuerSchluessel } from "../werkverzeichnis/felder.js";
 import { knopf, knopfKlein } from "./knoepfe.js";
 
 /**
@@ -11,6 +11,8 @@ import { knopf, knopfKlein } from "./knoepfe.js";
 
 /** Was am Entwurf nicht stimmt, sonst undefined. */
 export function felderFehler(felder) {
+  // Archivierte zählen mit; mehr lehnen die Regeln ab.
+  if (felder.length > HOECHSTENS_FELDER) return `Höchstens ${HOECHSTENS_FELDER} Felder, archivierte mitgezählt.`;
   const namen = felder.map(f => f.name.trim().toLowerCase());
   if (namen.some(n => !n)) return "Jedes Feld braucht einen Namen.";
   const doppelt = namen.find((n, i) => namen.indexOf(n) !== i);
@@ -40,7 +42,7 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, gespe
 
   function anlegen() {
     const name = neu.trim();
-    if (!name) return;
+    if (!name || felder.length >= HOECHSTENS_FELDER) return;
     setFelder([...felder, { schluessel: neuerSchluessel(name, felder), name, lang: false, oeffentlich: false, archiviert: false }]);
     setNeu("");
   }
@@ -99,7 +101,8 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, gespe
           <input className="border p-1 w-full disabled:bg-gray-100" placeholder="Name des neuen Felds" value={neu} disabled={gesperrt}
                  onChange={e => setNeu(e.target.value)} onKeyDown={e => { if (e.key === "Enter") anlegen(); }} />
         </label>
-        <button className={knopf} disabled={gesperrt || !neu.trim()} onClick={anlegen}>+ Feld</button>
+        <button className={knopf} disabled={gesperrt || !neu.trim() || felder.length >= HOECHSTENS_FELDER} onClick={anlegen}
+                title={felder.length >= HOECHSTENS_FELDER ? `Höchstens ${HOECHSTENS_FELDER} Felder, archivierte mitgezählt.` : undefined}>+ Feld</button>
       </div>
 
       {archiviert.length > 0 && (
