@@ -61,19 +61,21 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
   const [meldung, setMeldung] = useState();
   // Ein gesicherter Entwurf, der sich vom gespeicherten Stand unterscheidet; je
   // Dokument neu nachgesehen (der Werk-Editor wechselt das Werk, ohne neu aufgebaut zu werden).
-  // Erst nachsehen, wenn aktiv: Ein Fund „keiner“ von vorher bliebe sonst stehen, und
-  // der Sicherungs-Effekt löschte den Entwurf (der Werk-Editor wartet auf die Feldliste, #257).
+  // Inaktiv zählt als eigener Zustand: Wird es aktiv (der Werk-Editor wartet auf die
+  // Feldliste, #257), wird neu nachgesehen; sonst bliebe „keiner“ stehen, und der
+  // Sicherungs-Effekt löschte den Entwurf.
   const [fund, setFund] = useState({});
-  if (aktiv && fund.fuer !== schluessel) {
-    let e = lesen(schluessel);
+  const fuer = aktiv ? schluessel : null;
+  if (fund.fuer !== fuer) {
+    let e = aktiv ? lesen(schluessel) : null;
     // Unverändert oder älter als 30 Tage: nicht mehr anbieten.
     if (e && (Date.now() - e.at > 30 * 864e5 || !felder.some(f => !gleich(f, e.entwurf?.[f], stand[f])))) {
       entfernen(schluessel); e = null;
     }
-    setFund({ fuer: schluessel, wert: e });
+    setFund({ fuer, wert: e });
     setFremd(undefined); setKonflikte([]); setMeldung(undefined);
   }
-  const gefunden = fund.fuer === schluessel ? fund.wert : undefined;
+  const gefunden = aktiv && fund.fuer === schluessel ? fund.wert : undefined;
   const setGefunden = wert => setFund({ fuer: schluessel, wert });
   // Eigene Verlaufseinträge: deren Speichern ist kein fremdes.
   const eigene = useRef(new Set());
