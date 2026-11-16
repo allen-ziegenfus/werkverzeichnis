@@ -16,7 +16,8 @@
 import * as fs from "fs";
 import { marked } from "marked";
 import { Storage } from "@google-cloud/storage";
-import { firestoreKatalog, WERK_FELDER, type Katalog, type Medium } from "./catalog.js";
+import { firestoreKatalog, werteVon, type Katalog, type Medium, type Werk } from "./catalog.js";
+import { felderVon } from "./felder.js";
 
 const PUBLIC = "./public";
 
@@ -94,11 +95,16 @@ async function fingerabdruecke(): Promise<Map<string, string>> {
 /**
  * Katalog und Bucket-Liste aus einer Datei: der Katalog wie aus Firestore, dazu
  * `dateien` (Objektpfad -> MD5) statt der Bucket-Liste; `medien` als Objekt.
+ * Werke wie in Firestore, die Feldliste wie dort im Künstler-Dokument.
  */
 function testdaten(datei: string): [Katalog, Map<string, string>] {
   const d = JSON.parse(fs.readFileSync(datei, "utf8"));
+  const felder = felderVon(d.kuenstler);
+  const { felder: _, ...kuenstler } = d.kuenstler;
   return [
-    { ...d, medien: new Map(Object.entries(d.medien)), probleme: [] },
+    { ...d, kuenstler, felder, medien: new Map(Object.entries(d.medien)), probleme: [],
+      werke: d.werke.map((w: any): Werk => ({ slug: w.slug, werkgruppe: w.werkgruppe, InvNr: w.InvNr, Titel: w.Titel,
+        images: w.images, ...(w.ausgeblendet === true && { ausgeblendet: true }), werte: werteVon(w, felder) })) },
     new Map(Object.entries(d.dateien)),
   ];
 }
@@ -122,6 +128,8 @@ async function bauen() {
   // Ausgeblendete Werke (#181) kommen nicht auf die Website.
   const ausgeblendet = katalog.werke.filter(w => w.ausgeblendet);
   const sichtbar = katalog.werke.filter(w => !w.ausgeblendet);
+  // Nur öffentliche, nicht archivierte Felder kommen ins JSON der Seite (#258), in ihrer Reihenfolge.
+  const oeffentlich = katalog.felder.filter(f => f.oeffentlich && !f.archiviert);
 
   /**
    * Ein gelistetes Bild als Bild. Fehlt es im Bucket oder gibt es noch keine
@@ -159,7 +167,9 @@ async function bauen() {
       const bilder = (werk.images ?? []).map(p => webBild(p, werk.slug)).filter((b): b is Bild => b !== null);
       if (!bilder.length) bilder.push(PLATZHALTER);
 
-      const jahr = Number(werk.Jahr);
+      const werte = Object.fromEntries(oeffentlich.filter(f => f.schluessel in werk.werte)
+        .map(f => [f.schluessel, werk.werte[f.schluessel]]));
+      const jahr = Number(werte.Jahr);
       if (jahr) {
         suchMetadaten.MinYear = Math.min(suchMetadaten.MinYear, jahr);
         suchMetadaten.MaxYear = Math.max(suchMetadaten.MaxYear, jahr);
@@ -170,12 +180,18 @@ async function bauen() {
         InventoryNumber: werk.InvNr.replaceAll(/[^0-9]/g, ""),
         Slug: werk.slug,
         WerkgruppeSlug: gruppe.slug,
-        ...Object.fromEntries(WERK_FELDER.filter(f => f !== "InvNr").map(f => [f, werk[f]])),
+        Titel: werk.Titel,
+        // Einzeln für Suche und Beschreibung der Seite (Jahr, Beschreibung).
+        ...werte,
         // Der Name der Werkgruppe, zu der das Werk gehört (#189). Der alte Freitext
         // „Werkgruppe“ ist oft eine Gattung (Luminogramm, Polaroid …); er steht als
         // „Art“ da, wenn er nicht nur den Namen wiederholt.
         Werkgruppe: gruppe.titel,
-        Art: art(werk.Werkgruppe, gruppe),
+        Art: art(werte.Werkgruppe, gruppe),
+        // Was die Werkseite unter Eigenschaften zeigt, mit Namen aus der Feldliste.
+        Eigenschaften: oeffentlich
+          .map(f => ({ Name: f.name, Wert: f.schluessel === "Werkgruppe" ? art(werte.Werkgruppe, gruppe) : werte[f.schluessel] }))
+          .filter(e => e.Wert !== undefined),
         Bilder: bilder,
         Thumbnail: vorschaubild(bilder[0]),
       });

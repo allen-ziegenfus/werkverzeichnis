@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import {
-  collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, where,
+  collection, deleteField, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { darf } from "../werkverzeichnis/permissions.js";
-import { EINSTELLUNGEN, lesen as einstellungenLesen } from "./Einstellungen.jsx";
+import { einstellungsName, lesen as einstellungenLesen } from "./Einstellungen.jsx";
+import { gleich } from "./feldweise.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
-import { werkFeld } from "./werkFeld.js";
+import { feldNamen } from "./werkFeld.js";
+import { felderVon } from "../werkverzeichnis/felder.js";
 import Skelett from "./Skelett.jsx";
 import { WERKGRUPPENFELDER, werkgruppenFassung } from "./Werkgruppen.jsx";
 import Zugang from "./Zugang.jsx";
@@ -161,7 +163,7 @@ async function aenderungen(kuenstlerId, von, bis) {
   // updatedAt neuer ist als der letzte Eintrag im Zeitraum.
   const zuletzt = (eintraege, passt) => Math.max(-Infinity,
     ...eintraege.filter(passt).map(e => e.at?.toMillis() ?? -Infinity));
-  return { history, seitenverlauf, medien,
+  return { history, seitenverlauf, medien, felder: felderVon(kuenstler.data()),
     werkgruppen: nettoFassungen(werkgruppenverlauf, e => e.werkgruppe),
     werkgruppenOhne: werkgruppen.filter(g =>
       g.updatedAt?.toMillis() > zuletzt(werkgruppenverlauf, e => e.werkgruppe === g.id)),
@@ -171,7 +173,7 @@ async function aenderungen(kuenstlerId, von, bis) {
 }
 
 const unterschiede = (a, b) => [...new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])]
-  .filter(k => (a?.[k] ?? null) !== (b?.[k] ?? null));
+  .filter(k => !gleich(a?.[k], b?.[k]));
 
 /** Je Schlüssel der Stand vor dem ersten Eintrag gegen den nach dem letzten; ohne Unterschied fällt er heraus. */
 function nettoFassungen(eintraege, schluessel) {
@@ -210,13 +212,16 @@ async function einstellungenZuruecksetzen(kuenstlerId, ich, x) {
   const ref = doc(db, "artists", kuenstlerId);
   return runTransaction(db, async tx => {
     const ist = einstellungenLesen((await tx.get(ref)).data() ?? {});
-    const zurueck = x.felder.filter(k => ist[k] === x.nachher[k]);
+    const zurueck = x.felder.filter(k => gleich(ist[k], x.nachher[k]));
     if (!zurueck.length) return false;
     const werte = Object.fromEntries(zurueck.map(k => [k, x.vorher[k]]));
+    // Gab es davor keine Feldliste (#256), fällt sie wieder weg.
+    const nachher = Object.fromEntries(Object.entries({ ...ist, ...werte }).filter(([, v]) => v !== undefined));
     const eintrag = doc(collection(ref, "einstellungsverlauf"));
-    tx.set(eintrag, { by: ich, at: serverTimestamp(), vorher: ist, nachher: { ...ist, ...werte } });
+    tx.set(eintrag, { by: ich, at: serverTimestamp(), vorher: ist, nachher });
     // Alle Felder: Älteren Dokumenten fehlt vielleicht eins, die Regeln verlangen alle.
-    tx.update(ref, { ...ist, ...werte, updatedAt: serverTimestamp(), lastChange: eintrag.id });
+    tx.update(ref, { ...nachher, ...("felder" in ist && !("felder" in nachher) && { felder: deleteField() }),
+      updatedAt: serverTimestamp(), lastChange: eintrag.id });
     return true;
   });
 }
@@ -306,7 +311,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
   const ohneVerlauf = <span className="text-gray-600">ohne Verlauf</span>;
   // Je Zeile: Schlüssel, was, welche Änderung, von wem.
   const zeilen = [
-    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).map(werkFeld).join(", "), [...w.von].join(", ")]),
+    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).map(feldNamen(a.felder)).join(", "), [...w.von].join(", ")]),
     ...n.seiten.map(s => ["s" + s.seite, `Seite „${seitenName(s)}“`,
       !s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
         : seitenUnterschiede(s.vorher, s.nachher).map(k => SEITENFELDER[k]).join(", "),
@@ -316,7 +321,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
     ...a.werkgruppenOhne.map(g => ["go" + g.id, `Werkgruppe „${g.titel || g.id}“`, ohneVerlauf, ""]),
     ...a.medien.map(m => ["m" + m.id, "Bild verarbeitet", m.original?.split("/").pop() ?? m.id, ""]),
     ...(a.einstellungen ? [["e", "Einstellungen",
-      a.einstellungen.felder.map(k => EINSTELLUNGEN.find(([x]) => x === k)?.[1] ?? k).join(", "),
+      a.einstellungen.felder.map(einstellungsName).join(", "),
       [...a.einstellungen.von].join(", ")]] : []),
     ...(a.kuenstlerGeaendert ? [["eo", "Einstellungen oder Personen", ohneVerlauf, ""]] : []),
   ];

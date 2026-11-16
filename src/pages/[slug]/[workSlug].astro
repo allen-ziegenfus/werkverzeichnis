@@ -72,20 +72,8 @@ const { werk, slug, workSlug, titel, nachher, vorher } = Astro.props;
         href={`/${slug}`}
         wert={werk.Werkgruppe}
       />
-      <Eigenschaft titel="Art" wert={werk.Art} />
-      <Eigenschaft titel="Jahr" wert={werk.Jahr} />
-      <Eigenschaft titel="Maße" wert={werk.Maße} />
-      <Eigenschaft titel="Anzahl" wert={werk.Anzahl} />
-      <Eigenschaft titel="Signatur" wert={werk.Signatur} />
-      <Eigenschaft titel="Zustand" wert={werk.Zustand} />
-      <Eigenschaft titel="Beschreibung" wert={werk.Beschreibung} />
-      <Eigenschaft titel="Standort" wert={werk.Standort} />
-      <Eigenschaft titel="Technik" wert={werk.Technik} />
-      <Eigenschaft titel="Auflage" wert={werk.Auflage} />
-      <Eigenschaft titel="Foto" wert={werk.Foto} />
-      <Eigenschaft titel="Ausstellung" wert={werk.Ausstellung} />
-      <Eigenschaft titel="Literatur" wert={werk.Literatur} />
-      <Eigenschaft titel="Bibliographie" wert={werk.Bibliographie} />
+      {/* Die öffentlichen Felder aus der Feldliste, in ihrer Reihenfolge (#258). */}
+      {werk.Eigenschaften.map(e => <Eigenschaft titel={e.Name} wert={e.Wert} />)}
     </div>
     <div class="lg:ml-2 w-full lg:w-1/2">
       <div class="m-2 flex flex-row text-4xl justify-around">
