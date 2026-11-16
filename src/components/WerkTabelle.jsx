@@ -12,8 +12,9 @@ import { Vorschaubild } from "./BildVorschau.jsx";
  *   Ein verschobenes oder ausgeblendetes Werk bleibt bis zum nächsten
  *   Veröffentlichen dort.
  * - gruppen: die Werkgruppen ({ id, titel }), für „noch unter …“.
+ * - jahr: Name des Felds Jahr aus der Feldliste (#257); ohne (archiviert) keine Spalte.
  */
-export default function WerkTabelle({ werke, veroeffentlicht, gruppen, onOeffnen, onVerlauf }) {
+export default function WerkTabelle({ werke, veroeffentlicht, gruppen, jahr = "Jahr", onOeffnen, onVerlauf }) {
   return (
     <table className="w-full text-sm">
       <thead className="text-left text-gray-600 border-b">
@@ -21,7 +22,7 @@ export default function WerkTabelle({ werke, veroeffentlicht, gruppen, onOeffnen
           <th className="py-1 w-14"><span className="sr-only">Bild</span></th>
           <th className="py-1 px-2 font-normal">Inv. Nr.</th>
           <th className="py-1 px-2 font-normal">Titel</th>
-          <th className="py-1 px-2 font-normal">Jahr</th>
+          {jahr && <th className="py-1 px-2 font-normal">{jahr}</th>}
           <th className="py-1 w-10"><span className="sr-only">Aktionen</span></th>
         </tr>
       </thead>
@@ -49,7 +50,7 @@ export default function WerkTabelle({ werke, veroeffentlicht, gruppen, onOeffnen
                 </button>
                 {w.data.ausgeblendet && <span> · ausgeblendet</span>}
               </td>
-              <td className="py-1 px-2 whitespace-nowrap">{w.data.Jahr}</td>
+              {jahr && <td className="py-1 px-2 whitespace-nowrap">{w.data.Jahr}</td>}
               <td className="py-1 text-right" onClick={e => e.stopPropagation()}>
                 <Menue titel={w.data.Titel || w.data.InvNr} eintraege={[
                   { text: "Bearbeiten", tun: () => onOeffnen(w) },

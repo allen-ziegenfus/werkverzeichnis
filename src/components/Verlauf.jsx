@@ -7,7 +7,8 @@ import { einstellungsName, lesen as einstellungenLesen } from "./Einstellungen.j
 import { gleich } from "./feldweise.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
-import { werkFeld } from "./werkFeld.js";
+import { feldNamen } from "./werkFeld.js";
+import { felderVon } from "../werkverzeichnis/felder.js";
 import Skelett from "./Skelett.jsx";
 import { WERKGRUPPENFELDER, werkgruppenFassung } from "./Werkgruppen.jsx";
 import Zugang from "./Zugang.jsx";
@@ -162,7 +163,7 @@ async function aenderungen(kuenstlerId, von, bis) {
   // updatedAt neuer ist als der letzte Eintrag im Zeitraum.
   const zuletzt = (eintraege, passt) => Math.max(-Infinity,
     ...eintraege.filter(passt).map(e => e.at?.toMillis() ?? -Infinity));
-  return { history, seitenverlauf, medien,
+  return { history, seitenverlauf, medien, felder: felderVon(kuenstler.data()),
     werkgruppen: nettoFassungen(werkgruppenverlauf, e => e.werkgruppe),
     werkgruppenOhne: werkgruppen.filter(g =>
       g.updatedAt?.toMillis() > zuletzt(werkgruppenverlauf, e => e.werkgruppe === g.id)),
@@ -310,7 +311,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
   const ohneVerlauf = <span className="text-gray-600">ohne Verlauf</span>;
   // Je Zeile: Schlüssel, was, welche Änderung, von wem.
   const zeilen = [
-    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).map(werkFeld).join(", "), [...w.von].join(", ")]),
+    ...n.werke.map(w => ["w" + w.werk, `Werk ${w.werk}`, Object.keys(w.felder).map(feldNamen(a.felder)).join(", "), [...w.von].join(", ")]),
     ...n.seiten.map(s => ["s" + s.seite, `Seite „${seitenName(s)}“`,
       !s.vorher ? "angelegt" : !s.nachher ? "gelöscht"
         : seitenUnterschiede(s.vorher, s.nachher).map(k => SEITENFELDER[k]).join(", "),
