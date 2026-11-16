@@ -376,7 +376,7 @@ function WerkEditor({ nutzer }) {
 
   return (
     <div className="space-y-4">
-      {fehler && <p className="text-red-700">{fehler}</p>}
+      {fehler && !werk && <p className="text-red-700">{fehler}</p>}
       {ladefehler && <p className="text-red-700">{ladefehler.code === "permission-denied"
         ? `Kein Zugriff mit ${nutzer.email}.` : ladefehler.message}</p>}
 
@@ -464,11 +464,15 @@ function WerkEditor({ nutzer }) {
             <span className="order-first w-full sm:order-none sm:w-auto sm:flex-1 min-w-0 truncate font-semibold">
               {werk.data.InvNr}{werk.data.Titel && ` · ${werk.data.Titel}`}
             </span>
-            <button className={hauptknopf + " ml-auto sm:ml-0"} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
+            <button className={hauptknopf + " ml-auto sm:ml-0"} disabled={!geaendert.length || speichert || !!laedt || abgleich.konflikte.length > 0} onClick={speichern}>
               {speichert ? "Speichere…" : "Speichern"}
             </button>
             <button className={knopf} disabled={speichert || !!laedt} onClick={naechstesWerk}
                     title="Neues Werk in dieser Werkgruppe, Inv. Nr. hochgezählt">+ Neues Werk</button>
+            {/* Rückmeldung zum Speichern hier, wo man sie sieht, egal welcher Knopf (#260). */}
+            <p role="status" className="w-full text-sm empty:-mt-1">
+              {fehler ? <span className="text-red-700">{fehler}</span> : hinweis && <span className="text-green-700">{hinweis}</span>}
+            </p>
           </div>
           {abgleich.hinweise}
           {werk.data.ausgeblendet && (
@@ -491,12 +495,11 @@ function WerkEditor({ nutzer }) {
           ))}
           <div className="flex gap-2 items-center">
             {/* Speichern unten noch einmal: Nach dem letzten Feld sucht man es hier. */}
-            <button className={hauptknopf} disabled={!geaendert.length || speichert || abgleich.konflikte.length > 0} onClick={speichern}>
+            <button className={hauptknopf} disabled={!geaendert.length || speichert || !!laedt || abgleich.konflikte.length > 0} onClick={speichern}>
               {speichert ? "Speichere…" : "Speichern"}
             </button>
             <button className={knopf} disabled={!geaendert.length || speichert}
                     onClick={() => { setEntwurf({ ...werk.data }); abgleich.verworfen(); }}>Verwerfen</button>
-            {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
             <button className={knopf + " ml-auto"} disabled={speichert || geaendert.length > 0}
                     title={geaendert.length ? "Erst speichern oder verwerfen." : undefined}
                     onClick={() => ausblenden(!werk.data.ausgeblendet)}>
