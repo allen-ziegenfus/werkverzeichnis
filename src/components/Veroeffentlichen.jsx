@@ -313,7 +313,7 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, felder, da
       ? `Werk ${w.werk} ist noch nie veröffentlicht. Zurücksetzen leert seine Felder und blendet es aus; `
         + "es bleibt in der Verwaltung, die Inv. Nr. bleibt vergeben."
       : "Auf den veröffentlichten Stand zurücksetzen?", "",
-      ...Object.entries(w.felder).filter(([f]) => f !== "ausgeblendet")
+      ...Object.entries(w.felder).filter(([f]) => !w.angelegt || f !== "ausgeblendet")
         .map(([f, c]) => `  ${werkFeld(f)}: „${werkWert(c.to)}“ → „${werkWert(c.from)}“`)].join("\n");
     if (!window.confirm(text)) return;
     setLaeuft(w.werk); setHinweis(undefined);
