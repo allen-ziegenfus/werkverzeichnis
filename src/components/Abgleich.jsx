@@ -61,9 +61,11 @@ export function useAbgleich({ art, id, ref, ich, felder, gleich, name = f => f, 
   const [meldung, setMeldung] = useState();
   // Ein gesicherter Entwurf, der sich vom gespeicherten Stand unterscheidet; je
   // Dokument neu nachgesehen (der Werk-Editor wechselt das Werk, ohne neu aufgebaut zu werden).
+  // Erst nachsehen, wenn aktiv: Ein Fund „keiner“ von vorher bliebe sonst stehen, und
+  // der Sicherungs-Effekt löschte den Entwurf (der Werk-Editor wartet auf die Feldliste, #257).
   const [fund, setFund] = useState({});
-  if (fund.fuer !== schluessel) {
-    let e = aktiv ? lesen(schluessel) : null;
+  if (aktiv && fund.fuer !== schluessel) {
+    let e = lesen(schluessel);
     // Unverändert oder älter als 30 Tage: nicht mehr anbieten.
     if (e && (Date.now() - e.at > 30 * 864e5 || !felder.some(f => !gleich(f, e.entwurf?.[f], stand[f])))) {
       entfernen(schluessel); e = null;
