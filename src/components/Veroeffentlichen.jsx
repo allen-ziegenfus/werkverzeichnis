@@ -207,8 +207,9 @@ export function Stand({ kuenstlerId, ich, erlaubt, darfWerke = false, darfSeiten
   const [fragen, setFragen] = useState(false);   // Tafel mit Notizfeld
   const ref = useRef();
   const rot = dunkel ? "text-red-400" : "text-red-700";
-  // Fehler mit Zeichen, nicht nur rot: im dunklen Kopf liegt Rot nah am Rosa von „Alles veröffentlicht“.
-  const warnung = <span aria-hidden="true">⚠ </span>;
+  // Fehler mit Zeichen, nicht nur rot: im dunklen Kopf liegt Rot nah am Rosa von
+  // „Alles veröffentlicht“. FE0E: als Schrift, nicht als buntes Emoji (Safari).
+  const warnung = <span aria-hidden="true">{"\u26A0\uFE0E "}</span>;
 
   useEffect(() => {
     if (!auf) { setFragen(false); return; }
