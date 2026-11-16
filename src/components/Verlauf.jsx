@@ -3,7 +3,8 @@ import {
   collection, deleteField, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
 import { darf } from "../werkverzeichnis/permissions.js";
-import { einstellungsName, lesen as einstellungenLesen } from "./Einstellungen.jsx";
+import { lesen as einstellungenLesen } from "./Einstellungen.jsx";
+import { einstellungsAenderungen } from "./einstellungsNamen.js";
 import { gleich } from "./feldweise.js";
 import { db, KUENSTLER } from "./firebaseClient.js";
 import { Dreht, FARBE, HOECHSTENS, LAEUFT, netto, SEITENFELDER, seitenGleich, seitenUnterschiede, STATUS, werkZuruecksetzen } from "./Veroeffentlichen.jsx";
@@ -321,7 +322,7 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
     ...a.werkgruppenOhne.map(g => ["go" + g.id, `Werkgruppe „${g.titel || g.id}“`, ohneVerlauf, ""]),
     ...a.medien.map(m => ["m" + m.id, "Bild verarbeitet", m.original?.split("/").pop() ?? m.id, ""]),
     ...(a.einstellungen ? [["e", "Einstellungen",
-      a.einstellungen.felder.map(einstellungsName).join(", "),
+      einstellungsAenderungen(a.einstellungen.vorher, a.einstellungen.nachher).join(", "),
       [...a.einstellungen.von].join(", ")]] : []),
     ...(a.kuenstlerGeaendert ? [["eo", "Einstellungen oder Personen", ohneVerlauf, ""]] : []),
   ];

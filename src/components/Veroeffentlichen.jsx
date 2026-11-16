@@ -7,6 +7,7 @@ import { db } from "./firebaseClient.js";
 import { marked } from "marked";
 import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
 import { felderVon } from "../werkverzeichnis/felder.js";
+import { einstellungsAenderungen } from "./einstellungsNamen.js";
 import { wann } from "./zeit.js";
 import { veroeffentlichenKnopf } from "./knoepfe.js";
 import { client } from "./abfragen.js";
@@ -144,12 +145,13 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
     }, e => setFehler(e.message));
     // Seiten über ihren Verlauf (#41), damit auch gelöschte zählen (#2).
     // Bilder, die die Bildfunktion erst nach dem letzten Build fertig hatte (#4).
+    // Was an den Einstellungen geändert ist, im Einzelnen aus ihrem Verlauf (#325).
     const beenden = [seit("history", "at"), seit("seitenverlauf", "at"), seit("werkgruppen", "updatedAt"),
-      seit("medien", "erstellt", true), einstellungen];
+      seit("medien", "erstellt", true), seit("einstellungsverlauf", "at"), einstellungen];
     return () => beenden.forEach(f => f());
   }, [kuenstlerId, zuletzt]);
 
-  const geladen = ["history", "seitenverlauf", "werkgruppen", "medien", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
+  const geladen = ["history", "seitenverlauf", "werkgruppen", "medien", "einstellungsverlauf", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
   // Mehr als HOECHSTENS Einträge sind nicht alle gelesen; dann nur „über …“.
   const zuViele = geladen && Object.values(aenderungen).some(l => l.length > HOECHSTENS);
   // Unvollständig gelesen ergäbe netto() einen falschen veröffentlichten Stand,
@@ -287,6 +289,9 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, felder, da
   const [laeuft, setLaeuft] = useState();   // Werk, das gerade zurückgesetzt wird
   const [hinweis, setHinweis] = useState();
   const von = s => [...s].join(", ");
+  // Erster und letzter Eintrag seit der letzten Veröffentlichung; leer ohne Verlauf (Personen, ältere Änderungen).
+  const verlauf = [...aenderungen?.einstellungsverlauf ?? []].sort((a, b) => (a.at?.toMillis() ?? Infinity) - (b.at?.toMillis() ?? Infinity));
+  const einstellungen = verlauf.length ? einstellungsAenderungen(verlauf[0].vorher, verlauf.at(-1).nachher) : [];
 
   async function zurueck(w) {
     const text = ["Auf den veröffentlichten Stand zurücksetzen?", "",
@@ -323,7 +328,8 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, felder, da
       text: <>Werkgruppe „{g.titel || g.id}“</> })),
     ...aenderungen.medien.slice(0, HOECHSTENS).map(m => ({ id: "m" + m.id, t: m.erstellt,
       text: <>Bild verarbeitet: {m.original?.split("/").pop() ?? m.id}{m.art === "fehler" && <span className="text-red-700"> (nicht lesbar)</span>}</> })),
-    ...aenderungen.einstellungen.map(e => ({ id: "e", t: e.updatedAt, text: <>Einstellungen oder Personen</> })),
+    ...aenderungen.einstellungen.map(e => ({ id: "e", t: e.updatedAt,
+      text: <>{einstellungen.length ? <>Einstellungen: {einstellungen.join(", ")}</> : "Einstellungen oder Personen"}</> })),
   ].sort((a, b) => (b.t?.toMillis() ?? 0) - (a.t?.toMillis() ?? 0));
 
   return (

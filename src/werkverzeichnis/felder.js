@@ -64,3 +64,31 @@ export function neuerSchluessel(name, felder) {
   for (let i = 2; belegt.has(s); i++) s = basis + i;
   return s;
 }
+
+/**
+ * Was sich zwischen zwei Feldlisten geändert hat, nach Art gruppiert, z. B.
+ * „neu: Provenienz“, „umbenannt: Zustand → Erhaltung“ (#325). Ohne
+ * (brauchbare) Liste gelten die Standardfelder.
+ */
+export function felderAenderungen(vorher, nachher) {
+  const a = felderVon({ felder: vorher }), b = felderVon({ felder: nachher });
+  const alt = new Map(a.map(f => [f.schluessel, f])), neu = new Map(b.map(f => [f.schluessel, f]));
+  const arten = new Map();
+  const merken = (art, text) => arten.set(art, [...arten.get(art) ?? [], text]);
+  for (const f of b) {
+    const x = alt.get(f.schluessel);
+    if (!x) { merken(f.oeffentlich ? "neu auf der Website" : "neu, intern", f.name); continue; }
+    if (x.name !== f.name) merken("umbenannt", `${x.name} → ${f.name}`);
+    if (x.archiviert !== f.archiviert) merken(f.archiviert ? "archiviert" : "wiederhergestellt", f.name);
+    if (x.oeffentlich !== f.oeffentlich) merken(f.oeffentlich ? "jetzt auf der Website" : "nicht mehr auf der Website", f.name);
+    if (x.lang !== f.lang) merken(f.lang ? "mehrzeilig" : "einzeilig", f.name);
+  }
+  // Gespeicherte Felder lassen sich nur archivieren; Zurücksetzen auf eine ältere Liste nimmt aber welche weg.
+  for (const x of a) if (!neu.has(x.schluessel)) merken("entfernt", x.name);
+  const texte = [...arten].map(([art, namen]) => `${art}: ${namen.join(", ")}`);
+  // Reihenfolge: die vorher und nachher sichtbaren Felder untereinander.
+  const beide = s => alt.has(s) && neu.has(s) && !alt.get(s).archiviert && !neu.get(s).archiviert;
+  const sichtbar = l => l.map(f => f.schluessel).filter(beide).join("\n");
+  if (sichtbar(a) !== sichtbar(b)) texte.push("Reihenfolge geändert");
+  return texte;
+}
