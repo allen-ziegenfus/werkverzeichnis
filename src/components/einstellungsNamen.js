@@ -21,5 +21,7 @@ export function einstellungsAenderungen(vorher = {}, nachher = {}) {
   return [...new Set([...Object.keys(vorher), ...Object.keys(nachher)])]
     .filter(k => !gleich(vorher[k], nachher[k]))
     .map(k => k !== "felder" ? einstellungsName(k)
-      : `${einstellungsName(k)} (${felderAenderungen(vorher.felder, nachher.felder).join("; ") || "unverändert"})`);
+      : `${einstellungsName(k)} (${felderAenderungen(vorher.felder, nachher.felder).join("; ")
+        // Sichtbar gleich, nur gespeichert oder weggefallen: die Standardfelder.
+        || (nachher.felder === undefined ? "Standardfelder, keine eigene Liste mehr" : "Standardfelder gespeichert")})`);
 }

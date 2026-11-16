@@ -153,7 +153,8 @@ export function useVeroeffentlichung(kuenstlerId, ich) {
 
   const geladen = ["history", "seitenverlauf", "werkgruppen", "medien", "einstellungsverlauf", "einstellungen"].every(c => aenderungen?.[c] !== undefined);
   // Mehr als HOECHSTENS Einträge sind nicht alle gelesen; dann nur „über …“.
-  const zuViele = geladen && Object.values(aenderungen).some(l => l.length > HOECHSTENS);
+  // Ohne den Einstellungsverlauf: Er beschreibt nur, er wird nicht zurückgesetzt.
+  const zuViele = geladen && Object.entries(aenderungen).some(([c, l]) => c !== "einstellungsverlauf" && l.length > HOECHSTENS);
   // Unvollständig gelesen ergäbe netto() einen falschen veröffentlichten Stand,
   // und Zurücksetzen schriebe ihn ins Werk.
   const n = geladen && !zuViele && netto(aenderungen.history, aenderungen.seitenverlauf);
@@ -291,7 +292,9 @@ function Tafel({ liste, zuletzt, aenderungen, netto, zuViele, fehler, felder, da
   const von = s => [...s].join(", ");
   // Erster und letzter Eintrag seit der letzten Veröffentlichung; leer ohne Verlauf (Personen, ältere Änderungen).
   const verlauf = [...aenderungen?.einstellungsverlauf ?? []].sort((a, b) => (a.at?.toMillis() ?? Infinity) - (b.at?.toMillis() ?? Infinity));
-  const einstellungen = verlauf.length ? einstellungsAenderungen(verlauf[0].vorher, verlauf.at(-1).nachher) : [];
+  // Mehr als HOECHSTENS gelesen: Der älteste fehlt, „vorher“ wäre falsch.
+  const einstellungen = verlauf.length > HOECHSTENS ? ["viele Änderungen"]
+    : verlauf.length ? einstellungsAenderungen(verlauf[0].vorher, verlauf.at(-1).nachher) : [];
 
   async function zurueck(w) {
     const text = ["Auf den veröffentlichten Stand zurücksetzen?", "",
