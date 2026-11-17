@@ -44,11 +44,13 @@ Fehler sollen vor dem Push auffallen, nicht erst im PR.
    - `infra/`: `terraform fmt -check -recursive infra` und je Schicht
      `terraform init -backend=false && terraform validate`; Skripte mit `bash -n`.
    - Oberfläche: selbst ansehen und Screenshots (siehe unten).
-2. **Review durch eine zweite Claude-Session**: Anfrage mit Branch, Issue und
-   Schwerpunkten per SendMessage. Die Reviewer-Session liest nur
+2. **Review durch den Agenten `reviewer`** (`.claude/agents/reviewer.md`, per
+   Agent-Tool, kein fork): Anfrage mit Branch, Issue und Schwerpunkten;
+   Folge-Fixes per SendMessage an denselben Agenten, damit er den Zusammenhang
+   behält. Der Agent liest nur
    (`git diff main...<branch>`, bei Unter-PRs gegen den Gruppen-Branch;
    `git show <branch>:<pfad>`), ändert, committet und
-   postet nichts und wechselt keinen Branch; am besten in einem eigenen Worktree.
+   postet nichts und wechselt keinen Branch (der Worktree ist der der Session).
    Befunde mit Datei:Zeile, konkretem Fehlerfall und Vorschlag, Maßstab sind diese
    Datei und `.macroscope/correctness/`.
 3. **Befunde beheben**, dann pushen und den PR öffnen.
