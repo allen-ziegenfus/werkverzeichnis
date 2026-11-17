@@ -88,7 +88,7 @@ export function naechsteInvNr(invNr, werke) {
   const vergeben = new Set(werke.flatMap(w => [w.id, String(w.data.InvNr ?? "").toLowerCase()]));
   for (let n = Number(zahl) + 1, i = 0; i < 1000; n++, i++) {
     const neu = `${vorn}${String(n).padStart(zahl.length, "0")}${hinten}`;
-    // Wie in anlegen(): sonst schlüge der Vorschlag dort fehl (etwa „OB 1359“).
+    // Erlaubte Zeichen: INVNR_MUSTER: sonst schlüge der Vorschlag dort fehl (etwa „OB 1359“).
     if (!INVNR_MUSTER.test(neu)) return "";
     if (!vergeben.has(neu.toLowerCase())) return neu;
   }
@@ -264,7 +264,6 @@ function WerkEditor({ nutzer }) {
    * Legt ein Werk in der gewählten Werkgruppe an, mit Verlaufseintrag wie jede
    * Änderung. Die Kennung kommt aus der Inv. Nr., wie beim Import (catalog.ts).
    */
-
   async function anlegen() {
     const invNr = neu.InvNr.trim(), titel = neu.Titel.trim();
     if (invNrFehler(invNr)) return;   // steht schon am Feld (#329), siehe INVNR_MUSTER
