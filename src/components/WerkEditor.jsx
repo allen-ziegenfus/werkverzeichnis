@@ -88,7 +88,7 @@ export function naechsteInvNr(invNr, werke) {
   const vergeben = new Set(werke.flatMap(w => [w.id, String(w.data.InvNr ?? "").toLowerCase()]));
   for (let n = Number(zahl) + 1, i = 0; i < 1000; n++, i++) {
     const neu = `${vorn}${String(n).padStart(zahl.length, "0")}${hinten}`;
-    // Erlaubte Zeichen: INVNR_MUSTER: sonst schlüge der Vorschlag dort fehl (etwa „OB 1359“).
+    // INVNR_MUSTER wie beim Anlegen: sonst schlüge der Vorschlag dort fehl (etwa „OB 1359“).
     if (!INVNR_MUSTER.test(neu)) return "";
     if (!vergeben.has(neu.toLowerCase())) return neu;
   }
