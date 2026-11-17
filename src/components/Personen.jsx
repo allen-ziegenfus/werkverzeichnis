@@ -69,7 +69,7 @@ function Personen({ ich }) {
       <Speicherleiste speichern={speichern} speichert={speichert} kannSpeichern={geaendert}
                       verwerfen={() => {
                         // Aus dem Cache: Was inzwischen geladen ist, hat der Effekt oben bei Änderungen übergangen.
-                        const neu = client.getQueryData(SCHLUESSEL.kuenstler)?.roles ?? stand;
+                        const d = client.getQueryData(SCHLUESSEL.kuenstler), neu = d ? d.roles ?? {} : stand;
                         setRollen(neu); setStand(neu); setGeaendert(false); setRunde(n => n + 1); setFehler(undefined); setHinweis(undefined);
                       }}
                       hinweis={hinweis} fehler={fehler} />
