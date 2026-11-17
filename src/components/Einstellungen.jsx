@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { collection, serverTimestamp } from "firebase/firestore";
-import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
+import { client, SCHLUESSEL, useKuenstler, useWerteJeFeld, werteZaehlen } from "./abfragen.js";
 import { feldweiseSpeichern, gleich } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import FelderBearbeiten, { felderFehler } from "./FelderBearbeiten.jsx";
@@ -56,6 +56,9 @@ function Einstellungen({ ich }) {
   const unbrauchbar = entwurf?.felder !== undefined && entwurf.felder === stand?.felder && !gueltigeFelder(entwurf.felder);
   const felder = entwurf?.felder === undefined || unbrauchbar ? STANDARD_FELDER : entwurf.felder;
   const felderProblem = entwurf && felderFehler(felder);
+  // Werte je gespeichertem Feld (#326); scheitert das Zählen, fehlen nur Anzahl und „Entfernen“.
+  const gespeichert = felderVon(stand).map(f => f.schluessel);
+  const werte = useWerteJeFeld(stand ? gespeichert : []);
   // Vor dem Verlassen warnen (#324); ohne gespeicherte Liste zählen die Standardfelder als Stand.
   const alsListe = l => l === undefined ? STANDARD_FELDER : l;
   useUngespeichert(!!entwurf && !!stand && Object.keys({ ...entwurf, ...stand })
@@ -72,6 +75,21 @@ function Einstellungen({ ich }) {
       if (mein.felder && !unbrauchbar && !gueltigeFelder(mein.felder)) {
         setFehler("Die Felder der Werke sind unvollständig; nichts gespeichert.");
         return;
+      }
+      // Entfernte gespeicherte Felder: Hat inzwischen jemand einen Wert eingetragen, lieber archivieren.
+      const weg = gespeichert.filter(s => !felder.some(f => f.schluessel === s));
+      if (weg.length) {
+        const jetzt = await werteZaehlen(weg);
+        const belegt = weg.filter(s => jetzt[s] > 0);
+        if (belegt.length) {
+          client.invalidateQueries({ queryKey: ["werteJeFeld"] });
+          // Wieder in die Liste, ans Ende, damit man sie archivieren kann.
+          const zurueck = belegt.map(s => felderVon(stand).find(f => f.schluessel === s));
+          setEntwurf(e => ({ ...e, felder: [...felder, ...zurueck] }));
+          setFehler(`Inzwischen mit Werten: ${zurueck.map(f => f.name).join(", ")}. Nichts gespeichert; `
+            + "die Felder sind wieder in der Liste, bitte archivieren statt entfernen.");
+          return;
+        }
       }
       // Hin und zurück geändert: keine Liste schreiben, damit Änderungen an STANDARD_FELDER weiter gelten.
       if (stand.felder === undefined && gleich(mein.felder, STANDARD_FELDER)) delete mein.felder;
@@ -110,7 +128,7 @@ function Einstellungen({ ich }) {
 
       <h2 className="pt-4 text-lg font-semibold">Felder der Werke</h2>
       <FelderBearbeiten key={runde} felder={felder} setFelder={f => setze("felder", f)} gesperrt={speichert}
-                        gespeichert={new Set(felderVon(stand).map(f => f.schluessel))} />
+                        gespeichert={new Set(gespeichert)} werte={werte.error ? null : werte.data} />
 
       <Speicherleiste speichern={speichern} speichert={speichert} kannSpeichern={!!entwurf.titel.trim() && !felderProblem}
                       verwerfen={() => {

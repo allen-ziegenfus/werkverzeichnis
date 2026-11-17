@@ -8,6 +8,7 @@ import { useEtwasUngespeichert } from "./ungespeichert.js";
  * Formularen sichtbar, dazu ob etwas ungespeichert ist (dieselbe Quelle wie die
  * Warnung beim Verlassen, #324) und die Rückmeldung zum Speichern. Steht als
  * letztes Element im Formular; `-mx-4 px-4` wie der Rand von <main>.
+ * Ein „Gespeichert…“ verschwindet, sobald wieder etwas ungespeichert ist.
  * `verwerfen` ist optional und fragt vorher nach; ohne `kannVerwerfen` geht es,
  * sobald etwas ungespeichert ist.
  */
@@ -22,7 +23,7 @@ export default function Speicherleiste({ speichern, kannSpeichern, speichert, be
       <p role="status" className="flex-1 min-w-0 text-sm">
         {ungespeichert && <span className="text-amber-800 font-medium mr-2 whitespace-nowrap">● Ungespeichert<span className="hidden sm:inline">e Änderungen</span></span>}
         {fehler ? <span className="text-red-700">{fehler}</span>
-          : hinweis && <span className="text-green-700">{hinweis}</span>}
+          : hinweis && !(ungespeichert && hinweis.startsWith("Gespeichert")) && <span className="text-green-700">{hinweis}</span>}
       </p>
       {verwerfen && (
         <button className={knopf} disabled={speichert || !(kannVerwerfen ?? ungespeichert)}

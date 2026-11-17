@@ -497,7 +497,7 @@ function WerkEditor({ nutzer }) {
             {/* Rückmeldung zum Speichern hier, wo man sie sieht, egal welcher Knopf (#260); ob etwas ungespeichert ist (#328). */}
             <p role="status" className="w-full text-sm empty:-mt-1">
               {ungespeichert && <span className="text-amber-800 font-medium mr-2 whitespace-nowrap">● Ungespeichert<span className="hidden sm:inline">e Änderungen</span></span>}
-              {fehler ? <span className="text-red-700">{fehler}</span> : hinweis && <span className="text-green-700">{hinweis}</span>}
+              {fehler ? <span className="text-red-700">{fehler}</span> : hinweis && !(ungespeichert && hinweis.startsWith("Gespeichert")) && <span className="text-green-700">{hinweis}</span>}
             </p>
           </div>
           {abgleich.hinweise}
