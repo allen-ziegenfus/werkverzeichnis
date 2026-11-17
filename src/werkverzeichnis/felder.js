@@ -77,7 +77,7 @@ export function felderAenderungen(vorher, nachher) {
   const merken = (art, text) => arten.set(art, [...arten.get(art) ?? [], text]);
   for (const f of b) {
     const x = alt.get(f.schluessel);
-    if (!x) { merken(f.oeffentlich ? "neu auf der Website" : "neu, intern", f.name); continue; }
+    if (!x) { merken(f.archiviert ? "neu, archiviert" : f.oeffentlich ? "neu auf der Website" : "neu, intern", f.name); continue; }
     if (x.name !== f.name) merken("umbenannt", `${x.name} → ${f.name}`);
     if (x.archiviert !== f.archiviert) merken(f.archiviert ? "archiviert" : "wiederhergestellt", f.name);
     if (x.oeffentlich !== f.oeffentlich) merken(f.oeffentlich ? "jetzt auf der Website" : "nicht mehr auf der Website", f.name);
