@@ -4,6 +4,7 @@ import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
 import { feldweiseSpeichern, gleich } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import FelderBearbeiten, { felderFehler } from "./FelderBearbeiten.jsx";
+import { EINSTELLUNGEN, einstellungsName } from "./einstellungsNamen.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
@@ -18,13 +19,6 @@ import { felderVon, gueltigeFelder, STANDARD_FELDER } from "../werkverzeichnis/f
  * die Zentrale an (#27).
  */
 
-export const EINSTELLUNGEN = [
-  ["titel", "Name"],
-  ["websiteTitel", "Titel der Website"],
-  ["titelZeile1", "Titel mobil, Zeile 1"],
-  ["titelZeile2", "Titel mobil, Zeile 2"],
-  ["copyright", "Copyright"],
-];
 /**
  * Die Felder aus dem Dokument, fehlende leer; wie einstellungen() in
  * firestore.rules. Dazu die Feldliste der Werke (#256), nur wenn gespeichert:
@@ -32,8 +26,6 @@ export const EINSTELLUNGEN = [
  */
 export const lesen = d => ({ ...Object.fromEntries(EINSTELLUNGEN.map(([k]) => [k, d[k] ?? ""])),
   ...(d.felder !== undefined && { felder: d.felder }) });
-/** Beschriftung eines Schlüssels aus lesen(), für den Verlauf. */
-export const einstellungsName = k => k === "felder" ? "Felder der Werke" : EINSTELLUNGEN.find(([x]) => x === k)?.[1] ?? k;
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 
 export default function EinstellungenSeite() {
