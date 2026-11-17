@@ -79,7 +79,12 @@ export function felderAenderungen(vorher, nachher) {
     const x = alt.get(f.schluessel);
     if (!x) { merken(f.archiviert ? "neu, archiviert" : f.oeffentlich ? "neu auf der Website" : "neu, intern", f.name); continue; }
     if (x.name !== f.name) merken("umbenannt", `${x.name} → ${f.name}`);
-    if (x.archiviert !== f.archiviert) merken(f.archiviert ? "archiviert" : "wiederhergestellt", f.name);
+    // Archiviert ist ein Feld weder im Formular noch auf der Website: Sichtbarkeit und Zeilen zählen dann nicht.
+    if (x.archiviert !== f.archiviert) {
+      merken(f.archiviert ? "archiviert" : f.oeffentlich ? "wiederhergestellt, auf der Website" : "wiederhergestellt, intern", f.name);
+      continue;
+    }
+    if (f.archiviert) continue;
     if (x.oeffentlich !== f.oeffentlich) merken(f.oeffentlich ? "jetzt auf der Website" : "nicht mehr auf der Website", f.name);
     if (x.lang !== f.lang) merken(f.lang ? "mehrzeilig" : "einzeilig", f.name);
   }
