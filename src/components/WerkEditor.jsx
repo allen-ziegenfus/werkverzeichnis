@@ -19,6 +19,10 @@ import Zugang from "./Zugang.jsx";
 import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
 
+// Erlaubte Inv. Nr. wie in den Regeln: Kennung = Inv. Nr. klein, passend zu slugify (catalog.ts);
+// Bindestriche nur einzeln und innen, slugify fasst sie sonst zusammen oder kürzt sie.
+const INVNR_MUSTER = /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/;
+
 /**
  * Der Werk-Editor (Firestore): bearbeiten und anlegen (#179), eine Künstler:in.
  *
@@ -85,7 +89,7 @@ export function naechsteInvNr(invNr, werke) {
   for (let n = Number(zahl) + 1, i = 0; i < 1000; n++, i++) {
     const neu = `${vorn}${String(n).padStart(zahl.length, "0")}${hinten}`;
     // Wie in anlegen(): sonst schlüge der Vorschlag dort fehl (etwa „OB 1359“).
-    if (!/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(neu)) return "";
+    if (!INVNR_MUSTER.test(neu)) return "";
     if (!vergeben.has(neu.toLowerCase())) return neu;
   }
   return "";
@@ -252,19 +256,18 @@ function WerkEditor({ nutzer }) {
     }
   }
 
+  /** Was an einer neuen Inv. Nr. nicht stimmt (#329), am Feld angezeigt; leer ist noch kein Fehler. */
+  const invNrFehler = invNr => invNr && (invNr.length > 100 || !INVNR_MUSTER.test(invNr))
+    ? "Nur Buchstaben, Ziffern, Punkt und einzelne Bindestriche (nicht am Anfang oder Ende)." : undefined;
+
   /**
    * Legt ein Werk in der gewählten Werkgruppe an, mit Verlaufseintrag wie jede
    * Änderung. Die Kennung kommt aus der Inv. Nr., wie beim Import (catalog.ts).
    */
-  /** Was an einer neuen Inv. Nr. nicht stimmt (#329), am Feld angezeigt; leer ist noch kein Fehler. */
-  const invNrFehler = invNr => invNr && (invNr.length > 100 || !/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(invNr))
-    ? "Nur Buchstaben, Ziffern, Punkt und einzelne Bindestriche (nicht am Anfang oder Ende)." : undefined;
 
   async function anlegen() {
     const invNr = neu.InvNr.trim(), titel = neu.Titel.trim();
-    // Wie die Regeln: Kennung = Inv. Nr. klein; dann stimmt sie auch mit slugify (catalog.ts).
-    // Bindestriche nur einzeln und innen: slugify fasst sie sonst zusammen oder kürzt sie.
-    if (invNrFehler(invNr)) return;   // steht schon am Feld (#329)
+    if (invNrFehler(invNr)) return;   // steht schon am Feld (#329), siehe INVNR_MUSTER
     const id = invNr.toLowerCase();
     // Wohin die Ansicht während des Anlegens wechselt, soll nicht überschrieben werden.
     const startGruppe = gruppe, startOffen = offen.current;
@@ -383,10 +386,10 @@ function WerkEditor({ nutzer }) {
 
   const gruppenTitel = gruppen?.find(g => g.id === gruppe)?.titel;
   // Aus der Suche übernommen (#232): Sieht der Text aus wie eine Inv. Nr. (ein
-  // Wort mit Ziffer, erlaubte Zeichen wie in anlegen()), kommt er dorthin, sonst
+  // Wort mit Ziffer, erlaubte Zeichen: INVNR_MUSTER), kommt er dorthin, sonst
   // in den Titel. Die Suche leert sich, sonst steht „keine Werke“ darunter.
   const gesucht = suche.trim();
-  const alsInvNr = /\d/.test(gesucht) && /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(gesucht);
+  const alsInvNr = /\d/.test(gesucht) && INVNR_MUSTER.test(gesucht);
   // Nach einem Werk gleich das nächste (#240): die Inv. Nr. hochgezählt vorgeschlagen.
   const naechstesWerk = () => {
     if (!verlassen()) return;

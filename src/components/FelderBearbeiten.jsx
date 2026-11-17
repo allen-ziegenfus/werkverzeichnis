@@ -26,9 +26,8 @@ export function felderProbleme(felder) {
   }
   // Archivierte zählen mit; mehr lehnen die Regeln ab.
   const gesamt = felder.length > HOECHSTENS_FELDER ? `Höchstens ${HOECHSTENS_FELDER} Felder, archivierte mitgezählt.` : undefined;
-  // Gezählt werden die markierten Eingabefelder (archivierte haben keins); mindestens eins, solange etwas nicht stimmt.
-  const aktive = felder.filter(f => !f.archiviert && je.has(f.schluessel)).length;
-  return { je, gesamt, anzahl: (aktive || (je.size ? 1 : 0)) + (gesamt ? 1 : 0) };
+  // Je Zeile mit Problem ein Sprungziel (aktive: das Eingabefeld, archivierte: die Meldung).
+  return { je, gesamt, anzahl: je.size + (gesamt ? 1 : 0) };
 }
 
 /** „in 3 Werken“ bzw. „leer“; undefined, solange nicht gezählt. */
@@ -149,7 +148,9 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, werte
                 <span className="flex-1 text-gray-600">
                   {f.name}
                   {werteText(werte?.[f.schluessel]) && <span className="block text-xs text-gray-500">{werteText(werte[f.schluessel])}</span>}
-                  <Feldfehler text={probleme.get(f.schluessel)} />
+                  {probleme.has(f.schluessel) && (
+                    <span data-problem tabIndex={-1}><Feldfehler text={probleme.get(f.schluessel)} /></span>
+                  )}
                 </span>
                 <button className={knopfKlein} disabled={gesperrt} onClick={() => aendern(f.schluessel, { archiviert: false })}>
                   Wiederherstellen
