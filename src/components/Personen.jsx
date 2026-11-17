@@ -4,9 +4,10 @@ import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
 import { feldweiseSpeichern, gleich, rollenPfad } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
+import Speicherleiste from "./Speicherleiste.jsx";
 import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
-import { hauptknopf, knopf } from "./knoepfe.js";
+import { knopf } from "./knoepfe.js";
 
 /**
  * Wer bei der Künstler:in dieser Website was darf (artists/{a}.roles). Speichert
@@ -29,6 +30,7 @@ function Personen({ ich }) {
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
+  const [runde, setRunde] = useState(0);   // Verwerfen leert auch das Eingabefeld
   useUngespeichert(!!rollen && !!stand && !gleich(rollen, stand));   // #324
 
   // Aus dem Cache, wenn schon geladen; neuere Daten ersetzen nur, was noch nicht geändert ist.
@@ -62,15 +64,11 @@ function Personen({ ich }) {
 
   return (
     <div className="space-y-3">
-      <Rollen rollen={rollen} ich={ich} nurLesen={speichert}
+      <Rollen key={runde} rollen={rollen} ich={ich} nurLesen={speichert}
               onAenderung={r => { setRollen(r); setGeaendert(true); setHinweis(undefined); }} />
-      <div className="flex gap-2 items-center">
-        <button className={hauptknopf} onClick={speichern} disabled={speichert || !geaendert}>
-          {speichert ? "Speichere…" : "Speichern"}
-        </button>
-        {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
-        {fehler && <span className="text-red-700 text-sm">{fehler}</span>}
-      </div>
+      <Speicherleiste speichern={speichern} speichert={speichert} kannSpeichern={geaendert}
+                      verwerfen={() => { setRollen(stand); setGeaendert(false); setRunde(n => n + 1); setFehler(undefined); setHinweis(undefined); }}
+                      hinweis={hinweis} fehler={fehler} />
     </div>
   );
 }

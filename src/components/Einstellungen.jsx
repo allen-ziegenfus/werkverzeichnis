@@ -8,7 +8,7 @@ import { EINSTELLUNGEN, einstellungsName } from "./einstellungsNamen.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
-import { hauptknopf } from "./knoepfe.js";
+import Speicherleiste from "./Speicherleiste.jsx";
 import { felderVon, gueltigeFelder, STANDARD_FELDER } from "../werkverzeichnis/felder.js";
 
 /**
@@ -38,6 +38,7 @@ function Einstellungen({ ich }) {
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
+  const [runde, setRunde] = useState(0);   // Verwerfen leert auch das Eingabefeld für neue Felder
 
   // Aus dem Cache, wenn schon geladen; der Entwurf wird nur einmal gefüllt.
   const { data, error } = useKuenstler();
@@ -108,17 +109,11 @@ function Einstellungen({ ich }) {
       ))}
 
       <h2 className="pt-4 text-lg font-semibold">Felder der Werke</h2>
-      <FelderBearbeiten felder={felder} setFelder={f => setze("felder", f)} gesperrt={speichert}
+      <FelderBearbeiten key={runde} felder={felder} setFelder={f => setze("felder", f)} gesperrt={speichert}
                         gespeichert={new Set(felderVon(stand).map(f => f.schluessel))} />
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <button className={hauptknopf} onClick={speichern} disabled={speichert || !entwurf.titel.trim() || !!felderProblem}>
-          {speichert ? "Speichere…" : "Speichern"}
-        </button>
-        {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
-        {fehler && <span className="text-red-700 text-sm">{fehler}</span>}
-        {!fehler && felderProblem && <span className="text-red-700 text-sm">{felderProblem}</span>}
-      </div>
+      <Speicherleiste speichern={speichern} speichert={speichert} kannSpeichern={!!entwurf.titel.trim() && !felderProblem}
+                      verwerfen={() => { setEntwurf(stand); setRunde(n => n + 1); setFehler(undefined); setHinweis(undefined); }} hinweis={hinweis} fehler={fehler ?? felderProblem} />
     </div>
   );
 }

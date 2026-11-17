@@ -13,6 +13,7 @@ import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import Zugang from "./Zugang.jsx";
 import { seitenUnterschiede, SEITENFELDER } from "./Veroeffentlichen.jsx";
 import { gefahrknopf, hauptknopf, knopf } from "./knoepfe.js";
+import Speicherleiste from "./Speicherleiste.jsx";
 
 // Der Editor ist groß; erst laden, wenn eine Seite geöffnet wird.
 const MarkdownEditor = lazy(() => import("./MarkdownEditor.jsx"));
@@ -300,16 +301,6 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
                         onAenderung={text => setze("text", text)} />
       </Suspense>
 
-      {bearbeitbar && (
-        <div className="flex gap-2 items-center">
-          <button className={hauptknopf} disabled={speichert || !geaendert || !entwurf.titel.trim() || !id || abgleich.konflikte.length > 0} onClick={speichern}>
-            {speichert ? "Speichere…" : istNeu ? "Anlegen" : "Speichern"}
-          </button>
-          {gespeichert && <button className={knopf} disabled={speichert || !geaendert} onClick={verwerfen}>Verwerfen</button>}
-          {hinweis && <span className="text-green-700 text-sm">{hinweis}</span>}
-          {fehler && <span className="text-red-700 text-sm">{fehler}</span>}
-        </div>
-      )}
       {!bearbeitbar && fehler && <p className="text-red-700 text-sm">{fehler}</p>}
 
       {!istNeu && <Fassungen eintraege={eintraege} bearbeitbar={bearbeitbar} laden={fassungLaden}
@@ -321,6 +312,14 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
         <div className="pt-6 mt-6 border-t">
           <button className={gefahrknopf} disabled={speichert} onClick={loeschen}>Seite löschen</button>
         </div>
+      )}
+
+      {/* Unten am Rand (#328); Fassungen und Löschen liegen darüber. */}
+      {bearbeitbar && (
+        <Speicherleiste speichern={speichern} speichert={speichert} beschriftung={istNeu ? "Anlegen" : "Speichern"}
+                        kannSpeichern={geaendert && !!entwurf.titel.trim() && !!id && !abgleich.konflikte.length}
+                        verwerfen={gespeichert ? verwerfen : undefined} kannVerwerfen={geaendert}
+                        hinweis={hinweis} fehler={fehler} />
       )}
     </div>
   );
