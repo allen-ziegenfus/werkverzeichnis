@@ -1,5 +1,5 @@
 import { QueryClient, useQuery } from "@tanstack/react-query";
-import { collection, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, getCountFromServer, getDoc, getDocs, query, where } from "firebase/firestore";
 import { kuenstler } from "./firebaseClient.js";
 
 /**
@@ -49,6 +49,21 @@ export const useWerke = gruppe => useQuery({
   queryFn: async () => (await getDocs(query(collection(kuenstler, "works"), where("werkgruppe", "==", gruppe))))
     .docs.map(d => ({ id: d.id, data: d.data() })).sort(nachInvNr),
   enabled: !!gruppe,
+});
+
+/**
+ * Je Feld, an wie vielen Werken es einen Wert hat (#326), ausgeblendete
+ * mitgezählt: { Schlüssel: Anzahl }. Eine Zählabfrage je Feld, etwa ein
+ * Lesevorgang je 1000 Werke. Leere Werte stehen nicht am Werk (WerkEditor
+ * löscht das Feld); `!=` übergeht zudem null und leere Texte.
+ */
+export const werteZaehlen = async schluessel => Object.fromEntries(await Promise.all(schluessel.map(async s =>
+  [s, (await getCountFromServer(query(collection(kuenstler, "works"), where(s, "!=", "")))).data().count])));
+
+export const useWerteJeFeld = schluessel => useQuery({
+  queryKey: ["werteJeFeld", ...[...schluessel].sort()],
+  queryFn: () => werteZaehlen(schluessel),
+  enabled: schluessel.length > 0,
 });
 
 /**

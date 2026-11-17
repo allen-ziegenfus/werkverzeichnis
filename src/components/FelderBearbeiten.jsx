@@ -23,13 +23,32 @@ export function felderFehler(felder) {
     + (beide.some(f => f.archiviert) ? " (einmal archiviert; lieber wiederherstellen)." : ".");
 }
 
-/** `gespeichert`: die Schlüssel der gespeicherten Liste; ein Feld, das noch nicht drin ist, lässt sich ganz entfernen. */
-export default function FelderBearbeiten({ felder, setFelder, gespeichert, gesperrt }) {
+/** „in 3 Werken“ bzw. „leer“; undefined, solange nicht gezählt. */
+const werteText = n => n === undefined ? undefined : n === 0 ? "leer" : `in ${n} ${n === 1 ? "Werk" : "Werken"}`;
+
+/**
+ * `gespeichert`: die Schlüssel der gespeicherten Liste; ein Feld, das noch
+ * nicht drin ist, lässt sich ganz entfernen. `werte`: je gespeichertem Feld die
+ * Zahl der Werke mit Wert (#326), undefined, solange gezählt wird; ein
+ * gespeichertes Feld ohne Werte lässt sich ebenfalls entfernen.
+ */
+export default function FelderBearbeiten({ felder, setFelder, gespeichert, werte, gesperrt }) {
   const [neu, setNeu] = useState("");
   useUngespeichert(!!neu.trim());   // eingetippt, aber nicht mit „+ Feld“ angelegt (#324)
   const aendern = (schluessel, werte) => setFelder(felder.map(f => f.schluessel === schluessel ? { ...f, ...werte } : f));
   const aktiv = felder.filter(f => !f.archiviert);
   const archiviert = felder.filter(f => f.archiviert);
+  const entfernbar = f => !gespeichert.has(f.schluessel) || werte?.[f.schluessel] === 0;
+  const entfernen = f => setFelder(felder.filter(x => x.schluessel !== f.schluessel));
+  const entfernenKnopf = (f, klasse = "") => (
+    <button className={knopfKlein + klasse} disabled={gesperrt} onClick={() => entfernen(f)}
+            title={gespeichert.has(f.schluessel) ? "Kein Werk hat hier einen Wert; der Name wird wieder frei." : undefined}>
+      Entfernen
+    </button>
+  );
+  // Unter dem Namen: der gespeicherte Schlüssel, falls anders, und wie viele Werke einen Wert haben.
+  const unterzeile = f => [f.name.trim() !== f.schluessel && `gespeichert als ${f.schluessel}`,
+    gespeichert.has(f.schluessel) && (werteText(werte?.[f.schluessel]) ?? "wird gezählt…")].filter(Boolean).join(" · ");
 
   // Mit dem nächsten nicht archivierten Feld davor bzw. danach tauschen.
   function schieben(schluessel, richtung) {
@@ -68,10 +87,10 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, gespe
               <div className="flex-1 min-w-0">
                 <input className="border p-1 w-full disabled:bg-gray-100" value={f.name} disabled={gesperrt}
                        aria-label={`Name des Felds ${f.schluessel}`}
-                       aria-describedby={f.name.trim() !== f.schluessel ? `feld-${f.schluessel}` : undefined}
+                       aria-describedby={unterzeile(f) ? `feld-${f.schluessel}` : undefined}
                        onChange={e => aendern(f.schluessel, { name: e.target.value })} />
-                {f.name.trim() !== f.schluessel && (
-                  <span id={`feld-${f.schluessel}`} className="block text-xs text-gray-500">gespeichert als {f.schluessel}</span>
+                {unterzeile(f) && (
+                  <span id={`feld-${f.schluessel}`} className="block text-xs text-gray-500">{unterzeile(f)}</span>
                 )}
               </div>
             </div>
@@ -85,14 +104,14 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, gespe
                      onChange={e => aendern(f.schluessel, { oeffentlich: e.target.checked })} />
               auf der Website
             </label>
-            {gespeichert.has(f.schluessel) ? (
-              <button className={knopfKlein + " ml-auto text-sm"} disabled={gesperrt} onClick={() => aendern(f.schluessel, { archiviert: true })}>
-                Archivieren
-              </button>
-            ) : (
-              <button className={knopfKlein + " ml-auto text-sm"} disabled={gesperrt}
-                      onClick={() => setFelder(felder.filter(x => x.schluessel !== f.schluessel))}>Entfernen</button>
-            )}
+            <span className="ml-auto flex gap-2">
+              {gespeichert.has(f.schluessel) && (
+                <button className={knopfKlein + " text-sm"} disabled={gesperrt} onClick={() => aendern(f.schluessel, { archiviert: true })}>
+                  Archivieren
+                </button>
+              )}
+              {entfernbar(f) && entfernenKnopf(f, " text-sm")}
+            </span>
           </li>
         ))}
       </ol>
@@ -114,10 +133,14 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, gespe
           <ul className="divide-y border rounded mt-1">
             {archiviert.map(f => (
               <li key={f.schluessel} className="p-2 flex items-center gap-3">
-                <span className="flex-1 text-gray-600">{f.name}</span>
+                <span className="flex-1 text-gray-600">
+                  {f.name}
+                  {werteText(werte?.[f.schluessel]) && <span className="block text-xs text-gray-500">{werteText(werte[f.schluessel])}</span>}
+                </span>
                 <button className={knopfKlein} disabled={gesperrt} onClick={() => aendern(f.schluessel, { archiviert: false })}>
                   Wiederherstellen
                 </button>
+                {entfernbar(f) && entfernenKnopf(f)}
               </li>
             ))}
           </ul>
