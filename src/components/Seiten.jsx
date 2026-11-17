@@ -135,7 +135,8 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
-  const setze = (k, v) => setEntwurf(e => ({ ...e, [k]: v }));
+  // Eingaben löschen den Hinweis: neben „● Ungespeichert“ stünde sonst ein altes „Gespeichert.“ (#328).
+  const setze = (k, v) => { setEntwurf(e => ({ ...e, [k]: v })); setHinweis(undefined); };
   const aktuellerEntwurf = useRef(entwurf);   // für Schreibvorgänge, die länger dauern
   aktuellerEntwurf.current = entwurf;
   const id = alt ? alt.id : istNeu ? zuKennung(entwurf.titel) : seite.id;

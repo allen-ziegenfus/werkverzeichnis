@@ -113,7 +113,12 @@ function Einstellungen({ ich }) {
                         gespeichert={new Set(felderVon(stand).map(f => f.schluessel))} />
 
       <Speicherleiste speichern={speichern} speichert={speichert} kannSpeichern={!!entwurf.titel.trim() && !felderProblem}
-                      verwerfen={() => { setEntwurf(stand); setRunde(n => n + 1); setFehler(undefined); setHinweis(undefined); }} hinweis={hinweis} fehler={fehler ?? felderProblem} />
+                      verwerfen={() => {
+                        // Aus dem Cache, wie beim Öffnen; derselbe Stand für beide, damit `unbrauchbar` gleich bleibt.
+                        const d = client.getQueryData(SCHLUESSEL.kuenstler), neu = d ? lesen(d) : stand;
+                        setEntwurf(neu); setStand(neu); setRunde(n => n + 1); setFehler(undefined); setHinweis(undefined);
+                      }}
+                      hinweis={hinweis} fehler={fehler ?? felderProblem} />
     </div>
   );
 }

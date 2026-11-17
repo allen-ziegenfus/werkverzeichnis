@@ -22,8 +22,8 @@ export function useUngespeichert(aktiv) {
 }
 
 /** true, solange irgendein Formular ungespeicherte Änderungen gemeldet hat. */
-export const useEtwasUngespeichert = () => useSyncExternalStore(
-  f => { hoerer.add(f); return () => hoerer.delete(f); }, () => offen.size > 0);
+const anmelden = f => { hoerer.add(f); return () => hoerer.delete(f); };
+export const useEtwasUngespeichert = () => useSyncExternalStore(anmelden, () => offen.size > 0);
 
 /** true, wenn nichts ungespeichert ist oder die Nutzer:in verwerfen will. */
 export const verlassen = () => !offen.size || window.confirm("Ungespeicherte Änderungen verwerfen?");
