@@ -16,6 +16,7 @@ import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
 import { felderVon } from "../werkverzeichnis/felder.js";
 import { ANNEHMEN, ablehnen, hochladen } from "./hochladen.js";
 import Zugang from "./Zugang.jsx";
+import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
 
 /**
@@ -255,14 +256,15 @@ function WerkEditor({ nutzer }) {
    * Legt ein Werk in der gewählten Werkgruppe an, mit Verlaufseintrag wie jede
    * Änderung. Die Kennung kommt aus der Inv. Nr., wie beim Import (catalog.ts).
    */
+  /** Was an einer neuen Inv. Nr. nicht stimmt (#329), am Feld angezeigt; leer ist noch kein Fehler. */
+  const invNrFehler = invNr => invNr && (invNr.length > 100 || !/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(invNr))
+    ? "Nur Buchstaben, Ziffern, Punkt und einzelne Bindestriche (nicht am Anfang oder Ende)." : undefined;
+
   async function anlegen() {
     const invNr = neu.InvNr.trim(), titel = neu.Titel.trim();
     // Wie die Regeln: Kennung = Inv. Nr. klein; dann stimmt sie auch mit slugify (catalog.ts).
     // Bindestriche nur einzeln und innen: slugify fasst sie sonst zusammen oder kürzt sie.
-    if (invNr.length > 100 || !/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(invNr)) {
-      setFehler("Die Inv. Nr. darf nur Buchstaben, Ziffern, Punkt und einzelne Bindestriche (nicht am Anfang oder Ende) enthalten.");
-      return;
-    }
+    if (invNrFehler(invNr)) return;   // steht schon am Feld (#329)
     const id = invNr.toLowerCase();
     // Wohin die Ansicht während des Anlegens wechselt, soll nicht überschrieben werden.
     const startGruppe = gruppe, startOffen = offen.current;
@@ -417,12 +419,13 @@ function WerkEditor({ nutzer }) {
         <>
           {neu && (
             <form className="border rounded p-3 bg-gray-50"
-                  onSubmit={e => { e.preventDefault(); if (!speichert && neu.InvNr.trim()) anlegen(); }}>
+                  onSubmit={e => { e.preventDefault(); if (!speichert && neu.InvNr.trim() && !invNrFehler(neu.InvNr.trim())) anlegen(); }}>
               <fieldset className="space-y-2">
                 <legend className="px-1 font-semibold">Neues Werk{gruppenTitel && ` in ${gruppenTitel}`}</legend>
                 <div className="flex gap-2 flex-wrap items-end">
                   <label className="text-sm">Inv. Nr.
-                    <input className="block border p-1 w-32 bg-white" autoFocus value={neu.InvNr}
+                    <input className={"block border p-1 w-32 bg-white " + (invNrFehler(neu.InvNr.trim()) ? fehlerRand : "")} autoFocus value={neu.InvNr}
+                           {...fehlerAttribute("fehler-invnr", invNrFehler(neu.InvNr.trim()))}
                            onFocus={e => e.target.select()}
                            onChange={e => setNeu({ ...neu, InvNr: e.target.value })} />
                   </label>
@@ -430,11 +433,13 @@ function WerkEditor({ nutzer }) {
                     <input className="block border p-1 w-full bg-white" value={neu.Titel}
                            onChange={e => setNeu({ ...neu, Titel: e.target.value })} />
                   </label>
-                  <button className={hauptknopf} disabled={speichert || !neu.InvNr.trim()}>
+                  <button className={hauptknopf} disabled={speichert || !neu.InvNr.trim() || !!invNrFehler(neu.InvNr.trim())}>
                     {speichert ? "Lege an…" : "Anlegen"}
                   </button>
                   <button type="button" className={knopf} disabled={speichert} onClick={() => setNeu(undefined)}>Abbrechen</button>
                 </div>
+                {/* Unter der ganzen Zeile: neben dem schmalen Feld bräche die Meldung Wort für Wort um. */}
+                <Feldfehler id="fehler-invnr" text={invNrFehler(neu.InvNr.trim())} />
                 <p className="text-sm text-gray-600">Die weiteren Felder (Jahr, Maße, …) nach dem Anlegen im Werk.</p>
               </fieldset>
             </form>

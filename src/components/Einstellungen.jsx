@@ -3,7 +3,8 @@ import { collection, serverTimestamp } from "firebase/firestore";
 import { client, SCHLUESSEL, useKuenstler, useWerteJeFeld, werteZaehlen } from "./abfragen.js";
 import { feldweiseSpeichern, gleich } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
-import FelderBearbeiten, { felderFehler } from "./FelderBearbeiten.jsx";
+import FelderBearbeiten, { felderProbleme } from "./FelderBearbeiten.jsx";
+import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
 import { EINSTELLUNGEN, einstellungsName } from "./einstellungsNamen.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert } from "./ungespeichert.js";
@@ -55,7 +56,9 @@ function Einstellungen({ ich }) {
   // ebenfalls „ungültig“, muss aber sichtbar bleiben und Speichern sperren.
   const unbrauchbar = entwurf?.felder !== undefined && entwurf.felder === stand?.felder && !gueltigeFelder(entwurf.felder);
   const felder = entwurf?.felder === undefined || unbrauchbar ? STANDARD_FELDER : entwurf.felder;
-  const felderProblem = entwurf && felderFehler(felder);
+  // Prüffehler stehen am Feld (#329); die Leiste zählt sie.
+  const titelFehler = entwurf && !entwurf.titel.trim() ? "Ohne Namen lässt sich nicht speichern." : undefined;
+  const probleme = (entwurf ? felderProbleme(felder).anzahl : 0) + (titelFehler ? 1 : 0);
   // Werte je gespeichertem Feld (#326); scheitert das Zählen, fehlen nur Anzahl und „Entfernen“.
   const gespeichert = felderVon(stand).map(f => f.schluessel);
   const werte = useWerteJeFeld(stand ? gespeichert : []);
@@ -71,7 +74,7 @@ function Einstellungen({ ich }) {
       // Eine unbrauchbare, nicht angefasste Liste bleibt, wie sie ist (nicht geändert, nicht geschrieben).
       const mein = entwurf.felder && !unbrauchbar
         ? { ...entwurf, felder: entwurf.felder.map(f => ({ ...f, name: f.name.trim() })) } : { ...entwurf };
-      // Nie eine unbrauchbare Liste schreiben; felderFehler sollte das schon gesperrt haben.
+      // Nie eine unbrauchbare Liste schreiben; felderProbleme sollte das schon gesperrt haben.
       if (mein.felder && !unbrauchbar && !gueltigeFelder(mein.felder)) {
         setFehler("Die Felder der Werke sind unvollständig; nichts gespeichert.");
         return;
@@ -121,8 +124,10 @@ function Einstellungen({ ich }) {
         <label key={k} className="block">
           <span className="text-sm text-gray-600">{beschriftung}</span>
           {/* Während des Speicherns gesperrt: Das Ergebnis ersetzt das Formular. */}
-          <input className="border p-1 w-full disabled:bg-gray-100" value={entwurf[k]} disabled={speichert}
+          <input className={"border p-1 w-full disabled:bg-gray-100 " + (k === "titel" && titelFehler ? fehlerRand : "")}
+                 value={entwurf[k]} disabled={speichert} {...(k === "titel" && fehlerAttribute("fehler-titel", titelFehler))}
                  onChange={e => setze(k, e.target.value)} />
+          {k === "titel" && <Feldfehler id="fehler-titel" text={titelFehler} />}
         </label>
       ))}
 
@@ -130,13 +135,13 @@ function Einstellungen({ ich }) {
       <FelderBearbeiten key={runde} felder={felder} setFelder={f => setze("felder", f)} gesperrt={speichert}
                         gespeichert={new Set(gespeichert)} werte={werte.error ? null : werte.data} />
 
-      <Speicherleiste speichern={speichern} speichert={speichert} kannSpeichern={!!entwurf.titel.trim() && !felderProblem}
+      <Speicherleiste speichern={speichern} speichert={speichert} kannSpeichern={!probleme} probleme={probleme}
                       verwerfen={() => {
                         // Aus dem Cache, wie beim Öffnen; derselbe Stand für beide, damit `unbrauchbar` gleich bleibt.
                         const d = client.getQueryData(SCHLUESSEL.kuenstler), neu = d ? lesen(d) : stand;
                         setEntwurf(neu); setStand(neu); setRunde(n => n + 1); setFehler(undefined); setHinweis(undefined);
                       }}
-                      hinweis={hinweis} fehler={fehler ?? felderProblem} />
+                      hinweis={hinweis} fehler={fehler} />
     </div>
   );
 }
