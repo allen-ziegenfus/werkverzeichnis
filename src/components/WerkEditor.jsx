@@ -9,7 +9,7 @@ import { kuenstler, db } from "./firebaseClient.js";
 import { vomServer } from "./firestoreLite.js";
 import BildListe, { lokalMerken } from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
-import { useUngespeichert, verlassen } from "./ungespeichert.js";
+import { useEtwasUngespeichert, useUngespeichert, verlassen } from "./ungespeichert.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import WerkTabelle from "./WerkTabelle.jsx";
 import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
@@ -196,6 +196,7 @@ function WerkEditor({ nutzer }) {
   });
   // Ein laufender Upload zählt mit: Tab zu bricht ihn ab, ein anderes Werk nähme die Ansicht weg (#180).
   // Eine nicht angehängte Datei auch: Weg damit läge sie verwaist im Bucket.
+  const ungespeichert = useEtwasUngespeichert();   // für die Leiste oben (#328)
   useUngespeichert(geaendert.length > 0 || !!laedt || !!(werk && nichtAngehaengt) || !!(neu && (neu.InvNr.trim() || neu.Titel.trim())));
 
   /**
@@ -493,9 +494,10 @@ function WerkEditor({ nutzer }) {
             </button>
             <button className={knopf} disabled={speichert || !!laedt} onClick={naechstesWerk}
                     title="Neues Werk in dieser Werkgruppe, Inv. Nr. hochgezählt">+ Neues Werk</button>
-            {/* Rückmeldung zum Speichern hier, wo man sie sieht, egal welcher Knopf (#260). */}
+            {/* Rückmeldung zum Speichern hier, wo man sie sieht, egal welcher Knopf (#260); ob etwas ungespeichert ist (#328). */}
             <p role="status" className="w-full text-sm empty:-mt-1">
-              {fehler ? <span className="text-red-700">{fehler}</span> : hinweis && <span className="text-green-700">{hinweis}</span>}
+              {ungespeichert && <span className="text-amber-800 font-medium mr-2 whitespace-nowrap">● Ungespeichert<span className="hidden sm:inline">e Änderungen</span></span>}
+              {fehler ? <span className="text-red-700">{fehler}</span> : hinweis && !(ungespeichert && hinweis.startsWith("Gespeichert")) && <span className="text-green-700">{hinweis}</span>}
             </p>
           </div>
           {abgleich.hinweise}
