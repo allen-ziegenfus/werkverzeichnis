@@ -63,7 +63,7 @@ function Einstellungen({ ich }) {
   const unbrauchbar = entwurf?.felder !== undefined && entwurf.felder === stand?.felder && !gueltigeFelder(entwurf.felder);
   const felder = entwurf?.felder === undefined || unbrauchbar ? STANDARD_FELDER : entwurf.felder;
   const felderProblem = entwurf && felderFehler(felder);
-  // Werte je gespeichertem Feld (#326); ein Fehler beim Zählen lässt nur „Entfernen“ weg.
+  // Werte je gespeichertem Feld (#326); scheitert das Zählen, fehlen nur Anzahl und „Entfernen“.
   const gespeichert = felderVon(stand).map(f => f.schluessel);
   const werte = useWerteJeFeld(stand ? gespeichert : []);
   // Vor dem Verlassen warnen (#324); ohne gespeicherte Liste zählen die Standardfelder als Stand.
@@ -135,7 +135,7 @@ function Einstellungen({ ich }) {
 
       <h2 className="pt-4 text-lg font-semibold">Felder der Werke</h2>
       <FelderBearbeiten felder={felder} setFelder={f => setze("felder", f)} gesperrt={speichert}
-                        gespeichert={new Set(gespeichert)} werte={werte.data} />
+                        gespeichert={new Set(gespeichert)} werte={werte.error ? null : werte.data} />
 
       <div className="flex flex-wrap gap-2 items-center">
         <button className={hauptknopf} onClick={speichern} disabled={speichert || !entwurf.titel.trim() || !!felderProblem}>

@@ -64,6 +64,8 @@ export const useWerteJeFeld = schluessel => useQuery({
   queryKey: ["werteJeFeld", ...[...schluessel].sort()],
   queryFn: () => werteZaehlen(schluessel),
   enabled: schluessel.length > 0,
+  // Bis zu 100 Abfragen; nicht bei jedem Fensterwechsel, Speichern zählt ohnehin neu.
+  refetchOnWindowFocus: false,
 });
 
 /**

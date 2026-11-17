@@ -29,7 +29,8 @@ const werteText = n => n === undefined ? undefined : n === 0 ? "leer" : `in ${n}
 /**
  * `gespeichert`: die Schlüssel der gespeicherten Liste; ein Feld, das noch
  * nicht drin ist, lässt sich ganz entfernen. `werte`: je gespeichertem Feld die
- * Zahl der Werke mit Wert (#326), undefined, solange gezählt wird; ein
+ * Zahl der Werke mit Wert (#326), undefined, solange gezählt wird, null, wenn das
+ * Zählen gescheitert ist; ein
  * gespeichertes Feld ohne Werte lässt sich ebenfalls entfernen.
  */
 export default function FelderBearbeiten({ felder, setFelder, gespeichert, werte, gesperrt }) {
@@ -48,7 +49,7 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, werte
   );
   // Unter dem Namen: der gespeicherte Schlüssel, falls anders, und wie viele Werke einen Wert haben.
   const unterzeile = f => [f.name.trim() !== f.schluessel && `gespeichert als ${f.schluessel}`,
-    gespeichert.has(f.schluessel) && (werteText(werte?.[f.schluessel]) ?? "wird gezählt…")].filter(Boolean).join(" · ");
+    werte !== null && gespeichert.has(f.schluessel) && (werteText(werte?.[f.schluessel]) ?? "wird gezählt…")].filter(Boolean).join(" · ");
 
   // Mit dem nächsten nicht archivierten Feld davor bzw. danach tauschen.
   function schieben(schluessel, richtung) {
