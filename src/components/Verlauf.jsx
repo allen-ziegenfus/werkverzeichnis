@@ -27,7 +27,6 @@ import { knopfKlein as knopf } from "./knoepfe.js";
  */
 
 const ANZAHL = 30;
-const zelle = "py-1.5 px-2 align-top border border-gray-300";
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 const fassung = ({ titel, kategorie, reihenfolge, text }) => ({ titel, kategorie, reihenfolge, text });
 
@@ -84,22 +83,13 @@ function Verlauf({ kuenstlerId, ich, darf }) {
         Die letzten {ANZAHL} Veröffentlichungen. Zurücknehmen setzt Werke, Seiten, Werkgruppen und Einstellungen auf den Stand davor zurück;
         online geht das erst mit der nächsten Veröffentlichung.
       </p>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="text-left text-gray-600 border-b border-gray-400">
-            <th className={zelle + " font-normal"}>Wann, Ergebnis</th>
-            <th className={zelle + " font-normal"}>Angefordert von</th>
-            <th className={zelle + " font-normal"}><span className="sr-only">Inhalt</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {builds.map(b => (
-            <Build key={b.id} b={b} seit={erfolgreich.includes(b) ? davor(b)?.gelesen : undefined}
-                   ungefaehr={b.ungefaehr || davor(b)?.ungefaehr} kuenstlerId={kuenstlerId}
-                   ich={ich} darf={darf} />
-          ))}
-        </tbody>
-      </table>
+      <ul className="space-y-2">
+        {builds.map(b => (
+          <Build key={b.id} b={b} seit={erfolgreich.includes(b) ? davor(b)?.gelesen : undefined}
+                 ungefaehr={b.ungefaehr || davor(b)?.ungefaehr} kuenstlerId={kuenstlerId}
+                 ich={ich} darf={darf} />
+        ))}
+      </ul>
     </div>
   );
 }
@@ -113,40 +103,49 @@ function Build({ b, seit, ungefaehr, kuenstlerId, ich, darf }) {
     {erfolgreich && seit && ungefaehr && <div className="text-gray-600">Zeitraum ungefähr: Was kurz nach dem Start gespeichert wurde, kann schon mit diesem Build online gegangen sein.</div>}
     {erfolgreich && !seit && <div className="text-gray-600">Was davor lag, ist hier nicht mehr abgegrenzt.</div>}
   </>;
+  const aufklappbar = erfolgreich && seit;
+  // Kopf: auf dem Handy untereinander, ab sm drei Spalten (#330).
+  const kopf = (
+    <span className="flex-1 min-w-0 flex flex-col gap-0.5 sm:grid sm:grid-cols-[11.5rem_11rem_minmax(0,1fr)] sm:gap-3">
+      <span className="text-gray-600">{wann(b.angefordert)}</span>
+      <span className={FARBE[b.status] ?? ""}>{LAEUFT.includes(b.status) && <Dreht />}{STATUS[b.status] ?? b.status}</span>
+      <span className="[overflow-wrap:anywhere]">
+        {b.anfragen.map(a => (
+          <span key={a.id} className="block">
+            {a.von}
+            {a.notiz && <span className="italic"> · „{a.notiz}“</span>}
+            {a.hinweis && <span className="text-gray-600"> · {a.hinweis}</span>}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+  // Pfeil (▸, gedreht ▾) nur, wenn sich etwas aufklappen lässt; sonst gleich breiter Platz.
+  const pfeil = <span aria-hidden="true" className={"w-4 shrink-0 text-gray-500 transition-transform motion-reduce:transition-none "
+    + (auf ? "rotate-90" : "")}>{aufklappbar ? "▸" : ""}</span>;
+  const zusatz = b.logUrl || b.meldung || b.status === "fehler" || (erfolgreich && (!seit || ungefaehr));
   return (
-    <>
-      <tr className={auf ? "" : "border-b"}>
-        <td className={zelle}>
-          <div className="text-gray-600 whitespace-nowrap">{wann(b.angefordert)}</div>
-          <span className={FARBE[b.status] ?? ""}>{LAEUFT.includes(b.status) && <Dreht />}{STATUS[b.status] ?? b.status}</span>
-          {b.logUrl && <> · <a className="underline" href={b.logUrl} target="_blank" rel="noreferrer">Log</a></>}
-        </td>
-        <td className={zelle + " break-words [overflow-wrap:anywhere]"}>
-          {b.anfragen.map(a => (
-            <div key={a.id}>
-              {a.von}
-              {a.notiz && <span className="italic"> · „{a.notiz}“</span>}
-              {a.hinweis && <span className="text-gray-600"> · {a.hinweis}</span>}
-            </div>
-          ))}
-          {hinweise}
-        </td>
-        <td className={zelle + " text-right whitespace-nowrap"}>
-          {erfolgreich && seit && (
-            <button className="underline" aria-expanded={auf} onClick={() => setAuf(!auf)}>
-              {auf ? "Zuklappen" : "Was ging online?"}
-            </button>
-          )}
-        </td>
-      </tr>
-      {auf && (
-        <tr className="border-b">
-          <td colSpan={3} className="p-2 border border-gray-300">
-            <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen} darf={darf} />
-          </td>
-        </tr>
+    <li className="bg-white border border-gray-200 rounded-lg shadow-sm">
+      {aufklappbar ? (
+        <button className="w-full text-left flex items-start gap-2 px-3 py-2 rounded-lg hover:bg-gray-50"
+                aria-expanded={auf} onClick={() => setAuf(!auf)}>
+          {pfeil}{kopf}<span className="sr-only">Was ging online?</span>
+        </button>
+      ) : (
+        <div className="flex items-start gap-2 px-3 py-2">{pfeil}{kopf}</div>
       )}
-    </>
+      {zusatz && (
+        <div className="pl-9 pr-3 pb-2 space-y-0.5">
+          {b.logUrl && <a className="underline" href={b.logUrl} target="_blank" rel="noreferrer">Log</a>}
+          {hinweise}
+        </div>
+      )}
+      {auf && (
+        <div className="border-t border-gray-200 px-3 pb-3">
+          <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen} darf={darf} />
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -333,17 +332,16 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
     <div className="pt-1 space-y-2">
       {leer && <p className="text-gray-600">Keine Änderungen an Werken, Seiten oder Bildern gefunden.</p>}
       {!leer && (
-        <table className="w-full border-collapse bg-gray-50">
-          <tbody>
-            {zeilen.map(([k, was, aenderung, von]) => (
-              <tr key={k} className="border-t border-gray-200">
-                <td className={zelle + " [overflow-wrap:anywhere]"}>{was}</td>
-                <td className={zelle + " break-words"}>{aenderung}</td>
-                <td className={zelle + " text-gray-600 [overflow-wrap:anywhere]"}>{von}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        // Liste statt Tabelle (#330): auf dem Handy untereinander, ab sm drei Spalten.
+        <ul className="divide-y divide-gray-100">
+          {zeilen.map(([k, was, aenderung, von]) => (
+            <li key={k} className="py-1.5 flex flex-col sm:grid sm:grid-cols-[12rem_minmax(0,1fr)_14rem] sm:gap-3">
+              <span className="font-medium [overflow-wrap:anywhere]">{was}</span>
+              <span className="[overflow-wrap:anywhere]">{aenderung}</span>
+              <span className="text-gray-600 [overflow-wrap:anywhere]">{von}</span>
+            </li>
+          ))}
+        </ul>
       )}
       {zuruecknehmbar ? (
         <p className="flex flex-wrap gap-2 items-center">
