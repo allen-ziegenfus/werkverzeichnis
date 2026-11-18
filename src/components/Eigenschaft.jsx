@@ -1,10 +1,11 @@
-export function Eigenschaft({ titel, wert }) {
+/** `feld`: Schlüssel des Werte-Felds; markiert den Wert fürs Bearbeiten auf der Seite (#337). */
+export function Eigenschaft({ titel, wert, feld }) {
   return (
     wert &&
     wert !== "-" && (
       <p className="py-1">
         <span className="font-semibold text-gray-500 dark:text-gray-400">{titel}: </span>
-        {wert}
+        {feld ? <span data-feld={feld}>{wert}</span> : wert}
       </p>
     )
   );

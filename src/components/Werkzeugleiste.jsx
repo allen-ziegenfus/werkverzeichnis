@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { signOut } from "firebase/auth";
 import { darf } from "../werkverzeichnis/permissions.js";
+import AufDerSeite from "./AufDerSeite.jsx";
+import { useHoeheAls } from "./hoehe.js";
 import { auth, KUENSTLER } from "./firebaseClient.js";
 import { Stand } from "./Veroeffentlichen.jsx";
 import { useZugang } from "./Zugang.jsx";
@@ -34,15 +37,25 @@ function bearbeiten({ werk, werkgruppe, seite }) {
 function Werkzeugleiste(kennungen) {
   const ziel = bearbeiten(kennungen);
   const { nutzer, wer } = useZugang();
+  // Der Platzhalter so hoch wie die Leiste: beim Bearbeiten auf der Seite (#337) wird sie höher.
+  const [leiste, setLeiste] = useState();
+  useHoeheAls("--werkzeugleiste", leiste);
 
   if (!nutzer || wer === undefined) return null;
 
   return (
     <>
-      <div className="h-16 sm:h-12" />
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-400 bg-gray-200 text-black text-sm">
+      <div className="h-[var(--werkzeugleiste,4rem)]" />
+      <div ref={setLeiste} className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-400 bg-gray-200 text-black text-sm">
         <div className="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-          {wer && ziel && darf(wer, ziel[0]) && (
+          {/* Werkseite: Titel und Eigenschaften gleich hier (#337), der Rest in der Verwaltung. */}
+          {wer && kennungen.werk && darf(wer, ziel[0]) && (
+            <>
+              <AufDerSeite werk={kennungen.werk} nutzer={nutzer} klasse="w-full sm:w-auto" />
+              <a className={link} href={ziel[1]}>In der Verwaltung</a>
+            </>
+          )}
+          {wer && ziel && !kennungen.werk && darf(wer, ziel[0]) && (
             <a className={link} href={ziel[1]}>
               ✎ <span className="sm:hidden">Bearbeiten</span>
               <span className="hidden sm:inline">{ziel[2] === "Werk" ? "Dieses" : "Diese"} {ziel[2]} bearbeiten</span>
