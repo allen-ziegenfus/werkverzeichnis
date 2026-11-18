@@ -169,7 +169,8 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
   function beenden() {
     if (geaendert.length && !verlassen()) return;
     // Ohne Speichern zurück zum gespeicherten Stand; gespeicherte Änderungen bleiben sichtbar.
-    setzen(Object.fromEntries(Object.keys(entwurf).map(f => [f, alsText(stand.daten[f])])));
+    // Veraltet: stand.daten ist von vor dem Speichern, die Felder zeigen schon das Gespeicherte.
+    if (!veraltet) setzen(Object.fromEntries(Object.keys(entwurf).map(f => [f, alsText(stand.daten[f])])));
     setStand(undefined); setEntwurf({}); setFehler(undefined); setHinweis(undefined); setVeraltet(false);
   }
 
@@ -201,7 +202,7 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
       {fehler && <span className="text-red-700" role="alert">{fehler}</span>}
       {hinweis && !geaendert.length && <span className="text-green-800" role="status">{hinweis}</span>}
       {nachladen && <button className={link} onClick={neuLaden}>Neu laden</button>}
-      <button className={link} onClick={verwerfen} disabled={!geaendert.length || speichert}>Verwerfen</button>
+      <button className={link} onClick={verwerfen} disabled={!geaendert.length || speichert || veraltet}>Verwerfen</button>
       <button className="px-3 py-0.5 rounded bg-blue-700 text-white disabled:bg-gray-400"
               onClick={speichern} disabled={!geaendert.length || titelLeer || speichert || nachladen}>
         {speichert ? "Speichert…" : "Speichern"}
