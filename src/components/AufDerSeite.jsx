@@ -2,6 +2,7 @@ import { collection, deleteField, doc, getDoc, runTransaction, serverTimestamp }
 import { useEffect, useRef, useState } from "react";
 import { felderVon } from "../werkverzeichnis/felder.js";
 import { db, kuenstler } from "./firebaseClient.js";
+import { vomServer } from "./firestoreLite.js";
 import { useUngespeichert, verlassen } from "./ungespeichert.js";
 
 /**
@@ -17,7 +18,10 @@ import { useUngespeichert, verlassen } from "./ungespeichert.js";
 const elemente = () => [...document.querySelectorAll("[data-feld]")];
 // Werte wie im Bau (catalog.ts): Text und Zahlen; anderes wird hier nicht bearbeitet.
 const alsText = v => typeof v === "string" ? v : typeof v === "number" ? String(v) : "";
-const lesen = el => el.innerText.replace(/ /g, " ").trim();
+const lesen = el => el.innerText.replace(/\u00a0/g, " ").trim();
+// Zum Vergleich: innerText fasst Leerraum zusammen; ein Wert aus einem Import mit
+// doppelten Leerzeichen oder Rand-Leerraum gilt deshalb nicht als geändert.
+const norm = v => v.replace(/[ \t\u00a0]+/g, " ").replace(/ *\n */g, "\n").trim();
 const RAHMEN = ["outline-dashed", "outline-1", "outline-offset-2", "outline-gray-400", "rounded-sm", "focus:outline-blue-600"];
 
 function bearbeitbar(el, an) {
@@ -40,7 +44,10 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
   const [hinweis, setHinweis] = useState();
   const veroeffentlicht = useRef();             // Texte der Seite, für „Fertig“ ohne Speichern
 
-  const geaendert = stand ? Object.keys(entwurf).filter(f => entwurf[f] !== alsText(stand.daten[f])) : [];
+  const geaendert = stand ? Object.keys(entwurf).filter(f => {
+    const ein = stand.lang.has(f) ? norm : v => norm(v).replace(/\n/g, " ");
+    return ein(entwurf[f]) !== ein(alsText(stand.daten[f]));
+  }) : [];
   useUngespeichert(geaendert.length > 0);
   const titelLeer = stand && entwurf.Titel === "";
 
@@ -48,7 +55,9 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
   const setzen = werte => { for (const el of elemente()) if (el.dataset.feld in werte) el.textContent = werte[el.dataset.feld]; };
 
   async function laden() {
-    const [w, k] = await Promise.all([getDoc(doc(kuenstler, "works", werk)), getDoc(kuenstler)]);
+    // Lite vom Server: getDoc mit Long Polling kann den Stand vor der eigenen Transaktion liefern (#279, #287).
+    const ref = doc(kuenstler, "works", werk);
+    const [w, k] = await Promise.all([vomServer(ref).catch(() => getDoc(ref)), getDoc(kuenstler)]);
     if (!w.exists()) throw new Error("Werk nicht gefunden.");
     const lang = new Set(felderVon(k.data()).filter(f => f.lang).map(f => f.schluessel));
     return { daten: w.data(), lang };
@@ -82,6 +91,7 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
       setEntwurf(d => ({ ...d, [f]: text }));
     };
     const taste = e => {
+      if (e.isComposing) return;   // Enter bestätigt hier die Eingabe per IME
       if (e.key === "Enter" && !stand.lang.has(e.currentTarget.dataset.feld)) { e.preventDefault(); e.currentTarget.blur(); }
       if (e.key === "Escape") e.currentTarget.blur();
     };
@@ -102,6 +112,7 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
     return () => {
       for (const el of els) {
         bearbeitbar(el, false);
+        el.style.whiteSpace = "";
         el.removeEventListener("input", eingabe); el.removeEventListener("keydown", taste);
         el.removeEventListener("paste", einfuegen); el.removeEventListener("drop", ablegen);
       }
@@ -113,6 +124,7 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
     const ref = doc(kuenstler, "works", werk);
     const eintrag = doc(collection(kuenstler, "history"));
     const davor = stand.daten;
+    let gespeichert = false;
     const neu = Object.fromEntries(geaendert.map(f => [f, entwurf[f] === "" ? null : entwurf[f]]));
     try {
       await runTransaction(db, async tx => {
@@ -128,16 +140,22 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
           lastChange: eintrag.id,
         });
       });
-      const s = await laden();
-      setStand(s);
-      setHinweis("Gespeichert. Die Website zeigt es erst nach „Veröffentlichen“.");
+      gespeichert = true;
     } catch (e) {
       setFehler(e.code === "konflikt"
         ? "Inzwischen hat jemand anderes dieses Werk gespeichert. „Neu laden“ holt den Stand; die Änderungen hier gehen dabei verloren."
         : e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
-    } finally {
-      setSpeichert(false);
     }
+    // Nachladen getrennt: Scheitert es, ist trotzdem gespeichert.
+    if (gespeichert) {
+      try {
+        setStand(await laden());
+        setHinweis("Gespeichert. Die Website zeigt es erst nach „Veröffentlichen“.");
+      } catch {
+        setFehler("Gespeichert, aber der neue Stand ließ sich nicht laden. Bitte „Neu laden“.");
+      }
+    }
+    setSpeichert(false);
   }
 
   function verwerfen() {
@@ -172,13 +190,14 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
     );
   }
   const konflikt = fehler?.startsWith("Inzwischen");
+  const nachladen = konflikt || fehler?.startsWith("Gespeichert, aber");
   return (
     <span className={"flex flex-wrap items-center gap-x-3 gap-y-1 " + (klasse ?? "")} role="group" aria-label="Auf der Seite bearbeiten">
       {geaendert.length > 0 && <span className="text-amber-800 font-semibold">● Ungespeichert</span>}
       {titelLeer && <span className="text-red-700">Ohne Titel lässt sich nicht speichern.</span>}
       {fehler && <span className="text-red-700" role="alert">{fehler}</span>}
       {hinweis && !geaendert.length && <span className="text-green-800" role="status">{hinweis}</span>}
-      {konflikt && <button className={link} onClick={neuLaden}>Neu laden</button>}
+      {nachladen && <button className={link} onClick={neuLaden}>Neu laden</button>}
       <button className={link} onClick={verwerfen} disabled={!geaendert.length || speichert}>Verwerfen</button>
       <button className="px-3 py-0.5 rounded bg-blue-700 text-white disabled:bg-gray-400"
               onClick={speichern} disabled={!geaendert.length || titelLeer || speichert || konflikt}>
