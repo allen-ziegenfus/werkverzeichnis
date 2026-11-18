@@ -106,8 +106,8 @@ function Build({ b, seit, ungefaehr, kuenstlerId, ich, darf }) {
   const aufklappbar = erfolgreich && seit;
   // Kopf: auf dem Handy untereinander, ab sm drei Spalten (#330).
   const kopf = (
-    <span className="flex-1 min-w-0 flex flex-col gap-0.5 sm:grid sm:grid-cols-[10.5rem_11rem_1fr] sm:gap-3">
-      <span className="text-gray-600 whitespace-nowrap">{wann(b.angefordert)}</span>
+    <span className="flex-1 min-w-0 flex flex-col gap-0.5 sm:grid sm:grid-cols-[11.5rem_11rem_minmax(0,1fr)] sm:gap-3">
+      <span className="text-gray-600">{wann(b.angefordert)}</span>
       <span className={FARBE[b.status] ?? ""}>{LAEUFT.includes(b.status) && <Dreht />}{STATUS[b.status] ?? b.status}</span>
       <span className="[overflow-wrap:anywhere]">
         {b.anfragen.map(a => (
@@ -129,7 +129,7 @@ function Build({ b, seit, ungefaehr, kuenstlerId, ich, darf }) {
       {aufklappbar ? (
         <button className="w-full text-left flex items-start gap-2 px-3 py-2 rounded-lg hover:bg-gray-50"
                 aria-expanded={auf} onClick={() => setAuf(!auf)}>
-          {pfeil}{kopf}<span className="sr-only">{auf ? "Inhalt zuklappen" : "Was ging online?"}</span>
+          {pfeil}{kopf}<span className="sr-only">Was ging online?</span>
         </button>
       ) : (
         <div className="flex items-start gap-2 px-3 py-2">{pfeil}{kopf}</div>
@@ -335,9 +335,9 @@ function Inhalt({ kuenstlerId, ich, von, bis, darf }) {
         // Liste statt Tabelle (#330): auf dem Handy untereinander, ab sm drei Spalten.
         <ul className="divide-y divide-gray-100">
           {zeilen.map(([k, was, aenderung, von]) => (
-            <li key={k} className="py-1.5 flex flex-col sm:grid sm:grid-cols-[12rem_1fr_14rem] sm:gap-3">
+            <li key={k} className="py-1.5 flex flex-col sm:grid sm:grid-cols-[12rem_minmax(0,1fr)_14rem] sm:gap-3">
               <span className="font-medium [overflow-wrap:anywhere]">{was}</span>
-              <span className="break-words">{aenderung}</span>
+              <span className="[overflow-wrap:anywhere]">{aenderung}</span>
               <span className="text-gray-600 [overflow-wrap:anywhere]">{von}</span>
             </li>
           ))}
