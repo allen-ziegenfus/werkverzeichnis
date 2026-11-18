@@ -42,13 +42,14 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
   const [speichert, setSpeichert] = useState(false);
   const [fehler, setFehler] = useState();
   const [hinweis, setHinweis] = useState();
+  const [veraltet, setVeraltet] = useState(false);  // gespeichert, aber der neue Stand fehlt
   const veroeffentlicht = useRef();             // Texte der Seite, für „Fertig“ ohne Speichern
 
   const geaendert = stand ? Object.keys(entwurf).filter(f => {
     const ein = stand.lang.has(f) ? norm : v => norm(v).replace(/\n/g, " ");
     return ein(entwurf[f]) !== ein(alsText(stand.daten[f]));
   }) : [];
-  useUngespeichert(geaendert.length > 0);
+  useUngespeichert(geaendert.length > 0 && !veraltet);
   const titelLeer = stand && entwurf.Titel === "";
 
   // Texte setzen: alle Elemente eines Felds (der Titel steht zweimal da).
@@ -152,6 +153,7 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
         setStand(await laden());
         setHinweis("Gespeichert. Die Website zeigt es erst nach „Veröffentlichen“.");
       } catch {
+        setVeraltet(true);
         setFehler("Gespeichert, aber der neue Stand ließ sich nicht laden. Bitte „Neu laden“.");
       }
     }
@@ -168,12 +170,13 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
     if (geaendert.length && !verlassen()) return;
     // Ohne Speichern zurück zum gespeicherten Stand; gespeicherte Änderungen bleiben sichtbar.
     setzen(Object.fromEntries(Object.keys(entwurf).map(f => [f, alsText(stand.daten[f])])));
-    setStand(undefined); setEntwurf({}); setFehler(undefined); setHinweis(undefined);
+    setStand(undefined); setEntwurf({}); setFehler(undefined); setHinweis(undefined); setVeraltet(false);
   }
 
   async function neuLaden() {
-    if (geaendert.length && !verlassen()) return;
-    setStand(undefined);
+    // Nach gescheitertem Nachladen ist nichts ungespeichert: keine Rückfrage.
+    if (!veraltet && geaendert.length && !verlassen()) return;
+    setVeraltet(false); setStand(undefined);
     await starten();
   }
 
@@ -190,17 +193,17 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
     );
   }
   const konflikt = fehler?.startsWith("Inzwischen");
-  const nachladen = konflikt || fehler?.startsWith("Gespeichert, aber");
+  const nachladen = konflikt || veraltet;
   return (
     <span className={"flex flex-wrap items-center gap-x-3 gap-y-1 " + (klasse ?? "")} role="group" aria-label="Auf der Seite bearbeiten">
-      {geaendert.length > 0 && <span className="text-amber-800 font-semibold">● Ungespeichert</span>}
+      {geaendert.length > 0 && !veraltet && <span className="text-amber-800 font-semibold">● Ungespeichert</span>}
       {titelLeer && <span className="text-red-700">Ohne Titel lässt sich nicht speichern.</span>}
       {fehler && <span className="text-red-700" role="alert">{fehler}</span>}
       {hinweis && !geaendert.length && <span className="text-green-800" role="status">{hinweis}</span>}
       {nachladen && <button className={link} onClick={neuLaden}>Neu laden</button>}
       <button className={link} onClick={verwerfen} disabled={!geaendert.length || speichert}>Verwerfen</button>
       <button className="px-3 py-0.5 rounded bg-blue-700 text-white disabled:bg-gray-400"
-              onClick={speichern} disabled={!geaendert.length || titelLeer || speichert || konflikt}>
+              onClick={speichern} disabled={!geaendert.length || titelLeer || speichert || nachladen}>
         {speichert ? "Speichert…" : "Speichern"}
       </button>
       <button className={link} onClick={beenden} disabled={speichert}>Fertig</button>
