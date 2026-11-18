@@ -16,7 +16,12 @@ import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
 import { felderVon } from "../werkverzeichnis/felder.js";
 import { ANNEHMEN, ablehnen, hochladen } from "./hochladen.js";
 import Zugang from "./Zugang.jsx";
+import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
+
+// Erlaubte Inv. Nr. wie in den Regeln: Kennung = Inv. Nr. klein, passend zu slugify (catalog.ts);
+// Bindestriche nur einzeln und innen, slugify fasst sie sonst zusammen oder kürzt sie.
+const INVNR_MUSTER = /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/;
 
 /**
  * Der Werk-Editor (Firestore): bearbeiten und anlegen (#179), eine Künstler:in.
@@ -83,8 +88,8 @@ export function naechsteInvNr(invNr, werke) {
   const vergeben = new Set(werke.flatMap(w => [w.id, String(w.data.InvNr ?? "").toLowerCase()]));
   for (let n = Number(zahl) + 1, i = 0; i < 1000; n++, i++) {
     const neu = `${vorn}${String(n).padStart(zahl.length, "0")}${hinten}`;
-    // Wie in anlegen(): sonst schlüge der Vorschlag dort fehl (etwa „OB 1359“).
-    if (!/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(neu)) return "";
+    // INVNR_MUSTER wie beim Anlegen: sonst schlüge der Vorschlag dort fehl (etwa „OB 1359“).
+    if (!INVNR_MUSTER.test(neu)) return "";
     if (!vergeben.has(neu.toLowerCase())) return neu;
   }
   return "";
@@ -251,18 +256,17 @@ function WerkEditor({ nutzer }) {
     }
   }
 
+  /** Was an einer neuen Inv. Nr. nicht stimmt (#329), am Feld angezeigt; leer ist noch kein Fehler. */
+  const invNrFehler = invNr => invNr && (invNr.length > 100 || !INVNR_MUSTER.test(invNr))
+    ? "Nur Buchstaben, Ziffern, Punkt und einzelne Bindestriche (nicht am Anfang oder Ende)." : undefined;
+
   /**
    * Legt ein Werk in der gewählten Werkgruppe an, mit Verlaufseintrag wie jede
    * Änderung. Die Kennung kommt aus der Inv. Nr., wie beim Import (catalog.ts).
    */
   async function anlegen() {
     const invNr = neu.InvNr.trim(), titel = neu.Titel.trim();
-    // Wie die Regeln: Kennung = Inv. Nr. klein; dann stimmt sie auch mit slugify (catalog.ts).
-    // Bindestriche nur einzeln und innen: slugify fasst sie sonst zusammen oder kürzt sie.
-    if (invNr.length > 100 || !/^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(invNr)) {
-      setFehler("Die Inv. Nr. darf nur Buchstaben, Ziffern, Punkt und einzelne Bindestriche (nicht am Anfang oder Ende) enthalten.");
-      return;
-    }
+    if (invNrFehler(invNr)) return;   // steht schon am Feld (#329), siehe INVNR_MUSTER
     const id = invNr.toLowerCase();
     // Wohin die Ansicht während des Anlegens wechselt, soll nicht überschrieben werden.
     const startGruppe = gruppe, startOffen = offen.current;
@@ -381,10 +385,10 @@ function WerkEditor({ nutzer }) {
 
   const gruppenTitel = gruppen?.find(g => g.id === gruppe)?.titel;
   // Aus der Suche übernommen (#232): Sieht der Text aus wie eine Inv. Nr. (ein
-  // Wort mit Ziffer, erlaubte Zeichen wie in anlegen()), kommt er dorthin, sonst
+  // Wort mit Ziffer, erlaubte Zeichen: INVNR_MUSTER), kommt er dorthin, sonst
   // in den Titel. Die Suche leert sich, sonst steht „keine Werke“ darunter.
   const gesucht = suche.trim();
-  const alsInvNr = /\d/.test(gesucht) && /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/.test(gesucht);
+  const alsInvNr = /\d/.test(gesucht) && INVNR_MUSTER.test(gesucht);
   // Nach einem Werk gleich das nächste (#240): die Inv. Nr. hochgezählt vorgeschlagen.
   const naechstesWerk = () => {
     if (!verlassen()) return;
@@ -417,12 +421,13 @@ function WerkEditor({ nutzer }) {
         <>
           {neu && (
             <form className="border rounded p-3 bg-gray-50"
-                  onSubmit={e => { e.preventDefault(); if (!speichert && neu.InvNr.trim()) anlegen(); }}>
+                  onSubmit={e => { e.preventDefault(); if (!speichert && neu.InvNr.trim() && !invNrFehler(neu.InvNr.trim())) anlegen(); }}>
               <fieldset className="space-y-2">
                 <legend className="px-1 font-semibold">Neues Werk{gruppenTitel && ` in ${gruppenTitel}`}</legend>
                 <div className="flex gap-2 flex-wrap items-end">
                   <label className="text-sm">Inv. Nr.
-                    <input className="block border p-1 w-32 bg-white" autoFocus value={neu.InvNr}
+                    <input className={"block border p-1 w-32 bg-white " + (invNrFehler(neu.InvNr.trim()) ? fehlerRand : "")} autoFocus value={neu.InvNr}
+                           {...fehlerAttribute("fehler-invnr", invNrFehler(neu.InvNr.trim()))}
                            onFocus={e => e.target.select()}
                            onChange={e => setNeu({ ...neu, InvNr: e.target.value })} />
                   </label>
@@ -430,11 +435,13 @@ function WerkEditor({ nutzer }) {
                     <input className="block border p-1 w-full bg-white" value={neu.Titel}
                            onChange={e => setNeu({ ...neu, Titel: e.target.value })} />
                   </label>
-                  <button className={hauptknopf} disabled={speichert || !neu.InvNr.trim()}>
+                  <button className={hauptknopf} disabled={speichert || !neu.InvNr.trim() || !!invNrFehler(neu.InvNr.trim())}>
                     {speichert ? "Lege an…" : "Anlegen"}
                   </button>
                   <button type="button" className={knopf} disabled={speichert} onClick={() => setNeu(undefined)}>Abbrechen</button>
                 </div>
+                {/* Unter der ganzen Zeile: neben dem schmalen Feld bräche die Meldung Wort für Wort um. */}
+                <Feldfehler id="fehler-invnr" text={invNrFehler(neu.InvNr.trim())} />
                 <p className="text-sm text-gray-600">Die weiteren Felder (Jahr, Maße, …) nach dem Anlegen im Werk.</p>
               </fieldset>
             </form>

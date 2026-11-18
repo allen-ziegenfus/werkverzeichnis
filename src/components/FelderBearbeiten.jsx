@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { HOECHSTENS_FELDER, neuerSchluessel } from "../werkverzeichnis/felder.js";
+import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
 import { knopf, knopfKlein } from "./knoepfe.js";
 import { useUngespeichert } from "./ungespeichert.js";
 
@@ -10,17 +11,23 @@ import { useUngespeichert } from "./ungespeichert.js";
  * und kommen mit „Wiederherstellen“ zurück.
  */
 
-/** Was am Entwurf nicht stimmt, sonst undefined. */
-export function felderFehler(felder) {
+/**
+ * Was am Entwurf nicht stimmt (#329): `je` (Schlüssel → Meldung) für die
+ * Zeilen, `gesamt` für die ganze Liste, `anzahl` alle zusammen.
+ */
+export function felderProbleme(felder) {
+  const je = new Map();
+  for (const f of felder) {
+    const n = f.name.trim().toLowerCase();
+    if (!n) { je.set(f.schluessel, "Jedes Feld braucht einen Namen."); continue; }
+    const gleiche = felder.filter(x => x.name.trim().toLowerCase() === n);
+    if (gleiche.length > 1) je.set(f.schluessel, `Den Namen „${f.name.trim()}“ gibt es ${gleiche.length === 2 ? "zweimal" : `${gleiche.length}-mal`}`
+      + (gleiche.some(x => x.archiviert) ? " (auch archiviert; lieber wiederherstellen)." : "."));
+  }
   // Archivierte zählen mit; mehr lehnen die Regeln ab.
-  if (felder.length > HOECHSTENS_FELDER) return `Höchstens ${HOECHSTENS_FELDER} Felder, archivierte mitgezählt.`;
-  const namen = felder.map(f => f.name.trim().toLowerCase());
-  if (namen.some(n => !n)) return "Jedes Feld braucht einen Namen.";
-  const doppelt = namen.find((n, i) => namen.indexOf(n) !== i);
-  if (!doppelt) return;
-  const beide = felder.filter(f => f.name.trim().toLowerCase() === doppelt);
-  return `Den Namen „${beide[0].name.trim()}“ gibt es zweimal`
-    + (beide.some(f => f.archiviert) ? " (einmal archiviert; lieber wiederherstellen)." : ".");
+  const gesamt = felder.length > HOECHSTENS_FELDER ? `Höchstens ${HOECHSTENS_FELDER} Felder, archivierte mitgezählt.` : undefined;
+  // Je Zeile mit Problem ein Sprungziel (aktive: das Eingabefeld, archivierte: die Meldung).
+  return { je, gesamt, anzahl: je.size + (gesamt ? 1 : 0) };
 }
 
 /** „in 3 Werken“ bzw. „leer“; undefined, solange nicht gezählt. */
@@ -34,6 +41,7 @@ const werteText = n => n === undefined ? undefined : n === 0 ? "leer" : `in ${n}
  * gespeichertes Feld ohne Werte lässt sich ebenfalls entfernen.
  */
 export default function FelderBearbeiten({ felder, setFelder, gespeichert, werte, gesperrt }) {
+  const { je: probleme, gesamt } = felderProbleme(felder);
   const [neu, setNeu] = useState("");
   useUngespeichert(!!neu.trim());   // eingetippt, aber nicht mit „+ Feld“ angelegt (#324)
   const aendern = (schluessel, werte) => setFelder(felder.map(f => f.schluessel === schluessel ? { ...f, ...werte } : f));
@@ -86,10 +94,11 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, werte
                         aria-label={`${f.name} nach unten`} title="Nach unten">↓</button>
               </span>
               <div className="flex-1 min-w-0">
-                <input className="border p-1 w-full disabled:bg-gray-100" value={f.name} disabled={gesperrt}
-                       aria-label={`Name des Felds ${f.schluessel}`}
-                       aria-describedby={unterzeile(f) ? `feld-${f.schluessel}` : undefined}
+                <input className={"border p-1 w-full disabled:bg-gray-100 " + (probleme.has(f.schluessel) ? fehlerRand : "")}
+                       value={f.name} disabled={gesperrt} aria-label={`Name des Felds ${f.schluessel}`}
+                       {...fehlerAttribute(`fehler-${f.schluessel}`, probleme.get(f.schluessel), unterzeile(f) && `feld-${f.schluessel}`)}
                        onChange={e => aendern(f.schluessel, { name: e.target.value })} />
+                <Feldfehler id={`fehler-${f.schluessel}`} text={probleme.get(f.schluessel)} />
                 {unterzeile(f) && (
                   <span id={`feld-${f.schluessel}`} className="block text-xs text-gray-500">{unterzeile(f)}</span>
                 )}
@@ -126,6 +135,8 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, werte
         <button className={knopf} disabled={gesperrt || !neu.trim() || felder.length >= HOECHSTENS_FELDER} onClick={anlegen}
                 title={felder.length >= HOECHSTENS_FELDER ? `Höchstens ${HOECHSTENS_FELDER} Felder, archivierte mitgezählt.` : undefined}>+ Feld</button>
       </div>
+      {/* Ziel für den Sprung aus der Speicherleiste, wie ein Feld mit aria-invalid. */}
+      {gesamt && <p data-problem tabIndex={-1} className="text-sm text-red-700">{gesamt}</p>}
 
       {archiviert.length > 0 && (
         <div className="pt-2">
@@ -137,6 +148,9 @@ export default function FelderBearbeiten({ felder, setFelder, gespeichert, werte
                 <span className="flex-1 text-gray-600">
                   {f.name}
                   {werteText(werte?.[f.schluessel]) && <span className="block text-xs text-gray-500">{werteText(werte[f.schluessel])}</span>}
+                  {probleme.has(f.schluessel) && (
+                    <span data-problem tabIndex={-1}><Feldfehler text={probleme.get(f.schluessel)} /></span>
+                  )}
                 </span>
                 <button className={knopfKlein} disabled={gesperrt} onClick={() => aendern(f.schluessel, { archiviert: false })}>
                   Wiederherstellen

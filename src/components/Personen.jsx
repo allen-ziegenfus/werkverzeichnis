@@ -4,6 +4,7 @@ import { client, SCHLUESSEL, useKuenstler } from "./abfragen.js";
 import { feldweiseSpeichern, gleich, rollenPfad } from "./feldweise.js";
 import { kuenstler } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
+import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
 import Speicherleiste from "./Speicherleiste.jsx";
 import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
@@ -88,6 +89,10 @@ function Rollen({ rollen, ich, onAenderung, nurLesen = false }) {
   useUngespeichert(!!eingabe.trim());   // eingetippt, aber nicht hinzugefügt (#324)
   const email = eingabe.trim().toLowerCase();
   const gueltig = istEmail(email) && !(email in rollen);
+  // Am Feld (#329): schon vorhanden sofort, ungültig erst nach dem Verlassen des Felds (nicht beim Tippen).
+  const [fertig, setFertig] = useState(false);
+  const eingabeFehler = !email ? undefined : email in rollen ? "Steht schon in der Liste."
+    : fertig && !istEmail(email) ? "Keine gültige E-Mail-Adresse." : undefined;
   const hinzufuegen = () => { if (gueltig) { onAenderung({ ...rollen, [email]: rolle }); setEingabe(""); } };
   const ohne = e => Object.fromEntries(Object.entries(rollen).filter(([k]) => k !== e));
   const auswahl = "border p-1 disabled:bg-gray-100";
@@ -110,9 +115,14 @@ function Rollen({ rollen, ich, onAenderung, nurLesen = false }) {
         {!Object.keys(rollen).length && <li className="text-gray-600">—</li>}
       </ul>
       {!nurLesen && (
-        <div className="flex gap-2 pt-1">
-          <input className="border p-1 flex-1" placeholder="name@gmail.com" value={eingabe}
-                 onChange={e => setEingabe(e.target.value)} onKeyDown={e => e.key === "Enter" && hinzufuegen()} />
+        <div className="flex gap-2 pt-1 items-start">
+          <span className="flex-1">
+            <input className={"border p-1 w-full " + (eingabeFehler ? fehlerRand : "")} placeholder="name@gmail.com" value={eingabe}
+                   aria-label="E-Mail-Adresse" {...fehlerAttribute("fehler-email", eingabeFehler)}
+                   onChange={e => { setEingabe(e.target.value); setFertig(false); }} onBlur={() => setFertig(true)}
+                   onKeyDown={e => { if (e.key === "Enter") { setFertig(true); hinzufuegen(); } }} />
+            <Feldfehler id="fehler-email" text={eingabeFehler} />
+          </span>
           <select className={auswahl} value={rolle} onChange={e => setRolle(e.target.value)}>
             {ROLLEN.map(x => <option key={x} value={x}>{ROLLEN_NAMEN[x]}</option>)}
           </select>

@@ -13,6 +13,7 @@ import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import Zugang from "./Zugang.jsx";
 import { seitenUnterschiede, SEITENFELDER } from "./Veroeffentlichen.jsx";
 import { gefahrknopf, hauptknopf, knopf } from "./knoepfe.js";
+import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
 import Speicherleiste from "./Speicherleiste.jsx";
 
 // Der Editor ist groß; erst laden, wenn eine Seite geöffnet wird.
@@ -271,14 +272,19 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
   }
 
   const feld = "border p-1 disabled:bg-gray-100";
+  // Prüffehler am Feld (#329). Eine neue Seite ohne Titel ist noch kein Fehler, nur nicht fertig.
+  const titelFehler = !bearbeitbar ? undefined
+    : !entwurf.titel.trim() ? (istNeu ? undefined : "Ohne Titel lässt sich nicht speichern.")
+    : !id ? "Aus diesem Titel entsteht keine Adresse; bitte Buchstaben oder Ziffern verwenden." : undefined;
   return (
     <div className="pt-4 space-y-3">
       <button className="underline text-sm" onClick={() => verlassen() && onSchliessen()}>← Zurück zu den Seiten</button>
       <div className="flex gap-2 flex-wrap items-end">
         <label className="flex-1 min-w-[12rem]">
           <span className="block text-sm text-gray-600">Titel</span>
-          <input className={feld + " w-full"} value={entwurf.titel} disabled={!bearbeitbar}
-                 onChange={e => setze("titel", e.target.value)} />
+          <input className={feld + " w-full " + (titelFehler ? fehlerRand : "")} value={entwurf.titel} disabled={!bearbeitbar}
+                 {...fehlerAttribute("fehler-titel", titelFehler)} onChange={e => setze("titel", e.target.value)} />
+          <Feldfehler id="fehler-titel" text={titelFehler} />
         </label>
         <label>
           <span className="block text-sm text-gray-600">Ort</span>
@@ -320,7 +326,7 @@ function Seite({ sammlung, verlauf, ich, seite, bearbeitbar, seiten, onSchliesse
         <Speicherleiste speichern={speichern} speichert={speichert} beschriftung={istNeu ? "Anlegen" : "Speichern"}
                         kannSpeichern={geaendert && !!entwurf.titel.trim() && !!id && !abgleich.konflikte.length}
                         verwerfen={gespeichert ? verwerfen : undefined} kannVerwerfen={geaendert}
-                        hinweis={hinweis} fehler={fehler} />
+                        hinweis={hinweis} fehler={fehler} probleme={titelFehler ? 1 : 0} />
       )}
     </div>
   );
