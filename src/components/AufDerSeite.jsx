@@ -82,9 +82,12 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
     }
   }
 
-  // Bearbeitbar, solange `stand` da ist; Eingaben gehen in den Entwurf.
+  // Bearbeitbar, solange `stand` da ist; Eingaben gehen in den Entwurf. Während
+  // des Speicherns und nach gescheitertem Nachladen gesperrt: Eingaben dann
+  // ließen sich weder speichern noch sicher als ungespeichert führen.
+  const gesperrt = speichert || veraltet;
   useEffect(() => {
-    if (!stand) return;
+    if (!stand || gesperrt) return;
     const els = elemente();
     const eingabe = e => {
       const el = e.currentTarget, f = el.dataset.feld, text = lesen(el);
@@ -118,7 +121,7 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
         el.removeEventListener("paste", einfuegen); el.removeEventListener("drop", ablegen);
       }
     };
-  }, [stand]);
+  }, [stand, gesperrt]);
 
   async function speichern() {
     setSpeichert(true); setFehler(undefined); setHinweis(undefined);
@@ -150,7 +153,12 @@ export default function AufDerSeite({ werk, nutzer, klasse }) {
     // Nachladen getrennt: Scheitert es, ist trotzdem gespeichert.
     if (gespeichert) {
       try {
-        setStand(await laden());
+        // Alles vom Server, auch was andere inzwischen geändert haben: Sonst
+        // gälte deren Änderung hier als eigene Rücknahme (bearbeitet hat hier
+        // seit dem Klick niemand, die Felder waren gesperrt).
+        const s = await laden();
+        const werte = Object.fromEntries(Object.keys(entwurf).map(f => [f, alsText(s.daten[f])]));
+        setzen(werte); setEntwurf(werte); setStand(s);
         setHinweis("Gespeichert. Die Website zeigt es erst nach „Veröffentlichen“.");
       } catch {
         setVeraltet(true);
