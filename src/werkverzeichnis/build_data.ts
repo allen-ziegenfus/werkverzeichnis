@@ -190,7 +190,10 @@ async function bauen() {
         Art: art(werte.Werkgruppe, gruppe),
         // Was die Werkseite unter Eigenschaften zeigt, mit Namen aus der Feldliste.
         Eigenschaften: oeffentlich
-          .map(f => ({ Name: f.name, Wert: f.schluessel === "Werkgruppe" ? art(werte.Werkgruppe, gruppe) : werte[f.schluessel] }))
+          // Feld: der Schlüssel, für das Bearbeiten auf der Seite (#337); „Art“ ist abgeleitet, ohne.
+          .map(f => f.schluessel === "Werkgruppe"
+            ? { Name: f.name, Wert: art(werte.Werkgruppe, gruppe) }
+            : { Name: f.name, Wert: werte[f.schluessel], Feld: f.schluessel })
           .filter(e => e.Wert !== undefined),
         Bilder: bilder,
         Thumbnail: vorschaubild(bilder[0]),

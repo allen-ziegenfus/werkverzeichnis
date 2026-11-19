@@ -61,10 +61,10 @@ const { werk, slug, workSlug, titel, nachher, vorher } = Astro.props;
     </ul>
   </nav>
 
-  <h2 class="md:hidden text-lg md:text-2xl py-3">{werk.Titel}</h2>
+  <h2 class="md:hidden text-lg md:text-2xl py-3"><span data-feld="Titel">{werk.Titel}</span></h2>
   <main class="flex flex-col-reverse lg:flex-row print:flex-row">
     <div class="eigenschaften w-full lg:w-1/2">
-      <h2 class="hidden md:block text-lg md:text-2xl py-3">{werk.Titel}</h2>
+      <h2 class="hidden md:block text-lg md:text-2xl py-3"><span data-feld="Titel">{werk.Titel}</span></h2>
       <h2 class="py-3 text-xl">Inv. Nr.: {werk.InvNr}</h2>
       <h3 class="py-3 text-xl">Eigenschaften</h3>
       <EigenschaftMitLink
@@ -72,8 +72,9 @@ const { werk, slug, workSlug, titel, nachher, vorher } = Astro.props;
         href={`/${slug}`}
         wert={werk.Werkgruppe}
       />
-      {/* Die öffentlichen Felder aus der Feldliste, in ihrer Reihenfolge (#258). */}
-      {werk.Eigenschaften.map(e => <Eigenschaft titel={e.Name} wert={e.Wert} />)}
+      {/* Die öffentlichen Felder aus der Feldliste, in ihrer Reihenfolge (#258);
+          data-feld für das Bearbeiten auf der Seite (#337). */}
+      {werk.Eigenschaften.map(e => <Eigenschaft titel={e.Name} wert={e.Wert} feld={e.Feld} />)}
     </div>
     <div class="lg:ml-2 w-full lg:w-1/2">
       <div class="m-2 flex flex-row text-4xl justify-around">
