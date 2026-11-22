@@ -53,12 +53,15 @@ export const useWerke = gruppe => useQuery({
 
 /**
  * Je Feld, an wie vielen Werken es einen Wert hat (#326), ausgeblendete
- * mitgezählt: { Schlüssel: Anzahl }. Eine Zählabfrage je Feld, etwa ein
- * Lesevorgang je 1000 Werke. Leere Werte stehen nicht am Werk (WerkEditor
- * löscht das Feld); `!=` übergeht zudem null und leere Texte.
+ * mitgezählt: { Schlüssel: Anzahl }. Zwei Zählabfragen je Feld, etwa ein
+ * Lesevorgang je 1000 Werke. Nicht `!= ""`: In Firestore Enterprise trifft
+ * das auch Werke ohne das Feld (#343). Vergleiche gelten nur innerhalb eines
+ * Typs, darum Texte außer dem leeren und Zahlen (aus Importen) getrennt.
  */
+const zaehlen = (s, op, wert) => getCountFromServer(query(collection(kuenstler, "works"), where(s, op, wert)))
+  .then(r => r.data().count);
 export const werteZaehlen = async schluessel => Object.fromEntries(await Promise.all(schluessel.map(async s =>
-  [s, (await getCountFromServer(query(collection(kuenstler, "works"), where(s, "!=", "")))).data().count])));
+  [s, (await Promise.all([zaehlen(s, ">", ""), zaehlen(s, ">=", -Infinity)])).reduce((x, y) => x + y)])));
 
 export const useWerteJeFeld = schluessel => useQuery({
   queryKey: ["werteJeFeld", ...[...schluessel].sort()],
