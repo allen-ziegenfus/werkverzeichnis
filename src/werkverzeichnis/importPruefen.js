@@ -13,7 +13,7 @@ export const INVNR_MUSTER = /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/;
 export const kennung = invNr => slugify(invNr, { lower: true });
 
 const text = v => v == null ? "" : String(v);
-/** Ein Feld des Dokuments, nur eigene Eigenschaften: Ein Feld darf „constructor“ heißen. */
+/** Ein Feld des Dokuments, nur eigene Eigenschaften (zur Sicherheit; felder.js vergibt geerbte Namen wie „constructor“ nicht, #357). */
 export const feldWert = (daten, f) => Object.hasOwn(daten, f) ? daten[f] ?? null : null;
 
 /**

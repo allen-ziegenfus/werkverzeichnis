@@ -17,7 +17,7 @@ const NAMEN = {
   Titel: ["titel", "title", "werktitel"],
 };
 const SCHWACH = { InvNr: ["nr", "nummer"] };
-// Nur eigene Einträge: Ein Feld darf „constructor“ oder „toString“ heißen.
+// Nur eigene Einträge (zur Sicherheit; felder.js vergibt geerbte Namen wie „constructor“ nicht, #357).
 const eigene = (liste, ziel) => Object.hasOwn(liste, ziel) ? liste[ziel] : [];
 
 /** Die Ziele zur Auswahl: [{ ziel, name }], Inv. Nr. und Titel zuerst. */
