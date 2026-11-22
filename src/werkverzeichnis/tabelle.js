@@ -52,9 +52,6 @@ export async function blaetterLesen(name, bytes) {
     const blatt = mappe.Sheets[n];
     // Ebenso Spalten: Ein formatierter Bereich bis XFD wären 16384 je Zeile.
     let abgeschnitten = false;
-    // sheetRows schneidet ohne Fehler ab; !fullref ist dann der ganze Bereich.
-    const zuLang = !!blatt["!fullref"] && blatt["!ref"]
-      && XLSX.utils.decode_range(blatt["!fullref"]).e.r > XLSX.utils.decode_range(blatt["!ref"]).e.r;
     if (blatt["!ref"]) {
       const bereich = XLSX.utils.decode_range(blatt["!ref"]);
       if (bereich.e.c - bereich.s.c >= HOECHSTENS.spalten) {
@@ -65,7 +62,15 @@ export async function blaetterLesen(name, bytes) {
     }
     // raw: false liefert den Text, wie die Zelle ihn zeigt.
     const zeilen = XLSX.utils.sheet_to_json(blatt, { header: 1, raw: false, defval: "", blankrows: true });
-    return { name: n, abgeschnitten, zuLang, zeilen: zeilen.map(z => z.map(z => String(z ?? "").trim())) };
+    const text = zeilen.map(z => z.map(z => String(z ?? "").trim()));
+    // sheetRows schneidet ohne Fehler ab; !fullref ist dann der Bereich laut
+    // Datei. Der kann auch nur formatierte leere Zellen umfassen. Zu lang, wenn
+    // der Inhalt bis an die Grenze reicht; sonst warnen, dass danach nichts
+    // gelesen ist (dort kann noch etwas stehen, nach einer Lücke).
+    const grenze = optionen.sheetRows - 1;   // sheetRows zählt eins mehr, als es liefert
+    const bis = blatt["!fullref"] ? XLSX.utils.decode_range(blatt["!fullref"]).e.r + 1 : 0;
+    const zeilenAus = bis <= text.length ? undefined : text.length >= grenze - 100 ? "zu lang" : "ende";
+    return { name: n, abgeschnitten, zeilenAus, gelesen: text.length, bis, zeilen: text };
   });
 }
 

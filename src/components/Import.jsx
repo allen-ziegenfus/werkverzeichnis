@@ -45,7 +45,7 @@ function Import() {
   const zeilen = datei?.blaetter[blatt]?.zeilen ?? [];
   const ergebnis = useMemo(() => {
     if (!datei) return undefined;
-    if (datei.blaetter[blatt]?.zuLang) return { fehler: `Mehr als ${HOECHSTENS.zeilen} Zeilen; bitte aufteilen.` };
+    if (datei.blaetter[blatt]?.zeilenAus === "zu lang") return { fehler: `Mehr als ${HOECHSTENS.zeilen} Zeilen; bitte aufteilen.` };
     try { return { t: tabelle(zeilen, kopf) }; } catch (e) { return { fehler: e.message }; }
   }, [datei, blatt, kopf]);
   const t = ergebnis?.t;
@@ -92,6 +92,12 @@ function Import() {
 
       {datei?.blaetter[blatt]?.abgeschnitten && (
         <p className="text-amber-800">Nur die ersten {HOECHSTENS.spalten} Spalten werden gelesen.</p>
+      )}
+      {datei?.blaetter[blatt]?.zeilenAus === "ende" && (
+        <p className="text-amber-800">
+          Gelesen bis Zeile {datei.blaetter[blatt].gelesen}; laut Datei reicht das Blatt bis Zeile {datei.blaetter[blatt].bis}.
+          Meist sind das nur formatierte leere Zellen. Stehen dort weitere Werke, bitte die Datei aufteilen.
+        </p>
       )}
       {ergebnis?.fehler && <p className="text-red-700" role="alert">{ergebnis.fehler}</p>}
       {t && (t.daten.length === 0 ? (
