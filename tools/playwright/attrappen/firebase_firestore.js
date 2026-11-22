@@ -28,11 +28,30 @@ const snapDok = r => ({ id: r.id, ref: r, exists: () => r.pfad in daten, data: (
 const snapDokA = async r => snapDok(r);
 export async function getDoc(r) { if (window.__kuenstlerVerzoegern && r.pfad === "artists/k") await new Promise(z => setTimeout(z, window.__kuenstlerVerzoegern)); if (window.__altStand && r.pfad in window.__altStand) return { id: r.id, ref: r, exists: () => true, data: () => kopie(window.__altStand[r.pfad]), get: f => window.__altStand[r.pfad][f] }; if (window.__getDocScheitern && /works\/[^/]*$/.test(r.pfad)) { window.__getDocScheitern = false; throw Object.assign(new Error("Nachladen weg (Testdaten)"), { code: "unavailable" }); } return snapDok(r); }
 export const getDocFromServer = r => getDoc(r);
+// Ein Dokument (Pfad k) gegen eine Bedingung aus where/orderBy; Zeiten als Millisekunden.
+// Unbekannte Operatoren werfen, statt still falsche Treffer zu liefern.
+const wert = v => v && typeof v.toMillis === "function" ? v.toMillis() : v;
+function passt(k, { f, op, w }) {
+  const d = daten[k];
+  const v = f === "__id" ? k.split("/").pop() : wert(d[f]);
+  const da = f === "__id" || f in d;
+  switch (op) {
+    case "hat": return da;
+    case "==": return da && v === wert(w);
+    case "!=": return da && v !== null && v !== wert(w);
+    case "<": return da && v < wert(w);
+    case "<=": return da && v <= wert(w);
+    case ">": return da && v > wert(w);
+    case ">=": return da && v >= wert(w);
+    case "in": return da && w.map(wert).includes(v);
+    case "array-contains": return Array.isArray(d[f]) && d[f].includes(w);
+    default: throw new Error(`Attrappe: where-Operator ${op} fehlt`);
+  }
+}
 export async function getDocs(q) {
   const tiefe = q.pfad.split("/").length + 1;
   const docs = Object.keys(daten).filter(k => k.startsWith(q.pfad + "/") && k.split("/").length === tiefe)
-    .filter(k => (q.bed ?? []).every(b => b.f === undefined
-      || (b.op === "hat" ? b.f in daten[k] : b.op === "!=" ? b.f in daten[k] && daten[k][b.f] !== null && daten[k][b.f] !== b.w : daten[k][b.f] === b.w)))
+    .filter(k => (q.bed ?? []).every(b => b.f === undefined || passt(k, b)))
     .map(k => snapDok({ art: "dok", pfad: k, id: k.split("/").pop() }));
   return { docs, size: docs.length, empty: !docs.length, forEach: f => docs.forEach(f) };
 }

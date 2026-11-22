@@ -2,7 +2,8 @@
  * Gemeinsamer Aufbau der Tests (#321): eine Seite mit nachgestellten
  * Firebase-Modulen. Die Verwaltung lädt Firebase im Dev-Server als
  * vorgebündelte Module (node_modules/.vite/deps/firebase_*.js); die werden
- * per route() durch die Attrappen in attrappen/ ersetzt.
+ * per route() durch die Attrappen in attrappen/ ersetzt. Ein Test scheitert
+ * bei unbehandelten Fehlern im Browser (pageerror), nicht bei console.error.
  *
  *   test("…", async ({ verwaltung }) => { const page = await verwaltung("/verwaltung/werke/", { daten => … }); })
  *
@@ -16,15 +17,17 @@ import { testdaten } from "./testdaten.mjs";
 
 const attrappe = name => fs.readFileSync(new URL(`attrappen/${name}`, import.meta.url), "utf8");
 const ATTRAPPEN = [
-  [/\/firebase_auth\.js/, attrappe("firebase_auth.js")],
-  [/\/firebase_firestore_lite\.js/, attrappe("firebase_firestore_lite.js")],
-  [/\/firebase_firestore\.js/, attrappe("firebase_firestore.js")],
+  [/\/firebase_auth\.js(\?|$)/, attrappe("firebase_auth.js")],
+  [/\/firebase_firestore_lite\.js(\?|$)/, attrappe("firebase_firestore_lite.js")],
+  [/\/firebase_firestore\.js(\?|$)/, attrappe("firebase_firestore.js")],
 ];
 
 export const test = basis.extend({
   verwaltung: async ({ page }, use) => {
     const fehler = [];
-    page.on("pageerror", e => fehler.push(`${e.message}\n${e.stack?.split("\n").slice(0, 4).join("\n")}`));
+    // Fehler aus Vites eigenem Client (Fehleranzeige des Dev-Servers, selten beim
+    // ersten Bündeln mit kaltem Cache) sind keine der Verwaltung; die übrigen schon.
+    page.on("pageerror", e => !e.stack?.includes("/@vite/client") && fehler.push(`${e.message}\n${e.stack?.split("\n").slice(0, 4).join("\n")}`));
     for (const [muster, quelltext] of ATTRAPPEN) {
       await page.route(muster, r => r.fulfill({ contentType: "text/javascript", body: quelltext }));
     }

@@ -13,6 +13,7 @@ test("Formular folgt der Feldliste: Namen, Reihenfolge, intern, ohne archivierte
   const namen = await page.locator("form label, main label.block").evaluateAll(ls =>
     ls.map(l => l.firstChild?.textContent?.trim().replace(/intern$/, "") ?? "").filter(Boolean));
   // Inv. Nr. und Titel, dann die nicht archivierten Felder der Liste in ihrer Reihenfolge.
+  expect(namen).not.toContain("Foto");   // archiviert
   expect(namen.slice(0, 11)).toEqual(["InvNr", "Titel", "Art", "Jahr", "Maße", "Provenienz", "Material",
     "Technik", "Beschreibung", "Erhaltung", "Standort"]);
   await expect(page.getByText("Foto", { exact: true })).toHaveCount(0);   // archiviert
@@ -61,9 +62,11 @@ test("Kopf und Werkleiste bleiben beim Scrollen oben (#260)", async ({ verwaltun
   await expect(page.getByText("OB1 · Kiste mit Deckel")).toBeVisible();
   await page.mouse.wheel(0, 2000);
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(300);
-  // Die Leiste mit Inv. Nr. und Titel steht noch im Bild, unter dem Kopf der Verwaltung.
+  // Die Leiste mit Inv. Nr. und Titel steht noch im Bild, unter dem Kopf der Verwaltung (nicht dahinter).
   const leiste = await page.getByText("OB1 · Kiste mit Deckel").boundingBox();
-  expect(leiste.y).toBeGreaterThanOrEqual(0);
-  expect(leiste.y).toBeLessThan(250);
+  const kopf = await page.locator("header").first().boundingBox();
+  expect(kopf.y).toBeLessThanOrEqual(0);
+  expect(leiste.y).toBeGreaterThanOrEqual(kopf.y + kopf.height - 1);
+  expect(leiste.y).toBeLessThan(kopf.y + kopf.height + 100);
   await expect(page.getByRole("link", { name: "Werke", exact: true }).first()).toBeInViewport();
 });
