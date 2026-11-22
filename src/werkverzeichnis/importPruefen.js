@@ -13,6 +13,8 @@ export const INVNR_MUSTER = /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/;
 export const kennung = invNr => slugify(invNr, { lower: true });
 
 const text = v => v == null ? "" : String(v);
+/** Ein Feld des Dokuments, nur eigene Eigenschaften: Ein Feld darf „constructor“ heißen. */
+export const feldWert = (daten, f) => Object.hasOwn(daten, f) ? daten[f] ?? null : null;
 
 /**
  * `werke` aus werkAusZeile, `vorhanden` = Map Kennung → { data, stand }
@@ -72,8 +74,8 @@ export function pruefen(werke, vorhanden, { titel = id => id } = {}) {
       continue;
     }
     const aenderungen = Object.fromEntries(Object.entries(felder)
-      .filter(([f, v]) => text(da.data[f]).trim() !== v)
-      .map(([f, v]) => [f, { von: da.data[f] ?? null, zu: v }]));
+      .filter(([f, v]) => text(feldWert(da.data, f)).trim() !== v)
+      .map(([f, v]) => [f, { von: feldWert(da.data, f), zu: v }]));
     if (Object.keys(aenderungen).length) {
       ergebnis.geaendert.push({ nr: w.nr, id, InvNr: da.data.InvNr, stand: da.stand, aenderungen, ausgeblendet: !!da.data.ausgeblendet });
     } else {

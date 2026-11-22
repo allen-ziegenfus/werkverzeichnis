@@ -6,7 +6,7 @@ import { hauptknopf, knopf } from "./knoepfe.js";
 import { useUngespeichert } from "./ungespeichert.js";
 import { werkWert } from "./werkFeld.js";
 import { fehlt, gruppenFinder, werkAusZeile, zieleVon } from "../werkverzeichnis/zuordnung.js";
-import { pruefen, stapeln } from "../werkverzeichnis/importPruefen.js";
+import { feldWert, pruefen, stapeln } from "../werkverzeichnis/importPruefen.js";
 
 /**
  * Prüfen und schreiben (#350): Übersicht gegen die Werke in Firestore, dann in
@@ -79,7 +79,7 @@ export default function ImportSchreiben({ t, zuordnung, felder, gruppen, nutzer,
         } else {
           const davor = d.data();
           tx.set(eintrag, { work: p.id, by: nutzer.email, at: serverTimestamp(),
-            changes: Object.fromEntries(Object.entries(p.aenderungen).map(([f, a]) => [f, { from: davor[f] ?? null, to: a.zu }])) });
+            changes: Object.fromEntries(Object.entries(p.aenderungen).map(([f, a]) => [f, { from: feldWert(davor, f), to: a.zu }])) });
           tx.update(refs[i], {
             ...Object.fromEntries(Object.entries(p.aenderungen).map(([f, a]) => [f, a.zu])),
             updatedAt: serverTimestamp(), lastChange: eintrag.id,
