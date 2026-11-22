@@ -39,7 +39,8 @@ Fehler sollen vor dem Push auffallen, nicht erst im PR.
 
 1. **Lokal prüfen** wie `.github/workflows/pruefen.yml`, je nach Änderung:
    - Website und Verwaltung: `TESTDATEN=tools/testdaten/katalog.json yarn data`,
-     dann `SITE=https://example.org npx astro build`.
+     dann `SITE=https://example.org npx astro build` und
+     `node tools/testdaten/pruefen.mjs`.
    - `firestore.rules`: `node tools/rules_test.mjs`.
    - `infra/`: `terraform fmt -check -recursive infra` und je Schicht
      `terraform init -backend=false && terraform validate`; Skripte mit `bash -n`.

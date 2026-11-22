@@ -19,7 +19,8 @@ import { Storage } from "@google-cloud/storage";
 import { firestoreKatalog, werteVon, type Katalog, type Medium, type Werk } from "./catalog.js";
 import { felderVon } from "./felder.js";
 
-const PUBLIC = "./public";
+// AUSGABE: anderes Verzeichnis, für die Prüfung ohne Feldliste (tools/testdaten/pruefen.mjs, #322).
+const PUBLIC = process.env.AUSGABE ?? "./public";
 
 const env = process.env;
 
