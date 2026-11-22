@@ -24,51 +24,111 @@ export const zieleVon = felder => [
 ];
 
 /**
- * Vorschlag nach Namen: { [Spaltenindex]: ziel }. Eine Spalte passt zu einem
- * Ziel, wenn ihr Name dem Schlüssel oder dem Namen des Felds entspricht
- * (vergleichbar), bei Inv. Nr. und Titel auch üblichen anderen Namen. Jedes
- * Ziel bekommt nur die erste passende Spalte.
+ * Vorschlag nach Namen: { [Spaltenindex]: ziel }. Erst genaue Treffer (Name
+ * der Spalte = Schlüssel oder Name des Felds, vergleichbar), dann für noch
+ * freie Ziele übliche andere Namen (eine laufende „Nr.“ links soll „Inv.-Nr.“
+ * rechts nicht verdrängen). Jedes Ziel bekommt nur die erste passende Spalte.
  */
 export function vorschlagen(spalten, felder) {
   const ziele = zieleVon(felder);
-  const namen = new Map(ziele.map(z => [z.ziel,
-    new Set([vergleichbar(z.ziel), vergleichbar(z.name), ...(NAMEN[z.ziel] ?? [])].filter(Boolean))]));
+  const genau = new Map(ziele.map(z => [z.ziel, new Set([vergleichbar(z.ziel), vergleichbar(z.name)].filter(Boolean))]));
   const vergeben = new Set();
-  const ergebnis = {};
-  for (const s of spalten) {
-    const n = vergleichbar(s.name);
-    const z = ziele.find(z => !vergeben.has(z.ziel) && namen.get(z.ziel).has(n));
-    ergebnis[s.index] = z?.ziel ?? "";
-    if (z) vergeben.add(z.ziel);
+  const ergebnis = Object.fromEntries(spalten.map(s => [s.index, ""]));
+  for (const passt of [z => genau.get(z.ziel), z => new Set(NAMEN[z.ziel] ?? [])]) {
+    for (const s of spalten) {
+      if (ergebnis[s.index]) continue;
+      const n = vergleichbar(s.name);
+      const z = ziele.find(z => !vergeben.has(z.ziel) && passt(z).has(n));
+      if (z) { ergebnis[s.index] = z.ziel; vergeben.add(z.ziel); }
+    }
   }
   return ergebnis;
 }
 
-/** Wert einer Zelle → Werkgruppe (Kennung) oder undefined: nach Titel, Kurztitel oder Kennung. */
-export function gruppeFinden(wert, gruppen) {
-  const v = vergleichbar(wert);
-  if (!v) return undefined;
-  return gruppen.find(g => [g.id, g.titel, g.kurztitel].some(x => x && vergleichbar(x) === v))?.id;
+/**
+ * Zum Finden der Werkgruppe einer Zelle: Funktion Wert → Kennung oder
+ * undefined, nach Titel, Kurztitel oder Kennung (vergleichbar).
+ */
+export function gruppenFinder(gruppen) {
+  const nach = new Map();
+  for (const g of gruppen) for (const x of [g.id, g.titel, g.kurztitel]) {
+    const v = vergleichbar(x);
+    if (v && !nach.has(v)) nach.set(v, g.id);
+  }
+  return wert => nach.get(vergleichbar(wert));
 }
 
 /**
  * Eine Spalte, deren Werte alle zu Werkgruppen passen (leere ausgenommen),
- * als Vorschlag für „Werkgruppe aus Spalte“; sonst undefined.
+ * als Vorschlag für „Werkgruppe aus Spalte“ (Spaltenindex); sonst undefined.
  */
 export function gruppenSpalteVorschlagen(spalten, daten, gruppen) {
-  return spalten.find(s => {
-    const werte = daten.map(z => z.werte[spalten.indexOf(s)]).filter(Boolean);
-    return werte.length > 0 && werte.every(w => gruppeFinden(w, gruppen));
+  const finden = gruppenFinder(gruppen);
+  return spalten.find((s, i) => {
+    const werte = daten.map(z => z.werte[i]).filter(Boolean);
+    return werte.length > 0 && werte.every(finden);
   })?.index;
 }
 
-/** Werte einer Spalte ohne passende Werkgruppe: [{ wert, anzahl }]. */
+/** Werte einer Spalte (Spaltenindex) ohne passende Werkgruppe: [{ wert, anzahl }]. */
 export function unbekannteGruppen(spalte, spalten, daten, gruppen) {
   const i = spalten.findIndex(s => s.index === spalte);
+  if (i < 0) return [];
+  const finden = gruppenFinder(gruppen);
   const zaehler = new Map();
   for (const z of daten) {
     const w = z.werte[i];
-    if (w && !gruppeFinden(w, gruppen)) zaehler.set(w, (zaehler.get(w) ?? 0) + 1);
+    if (w && !finden(w)) zaehler.set(w, (zaehler.get(w) ?? 0) + 1);
   }
   return [...zaehler].map(([wert, anzahl]) => ({ wert, anzahl }));
+}
+
+/**
+ * Die Zuordnung, bereinigt gegen den heutigen Stand: Ziele, die es nicht mehr
+ * gibt (archiviertes Feld), werden „nicht übernehmen“; eine feste Werkgruppe,
+ * die es nicht mehr gibt, und eine Spalte, die die Tabelle nicht hat, leer.
+ * `zuordnung` = { ziele: { [Spaltenindex]: ziel }, gruppe: { art: "fest" | "spalte", fest, spalte } }
+ * mit `fest` = Kennung und `spalte` = Spaltenindex als Zahl oder "".
+ */
+export function bereinigen(zuordnung, t, felder, gruppen) {
+  const gueltig = new Set(zieleVon(felder).map(z => z.ziel));
+  const { art, fest, spalte } = zuordnung.gruppe;
+  return {
+    ziele: Object.fromEntries(t.spalten.map(s => [s.index, gueltig.has(zuordnung.ziele[s.index]) ? zuordnung.ziele[s.index] : ""])),
+    gruppe: {
+      art,
+      fest: gruppen.some(g => g.id === fest) ? fest : "",
+      spalte: t.spalten.some(s => s.index === spalte) ? spalte : "",
+    },
+  };
+}
+
+/** Was noch fehlt, bevor sich importieren lässt: [Text], leer wenn bereit. */
+export function fehlt(zuordnung) {
+  const f = [];
+  if (!Object.values(zuordnung.ziele).includes("InvNr")) f.push("Ohne eine Spalte für die Inv. Nr. lässt sich nicht importieren.");
+  const { art, fest, spalte } = zuordnung.gruppe;
+  if (art === "fest" && !fest) f.push("Bitte eine Werkgruppe wählen.");
+  if (art === "spalte" && spalte === "") f.push("Bitte die Spalte mit der Werkgruppe wählen.");
+  return f;
+}
+
+/**
+ * Ein Werk aus einer Zeile (für #350): { nr, InvNr, werte: { ziel: Text },
+ * werkgruppe } mit allen zugeordneten Zellen außer Inv. Nr., auch leeren
+ * (was leer überschreibt nichts, entscheidet das Schreiben). `werkgruppe` ist
+ * die Kennung oder undefined (unbekannt oder leer). `finden` aus gruppenFinder.
+ */
+export function werkAusZeile(zeile, zuordnung, t, finden) {
+  const werte = {};
+  let InvNr = "";
+  t.spalten.forEach((s, i) => {
+    const ziel = zuordnung.ziele[s.index];
+    if (ziel === "InvNr") InvNr = zeile.werte[i];
+    else if (ziel) werte[ziel] = zeile.werte[i];
+  });
+  const { art, fest, spalte } = zuordnung.gruppe;
+  const werkgruppe = art === "fest" ? fest || undefined
+    : finden(zeile.werte[t.spalten.findIndex(s => s.index === spalte)] ?? "");
+  return { nr: zeile.nr, InvNr, werte, werkgruppe };
 }

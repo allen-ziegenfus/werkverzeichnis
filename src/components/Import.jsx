@@ -4,7 +4,7 @@ import ImportZuordnung from "./ImportZuordnung.jsx";
 import { client, SCHLUESSEL, useKuenstler, useWerkgruppen } from "./abfragen.js";
 import { felderVon } from "../werkverzeichnis/felder.js";
 import { blaetterLesen, buchstabe, HOECHSTENS, kopfzeileRaten, tabelle, zuGross } from "../werkverzeichnis/tabelle.js";
-import { gruppenSpalteVorschlagen, vorschlagen, zieleVon } from "../werkverzeichnis/zuordnung.js";
+import { bereinigen, gruppenSpalteVorschlagen, vorschlagen, zieleVon } from "../werkverzeichnis/zuordnung.js";
 
 /**
  * Import von Werken aus einer Tabelle (#239): Datei wählen, im Browser lesen,
@@ -58,31 +58,31 @@ function Import() {
   const { data: kuenstlerDaten, error: kuenstlerFehler } = useKuenstler();
   const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
   useEffect(() => {
-    const zurueck = () => client.invalidateQueries({ queryKey: SCHLUESSEL.kuenstler });
+    const zurueck = () => {
+      client.invalidateQueries({ queryKey: SCHLUESSEL.kuenstler });
+      client.invalidateQueries({ queryKey: SCHLUESSEL.werkgruppen });
+    };
     addEventListener("focus", zurueck);
     return () => removeEventListener("focus", zurueck);
   }, []);
   const felder = useMemo(() => kuenstlerDaten && felderVon(kuenstlerDaten), [kuenstlerDaten]);
 
   // Die Zuordnung gehört zu einer Tabelle (Datei, Blatt, Kopfzeile); für eine
-  // neue gilt wieder der Vorschlag nach Namen.
-  const vorschlag = useMemo(() => t && felder && gruppen && {
-    fuer: t,
-    ziele: vorschlagen(t.spalten, felder),
-    gruppe: (() => {
-      const spalte = gruppenSpalteVorschlagen(t.spalten, t.daten, gruppen);
-      return spalte !== undefined ? { art: "spalte", wert: String(spalte) }
-        : { art: "fest", wert: gruppen.length === 1 ? gruppen[0].id : "" };
-    })(),
+  // andere gilt wieder der Vorschlag nach Namen.
+  const fuer = datei && `${blatt}:${kopf}`;
+  const vorschlag = useMemo(() => {
+    if (!t || !felder || !gruppen) return undefined;
+    const spalte = gruppenSpalteVorschlagen(t.spalten, t.daten, gruppen);
+    return {
+      ziele: vorschlagen(t.spalten, felder),
+      gruppe: { art: spalte !== undefined ? "spalte" : "fest", spalte: spalte ?? "", fest: gruppen.length === 1 ? gruppen[0].id : "" },
+    };
   }, [t, felder, gruppen]);
-  const [gewaehlt, setGewaehlt] = useState();
-  const roh = gewaehlt?.fuer === t ? gewaehlt : vorschlag;
-  // Ein inzwischen archiviertes Feld ist kein Ziel mehr.
-  const zuordnung = useMemo(() => {
-    if (!roh || !felder) return roh;
-    const gueltig = new Set(zieleVon(felder).map(z => z.ziel));
-    return { ...roh, ziele: Object.fromEntries(Object.entries(roh.ziele).map(([i, z]) => [i, gueltig.has(z) ? z : ""])) };
-  }, [roh, felder]);
+  const [gewaehlt, setGewaehlt] = useState();   // { datei, fuer, zuordnung }
+  const roh = gewaehlt?.datei === datei && gewaehlt?.fuer === fuer ? gewaehlt.zuordnung : vorschlag;
+  // Gegen den heutigen Stand: archivierte Felder, gelöschte Werkgruppen.
+  const zuordnung = useMemo(() => roh && t && felder && gruppen && bereinigen(roh, t, felder, gruppen),
+    [roh, t, felder, gruppen]);
   const zielName = new Map((felder ? zieleVon(felder) : []).map(z => [z.ziel, z.name]));
 
   return (
@@ -178,7 +178,7 @@ function Import() {
           )}
           {zuordnung && (
             <ImportZuordnung t={t} felder={felder} gruppen={gruppen} zuordnung={zuordnung}
-                             aendern={neu => setGewaehlt({ ...neu, fuer: t })} />
+                             aendern={neu => setGewaehlt({ datei, fuer, zuordnung: neu })} />
           )}
         </div>
       ))}

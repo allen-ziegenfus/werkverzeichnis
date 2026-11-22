@@ -1,20 +1,27 @@
+import { useMemo } from "react";
 import { buchstabe } from "../werkverzeichnis/tabelle.js";
-import { unbekannteGruppen, zieleVon } from "../werkverzeichnis/zuordnung.js";
+import { fehlt, unbekannteGruppen, zieleVon } from "../werkverzeichnis/zuordnung.js";
 
 /**
  * Spalten den Feldern zuordnen (#349) und die Werkgruppe wählen. Gesteuert:
- * `zuordnung` = { ziele: { [Spaltenindex]: ziel }, gruppe: { art: "fest" | "spalte", wert } },
- * Änderungen über `aendern(neu)`.
+ * `zuordnung` wie in zuordnung.js (bereinigen), Änderungen über `aendern(neu)`.
  */
 export default function ImportZuordnung({ t, felder, gruppen, zuordnung, aendern }) {
   const ziele = zieleVon(felder);
   const name = new Map(ziele.map(z => [z.ziel, z.name]));
   const spalteVon = new Map(Object.entries(zuordnung.ziele).filter(([, z]) => z).map(([i, z]) => [z, Number(i)]));
-  const beispiele = i => [...new Set(t.daten.map(z => z.werte[i]).filter(Boolean))].slice(0, 3);
+  // Je Spalte (nach Position) bis zu drei verschiedene Werte, einmal je Tabelle.
+  const beispiele = useMemo(() => t.spalten.map((_, i) => {
+    const b = new Set();
+    for (const z of t.daten) { if (z.werte[i]) b.add(z.werte[i]); if (b.size === 3) break; }
+    return [...b].join(" · ");
+  }), [t]);
   const setZiel = (index, ziel) => aendern({ ...zuordnung, ziele: { ...zuordnung.ziele, [index]: ziel } });
-  const setGruppe = gruppe => aendern({ ...zuordnung, gruppe });
-  const { art, wert } = zuordnung.gruppe;
-  const unbekannt = art === "spalte" && wert !== "" ? unbekannteGruppen(Number(wert), t.spalten, t.daten, gruppen) : [];
+  const setGruppe = teil => aendern({ ...zuordnung, gruppe: { ...zuordnung.gruppe, ...teil } });
+  const { art, fest, spalte } = zuordnung.gruppe;
+  const unbekannt = useMemo(() => art === "spalte" && spalte !== "" ? unbekannteGruppen(spalte, t.spalten, t.daten, gruppen) : [],
+    [art, spalte, t, gruppen]);
+  const offen = fehlt(zuordnung);
   const auswahl = "border border-gray-400 rounded px-2 py-1 max-w-full";
 
   return (
@@ -34,8 +41,8 @@ export default function ImportZuordnung({ t, felder, gruppen, zuordnung, aendern
                 <div className="min-w-0">
                   <span className="text-xs text-gray-500 mr-1">{buchstabe(s.index)}</span>
                   <span className="font-semibold">{s.name}</span>
-                  <span className="block text-sm text-gray-600 truncate" title={beispiele(i).join(" · ")}>
-                    {beispiele(i).join(" · ") || "leer"}
+                  <span className="block text-sm text-gray-600 truncate" title={beispiele[i]}>
+                    {beispiele[i] || "leer"}
                   </span>
                 </div>
                 <select className={auswahl + (ziel ? "" : " text-gray-500")} value={ziel}
@@ -55,9 +62,6 @@ export default function ImportZuordnung({ t, felder, gruppen, zuordnung, aendern
             );
           })}
         </ul>
-        {!spalteVon.has("InvNr") && (
-          <p className="text-red-700">Ohne eine Spalte für die Inv. Nr. lässt sich nicht importieren.</p>
-        )}
       </section>
 
       <section className="space-y-2">
@@ -68,29 +72,26 @@ export default function ImportZuordnung({ t, felder, gruppen, zuordnung, aendern
         <fieldset className="space-y-2">
           <legend className="sr-only">Werkgruppe</legend>
           <label className="flex flex-wrap items-center gap-2">
-            <input type="radio" name="gruppe" checked={art === "fest"}
-                   onChange={() => setGruppe({ art: "fest", wert: gruppen.length === 1 ? gruppen[0].id : "" })} />
+            <input type="radio" name="gruppe" checked={art === "fest"} onChange={() => setGruppe({ art: "fest" })} />
             <span>Alle in</span>
-            <select className={auswahl} value={art === "fest" ? wert : ""} disabled={art !== "fest"}
-                    aria-label="Werkgruppe für alle" onChange={e => setGruppe({ art: "fest", wert: e.target.value })}>
+            <select className={auswahl} value={fest}
+                    aria-label="Werkgruppe für alle" onChange={e => setGruppe({ art: "fest", fest: e.target.value })}>
               <option value="">– wählen –</option>
               {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
             </select>
           </label>
           <label className="flex flex-wrap items-center gap-2">
-            <input type="radio" name="gruppe" checked={art === "spalte"}
-                   onChange={() => setGruppe({ art: "spalte", wert: "" })} />
+            <input type="radio" name="gruppe" checked={art === "spalte"} onChange={() => setGruppe({ art: "spalte" })} />
             <span>Aus der Spalte</span>
-            <select className={auswahl} value={art === "spalte" ? wert : ""} disabled={art !== "spalte"}
-                    aria-label="Spalte mit der Werkgruppe" onChange={e => setGruppe({ art: "spalte", wert: e.target.value })}>
+            <select className={auswahl} value={spalte}
+                    aria-label="Spalte mit der Werkgruppe"
+                    onChange={e => setGruppe({ art: "spalte", spalte: e.target.value === "" ? "" : Number(e.target.value) })}>
               <option value="">– wählen –</option>
               {t.spalten.map(s => <option key={s.index} value={s.index}>{buchstabe(s.index)}: {s.name}</option>)}
             </select>
             <span className="text-sm text-gray-600">(Titel, Kurztitel oder Kennung der Werkgruppe)</span>
           </label>
         </fieldset>
-        {art === "fest" && wert === "" && <p className="text-red-700">Bitte eine Werkgruppe wählen.</p>}
-        {art === "spalte" && wert === "" && <p className="text-red-700">Bitte die Spalte wählen.</p>}
         {unbekannt.length > 0 && (
           <div className="text-amber-800">
             <p>Keine Werkgruppe gefunden für:</p>
@@ -103,6 +104,9 @@ export default function ImportZuordnung({ t, felder, gruppen, zuordnung, aendern
         )}
       </section>
 
+      {offen.length > 0 && (
+        <ul className="text-red-700">{offen.map(f => <li key={f}>{f}</li>)}</ul>
+      )}
       <p className="text-sm text-gray-600">
         Übernommen: {[...spalteVon].map(([z, i]) => `${name.get(z)} ← ${buchstabe(i)}`).join(", ") || "nichts"}.
       </p>
