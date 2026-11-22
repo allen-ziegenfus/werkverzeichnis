@@ -62,5 +62,8 @@ jobs:
       - run: npx astro build
         env:
           SITE: https://example.org
-      # Ausgeblendete Werke (#181) fehlen auf der Website, die anderen sind da.
-      - run: test -e dist/objekte/ob3/index.html && test ! -e dist/objekte/ob4
+      # Was auf der Website steht und was nicht (#322): interne, archivierte und
+      # ausgeblendete Werte (#258, #181), Eigenschaften in der Reihenfolge der Feldliste.
+      - run: node tools/testdaten/pruefen.mjs
+        env:
+          SITE: https://example.org
