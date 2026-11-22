@@ -1,5 +1,6 @@
 # Prüft jeden PR ohne Zugangsdaten (#59), auch Unter-PRs auf Gruppen-Branches
-# (#214): Terraform und den Bau der Seite mit Testdaten (#68). Was GCP braucht
+# (#214): Terraform, den Bau der Seite mit Testdaten (#68, #322) und die
+# Verwaltung mit Playwright (#321). Was GCP braucht
 # (Regeltests über die Rules API, Terraform-Vorschau), läuft in Cloud Build.
 name: Prüfen
 
@@ -67,3 +68,30 @@ jobs:
       - run: node tools/testdaten/pruefen.mjs
         env:
           SITE: https://example.org
+
+  # Abläufe der Verwaltung mit Playwright (#321), gegen den Dev-Server mit
+  # nachgestellten Firebase-Modulen (tools/playwright/); Screenshots als Artefakt.
+  verwaltung:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+      - run: yarn install --frozen-lockfile --non-interactive
+      - run: npx playwright install --with-deps --only-shell chromium
+      # Kopf und Menü der Verwaltung lesen public/*.json.
+      - run: yarn data
+        env:
+          TESTDATEN: tools/testdaten/katalog.json
+          SITE: https://example.org
+      - run: yarn test:verwaltung
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verwaltung
+          path: |
+            tools/playwright/ergebnisse/
+            tools/playwright/bericht/
+          retention-days: 14

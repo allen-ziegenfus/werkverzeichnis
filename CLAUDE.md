@@ -41,6 +41,8 @@ Fehler sollen vor dem Push auffallen, nicht erst im PR.
    - Website und Verwaltung: `TESTDATEN=tools/testdaten/katalog.json yarn data`,
      dann `SITE=https://example.org npx astro build` und
      `node tools/testdaten/pruefen.mjs`.
+   - Verwaltung: `yarn test:verwaltung` (Playwright, `tools/playwright/`, nach
+     `yarn data` mit Testdaten); neue Abläufe bekommen dort einen Test.
    - `firestore.rules`: `node tools/rules_test.mjs`.
    - `infra/`: `terraform fmt -check -recursive infra` und je Schicht
      `terraform init -backend=false && terraform validate`; Skripte mit `bash -n`.
@@ -76,8 +78,9 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
   und Handybreite (390 px). Vorher selbst ansehen; Screenshots haben schon
   Fehler gefunden.
 - Angemeldete Ansichten lassen sich ohne Google-Anmeldung nur mit nachgestellten
-  Firebase-Modulen zeigen (Playwright `route()` auf `firebase_auth.js` und
-  `firebase_firestore.js` im Dev-Server). Das im PR als Testdaten kennzeichnen.
+  Firebase-Modulen zeigen: `tools/playwright/attrappen/` per Playwright
+  `route()` im Dev-Server (`tools/playwright/vorlage.mjs`, auch für
+  Screenshots). Das im PR als Testdaten kennzeichnen.
 - Die Website hat einen dunklen Modus (`dark:`-Klassen); die Verwaltung
   (`VerwaltungLayout.astro`) ist immer hell.
 - Besucher, die nie angemeldet waren, laden kein Firebase; alles für
