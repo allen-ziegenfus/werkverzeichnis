@@ -1,5 +1,5 @@
 import { QueryClient, useQuery } from "@tanstack/react-query";
-import { collection, getCountFromServer, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, getCountFromServer, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
 import { kuenstler } from "./firebaseClient.js";
 
 /**
@@ -52,16 +52,15 @@ export const useWerke = gruppe => useQuery({
 });
 
 /**
- * Je Feld, an wie vielen Werken es einen Wert hat (#326), ausgeblendete
- * mitgezählt: { Schlüssel: Anzahl }. Zwei Zählabfragen je Feld, etwa ein
- * Lesevorgang je 1000 Werke. Nicht `!= ""`: In Firestore Enterprise trifft
- * das auch Werke ohne das Feld (#343). Vergleiche gelten nur innerhalb eines
- * Typs, darum Texte außer dem leeren und Zahlen (aus Importen) getrennt.
+ * Je Feld, an wie vielen Werken es steht (#326), ausgeblendete mitgezählt:
+ * { Schlüssel: Anzahl }. Eine Zählabfrage je Feld. `orderBy` übergeht Werke
+ * ohne das Feld und zählt jeden Typ, auch leere Texte und null; die löscht der
+ * WerkEditor ohnehin. Lieber zu viel als zu wenig: Ein Feld mit Werten soll
+ * sich nicht entfernen lassen (Einstellungen). Nicht `!= ""`: In Firestore
+ * Enterprise trifft das auch Werke ohne das Feld (#343).
  */
-const zaehlen = (s, op, wert) => getCountFromServer(query(collection(kuenstler, "works"), where(s, op, wert)))
-  .then(r => r.data().count);
 export const werteZaehlen = async schluessel => Object.fromEntries(await Promise.all(schluessel.map(async s =>
-  [s, (await Promise.all([zaehlen(s, ">", ""), zaehlen(s, ">=", -Infinity)])).reduce((x, y) => x + y)])));
+  [s, (await getCountFromServer(query(collection(kuenstler, "works"), orderBy(s)))).data().count])));
 
 export const useWerteJeFeld = schluessel => useQuery({
   queryKey: ["werteJeFeld", ...[...schluessel].sort()],
