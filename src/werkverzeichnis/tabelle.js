@@ -47,11 +47,14 @@ export async function blaetterLesen(name, bytes) {
   // raw: Text in CSV nicht als Zahl oder Datum deuten. Trennzeichen (, ; Tab) erkennt SheetJS.
   const mappe = istCsv(name)
     ? XLSX.read(csvText(bytes), { ...optionen, type: "string", raw: true })
-    : XLSX.read(bytes, { ...optionen, type: "array" });
+    : XLSX.read(bytes, { ...optionen, type: "array", dateNF: "dd\\.mm\\.yyyy" });   // Daten im Standardformat deutsch; Punkte maskiert, sonst Sekundenbruchteil
   return mappe.SheetNames.map(n => {
     const blatt = mappe.Sheets[n];
     // Ebenso Spalten: Ein formatierter Bereich bis XFD wären 16384 je Zeile.
     let abgeschnitten = false;
+    // sheetRows schneidet ohne Fehler ab; !fullref ist dann der ganze Bereich.
+    const zuLang = !!blatt["!fullref"] && blatt["!ref"]
+      && XLSX.utils.decode_range(blatt["!fullref"]).e.r > XLSX.utils.decode_range(blatt["!ref"]).e.r;
     if (blatt["!ref"]) {
       const bereich = XLSX.utils.decode_range(blatt["!ref"]);
       if (bereich.e.c - bereich.s.c >= HOECHSTENS.spalten) {
@@ -60,23 +63,23 @@ export async function blaetterLesen(name, bytes) {
         abgeschnitten = true;
       }
     }
-    // raw: false liefert den Text, wie die Zelle ihn zeigt; Daten im Standardformat deutsch.
-    const zeilen = XLSX.utils.sheet_to_json(blatt, { header: 1, raw: false, defval: "", blankrows: true, dateNF: "dd.mm.yyyy" });
-    return { name: n, abgeschnitten, zeilen: zeilen.map(z => z.map(z => String(z ?? "").trim())) };
+    // raw: false liefert den Text, wie die Zelle ihn zeigt.
+    const zeilen = XLSX.utils.sheet_to_json(blatt, { header: 1, raw: false, defval: "", blankrows: true });
+    return { name: n, abgeschnitten, zuLang, zeilen: zeilen.map(z => z.map(z => String(z ?? "").trim())) };
   });
 }
 
 const leer = z => z.every(c => c === "");
 
 /**
- * Die vermutliche Kopfzeile (Index): unter den ersten 20 Zeilen die erste, die
+ * Die vermutliche Kopfzeile (Index): unter den ersten 20 nicht leeren Zeilen die erste, die
  * mindestens halb so viele Zellen füllt wie die vollste. So zählt ein Titel
  * über der Tabelle („Werkverzeichnis 2024“) nicht als Kopfzeile.
  */
 export function kopfzeileRaten(zeilen) {
-  const gefuellt = zeilen.slice(0, 20).map(z => z.filter(c => c !== "").length);
-  const meiste = Math.max(0, ...gefuellt);
-  return Math.max(0, gefuellt.findIndex(n => n > 0 && n >= Math.min(2, meiste) && n * 2 >= meiste));
+  const gefuellt = zeilen.map((z, i) => ({ i, n: z.filter(c => c !== "").length })).filter(x => x.n > 0).slice(0, 20);
+  const meiste = Math.max(0, ...gefuellt.map(x => x.n));
+  return gefuellt.find(x => x.n >= Math.min(2, meiste) && x.n * 2 >= meiste)?.i ?? 0;
 }
 
 /**

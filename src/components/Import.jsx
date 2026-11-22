@@ -9,7 +9,7 @@ import { blaetterLesen, buchstabe, HOECHSTENS, kopfzeileRaten, tabelle, zuGross 
  */
 
 const VORSCHAU = 10;
-const KOPF_AUSWAHL = 20;   // Die Kopfzeile steht unter den ersten so vielen Zeilen.
+const KOPF_AUSWAHL = 20;   // Die Kopfzeile steht unter den ersten so vielen nicht leeren Zeilen.
 
 export default function ImportSeite() {
   return <Zugang berechtigung="werke.bearbeiten" kinder={() => <Import />} />;
@@ -45,6 +45,7 @@ function Import() {
   const zeilen = datei?.blaetter[blatt]?.zeilen ?? [];
   const ergebnis = useMemo(() => {
     if (!datei) return undefined;
+    if (datei.blaetter[blatt]?.zuLang) return { fehler: `Mehr als ${HOECHSTENS.zeilen} Zeilen; bitte aufteilen.` };
     try { return { t: tabelle(zeilen, kopf) }; } catch (e) { return { fehler: e.message }; }
   }, [datei, blatt, kopf]);
   const t = ergebnis?.t;
@@ -81,7 +82,7 @@ function Import() {
             <span className="block text-sm text-gray-600">Spaltennamen in</span>
             <select className="border border-gray-400 rounded px-2 py-1 max-w-full" value={kopf}
                     onChange={e => setKopf(Number(e.target.value))}>
-              {zeilen.slice(0, KOPF_AUSWAHL).map((z, i) => z.some(c => c) && (
+              {zeilen.map((z, i) => [z, i]).filter(([z]) => z.some(c => c)).slice(0, KOPF_AUSWAHL).map(([z, i]) => (
                 <option key={i} value={i}>Zeile {i + 1}: {z.filter(c => c).slice(0, 4).join(", ").slice(0, 60)}</option>
               ))}
             </select>
