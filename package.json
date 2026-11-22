@@ -8,7 +8,8 @@
     "build": "yarn data && astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "data": "node --no-warnings --loader ts-node/esm src/werkverzeichnis/build_data.ts"
+    "data": "node --no-warnings --loader ts-node/esm src/werkverzeichnis/build_data.ts",
+    "test:verwaltung": "playwright test -c tools/playwright/playwright.config.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^2.1.1",
@@ -40,6 +41,7 @@
     "yet-another-react-lightbox": "^3.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "wrangler": "^4.131.1"
   },
   "resolutions": {
