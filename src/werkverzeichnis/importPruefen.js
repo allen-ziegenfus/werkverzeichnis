@@ -16,9 +16,9 @@ const text = v => v == null ? "" : String(v);
 
 /**
  * `werke` aus werkAusZeile, `vorhanden` = Map Kennung → { data, stand }
- * (stand: updatedAt in ms, zum Erkennen fremder Änderungen beim Schreiben),
- * `gruppeAusSpalte`: ob die Werkgruppe je Zeile aus einer Spalte kommt (dann
- * muss sie bei vorhandenen Werken passen; eine feste gilt nur für neue).
+ * (stand: updatedAt in ms, zum Erkennen fremder Änderungen beim Schreiben).
+ * Ein vorhandenes Werk muss in der Werkgruppe der Zeile stehen (fest oder aus
+ * der Spalte; eine leere Zelle lässt sie, wie sie ist).
  * `titel`: Kennung der Werkgruppe → Titel, für Meldungen.
  * Ergebnis: { neu, geaendert, gleich, fehler }, je eine Liste von
  * { nr, id, InvNr, ... }:
@@ -27,8 +27,10 @@ const text = v => v == null ? "" : String(v);
  *   gleich:    –
  *   fehler:    text
  */
-export function pruefen(werke, vorhanden, { gruppeAusSpalte, titel = id => id }) {
+export function pruefen(werke, vorhanden, { titel = id => id } = {}) {
   const ergebnis = { neu: [], geaendert: [], gleich: [], fehler: [] };
+  // Altbestand, dessen Kennung nicht zur Inv. Nr. passt (catalog.ts meldet ihn): sonst entstünde ein zweites Werk.
+  const nachInvNr = new Map([...vorhanden].map(([id, d]) => [text(d.data.InvNr).trim().toLowerCase(), id]));
   // Doppelte erst zählen: Alle Zeilen mit derselben Kennung sind Fehler, nicht nur die späteren.
   const zeilenJe = new Map();
   for (const w of werke) {
@@ -48,6 +50,9 @@ export function pruefen(werke, vorhanden, { gruppeAusSpalte, titel = id => id })
       fehler(`Dieselbe Inv. Nr. in den Zeilen ${zeilen.join(", ")}.`);
       continue;
     }
+    const anders = nachInvNr.get(InvNr.toLowerCase());
+    if (anders !== undefined && anders !== id) { fehler(`Diese Inv. Nr. hat schon das Werk mit der Kennung „${anders}“.`); continue; }
+    if (w.gruppeWert && !w.werkgruppe) { fehler(`Keine Werkgruppe „${w.gruppeWert}“.`); continue; }
     const felder = Object.fromEntries(Object.entries(w.werte).map(([f, v]) => [f, text(v).trim()]).filter(([, v]) => v));
     const da = vorhanden.get(id);
     if (!da) {
@@ -61,12 +66,12 @@ export function pruefen(werke, vorhanden, { gruppeAusSpalte, titel = id => id })
       fehler(`Im Werkverzeichnis steht dazu die Inv. Nr. „${text(da.data.InvNr)}“.`);
       continue;
     }
-    if (gruppeAusSpalte && w.werkgruppe && w.werkgruppe !== da.data.werkgruppe) {
+    if (w.werkgruppe && w.werkgruppe !== da.data.werkgruppe) {
       fehler(`Das Werk steht in der Werkgruppe „${titel(da.data.werkgruppe)}“, nicht „${titel(w.werkgruppe)}“.`);
       continue;
     }
     const aenderungen = Object.fromEntries(Object.entries(felder)
-      .filter(([f, v]) => text(da.data[f]) !== v)
+      .filter(([f, v]) => text(da.data[f]).trim() !== v)
       .map(([f, v]) => [f, { von: da.data[f] ?? null, zu: v }]));
     if (Object.keys(aenderungen).length) {
       ergebnis.geaendert.push({ nr: w.nr, id, InvNr: da.data.InvNr, stand: da.stand, aenderungen, ausgeblendet: !!da.data.ausgeblendet });

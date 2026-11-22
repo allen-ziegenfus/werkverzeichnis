@@ -67,7 +67,7 @@ export default function ImportZuordnung({ t, felder, gruppen, zuordnung, aendern
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Werkgruppe</h2>
         <p className="text-gray-600">
-          In welche Werkgruppe der Website neue Werke kommen. Vorhandene Werke bleiben in ihrer.
+          In welche Werkgruppe der Website neue Werke kommen. Vorhandene Werke bleiben in ihrer; steht eines in einer anderen, gilt die Zeile als Fehler.
         </p>
         <fieldset className="space-y-2">
           <legend className="sr-only">Werkgruppe</legend>

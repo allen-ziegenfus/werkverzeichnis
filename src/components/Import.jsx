@@ -185,8 +185,7 @@ function Import({ nutzer }) {
             </fieldset>
           )}
           {zuordnung && (
-            <ImportSchreiben t={t} zuordnung={zuordnung} felder={felder} gruppen={gruppen} nutzer={nutzer}
-                             datei={datei} laeuft={setSchreibt} />
+            <ImportSchreiben t={t} zuordnung={zuordnung} felder={felder} gruppen={gruppen} nutzer={nutzer} laeuft={setSchreibt} />
           )}
         </div>
       ))}

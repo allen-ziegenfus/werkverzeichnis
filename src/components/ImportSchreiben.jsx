@@ -3,6 +3,7 @@ import { collection, doc, getDocs, runTransaction, serverTimestamp } from "fireb
 import { client } from "./abfragen.js";
 import { db, kuenstler } from "./firebaseClient.js";
 import { hauptknopf, knopf } from "./knoepfe.js";
+import { useUngespeichert } from "./ungespeichert.js";
 import { werkWert } from "./werkFeld.js";
 import { fehlt, gruppenFinder, werkAusZeile, zieleVon } from "../werkverzeichnis/zuordnung.js";
 import { pruefen, stapeln } from "../werkverzeichnis/importPruefen.js";
@@ -22,18 +23,20 @@ const LISTE = 50;   // so viele Einträge je Gruppe der Übersicht, der Rest gez
 
 const meldung = e => e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message;
 
-export default function ImportSchreiben({ t, zuordnung, felder, gruppen, nutzer, datei, laeuft }) {
+export default function ImportSchreiben({ t, zuordnung, felder, gruppen, nutzer, laeuft }) {
   // Die Prüfung gilt für genau diese Tabelle und Zuordnung; ändert sich etwas, neu prüfen.
-  const fuer = JSON.stringify([datei.name, t.spalten, t.daten.length, zuordnung]);
-  const [geprueft, setGeprueft] = useState();   // { fuer, plan, datei }
+  // `t` hängt an Datei, Blatt und Kopfzeile (memoisiert), die Zuordnung als Inhalt.
+  const fuer = JSON.stringify(zuordnung);
+  const [geprueft, setGeprueft] = useState();   // { fuer, plan, t }
   const [prueft, setPrueft] = useState(false);
   const [fehler, setFehler] = useState();
   const [lauf, setLauf] = useState();           // { gesamt, fertig, angelegt, geaendert, fehler: [], abgebrochen, ende }
   const abbrechen = useRef(false);
-  const plan = geprueft?.fuer === fuer && geprueft.datei === datei ? geprueft.plan : undefined;
+  const plan = geprueft?.fuer === fuer && geprueft.t === t ? geprueft.plan : undefined;
   const name = new Map(zieleVon(felder).map(z => [z.ziel, z.name]));
   const gruppenTitel = new Map(gruppen.map(g => [g.id, g.titel]));
   const schreibt = lauf && !lauf.ende;
+  useUngespeichert(!!schreibt);   // Verlassen mitten im Lauf: nachfragen
 
   async function pruefenKlick() {
     setPrueft(true); setFehler(undefined); setLauf(undefined);
@@ -43,9 +46,7 @@ export default function ImportSchreiben({ t, zuordnung, felder, gruppen, nutzer,
       const vorhanden = new Map(s.docs.map(d => [d.id, { data: d.data(), stand: d.data().updatedAt?.toMillis() }]));
       const finden = gruppenFinder(gruppen);
       const werke = t.daten.map(z => werkAusZeile(z, zuordnung, t, finden));
-      setGeprueft({ fuer, datei, plan: pruefen(werke, vorhanden, {
-        gruppeAusSpalte: zuordnung.gruppe.art === "spalte", titel: id => gruppenTitel.get(id) ?? id,
-      }) });
+      setGeprueft({ fuer, t, plan: pruefen(werke, vorhanden, { titel: id => gruppenTitel.get(id) ?? id }) });
     } catch (e) {
       setFehler(`Die Werke ließen sich nicht laden: ${meldung(e)}`);
     } finally {
@@ -112,13 +113,17 @@ export default function ImportSchreiben({ t, zuordnung, felder, gruppen, nutzer,
           }
           ergebnisse = [];
           for (const p of stapel) {
+            if (abbrechen.current) break;
             try { ergebnisse.push({ p, text: (await stapelSchreiben([p]))[0]?.text }); }
-            catch (e) { ergebnisse.push({ p, text: meldung(e) }); }
+            catch (e) {
+              ergebnisse.push({ p, text: meldung(e) });
+              if (e.code !== "permission-denied") { abbrechen.current = true; break; }
+            }
           }
         }
         const ok = ergebnisse.filter(x => !x.text).map(x => x.p);
         melden({
-          fertig: stand.fertig + stapel.length,
+          fertig: stand.fertig + ergebnisse.length,
           angelegt: stand.angelegt + ok.filter(p => p.art === "neu").length,
           geaendert: stand.geaendert + ok.filter(p => p.art === "aendern").length,
           fehler: [...stand.fehler, ...ergebnisse.filter(x => x.text).map(x => ({ ...x.p, text: x.text }))],
@@ -129,6 +134,7 @@ export default function ImportSchreiben({ t, zuordnung, felder, gruppen, nutzer,
       laeuft(false);
       setGeprueft(undefined);   // Der Stand in Firestore ist ein anderer; erneut prüfen zeigt ihn.
       client.invalidateQueries({ queryKey: ["werke"] });
+      client.invalidateQueries({ queryKey: ["werteJeFeld"] });
     }
   }
 
