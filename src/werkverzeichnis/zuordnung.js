@@ -11,10 +11,12 @@ export const vergleichbar = s => String(s ?? "").toLowerCase()
   .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
   .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
 
+// Übliche andere Namen; „Nr.“ und „Nummer“ zuletzt und schwächer (oft eine laufende Nummer).
 const NAMEN = {
-  InvNr: ["invnr", "inventarnr", "inventarnummer", "invnummer", "nr", "nummer", "werknr", "werknummer"],
+  InvNr: ["invnr", "inventarnr", "inventarnummer", "invnummer", "werknr", "werknummer"],
   Titel: ["titel", "title", "werktitel"],
 };
+const SCHWACH = { InvNr: ["nr", "nummer"] };
 
 /** Die Ziele zur Auswahl: [{ ziel, name }], Inv. Nr. und Titel zuerst. */
 export const zieleVon = felder => [
@@ -26,7 +28,7 @@ export const zieleVon = felder => [
 /**
  * Vorschlag nach Namen: { [Spaltenindex]: ziel }. Erst genaue Treffer (Name
  * der Spalte = Schlüssel oder Name des Felds, vergleichbar), dann für noch
- * freie Ziele übliche andere Namen (eine laufende „Nr.“ links soll „Inv.-Nr.“
+ * freie Ziele übliche andere Namen, zuletzt schwache (eine laufende „Nr.“ links soll „Inv.-Nr.“
  * rechts nicht verdrängen). Jedes Ziel bekommt nur die erste passende Spalte.
  */
 export function vorschlagen(spalten, felder) {
@@ -34,7 +36,7 @@ export function vorschlagen(spalten, felder) {
   const genau = new Map(ziele.map(z => [z.ziel, new Set([vergleichbar(z.ziel), vergleichbar(z.name)].filter(Boolean))]));
   const vergeben = new Set();
   const ergebnis = Object.fromEntries(spalten.map(s => [s.index, ""]));
-  for (const passt of [z => genau.get(z.ziel), z => new Set(NAMEN[z.ziel] ?? [])]) {
+  for (const passt of [z => genau.get(z.ziel), z => new Set(NAMEN[z.ziel] ?? []), z => new Set(SCHWACH[z.ziel] ?? [])]) {
     for (const s of spalten) {
       if (ergebnis[s.index]) continue;
       const n = vergleichbar(s.name);
@@ -115,7 +117,8 @@ export function fehlt(zuordnung) {
 
 /**
  * Ein Werk aus einer Zeile (für #350): { nr, InvNr, werte: { ziel: Text },
- * werkgruppe } mit allen zugeordneten Zellen außer Inv. Nr., auch leeren
+ * werkgruppe }. `werte` sind Felder des Werk-Dokuments wie im Editor, Titel
+ * eingeschlossen; alle zugeordneten Zellen außer Inv. Nr., auch leere
  * (was leer überschreibt nichts, entscheidet das Schreiben). `werkgruppe` ist
  * die Kennung oder undefined (unbekannt oder leer). `finden` aus gruppenFinder.
  */
