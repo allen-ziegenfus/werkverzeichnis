@@ -1,11 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Zugang from "./Zugang.jsx";
+import ImportZuordnung from "./ImportZuordnung.jsx";
+import { client, SCHLUESSEL, useKuenstler, useWerkgruppen } from "./abfragen.js";
+import { felderVon } from "../werkverzeichnis/felder.js";
 import { blaetterLesen, buchstabe, HOECHSTENS, kopfzeileRaten, tabelle, zuGross } from "../werkverzeichnis/tabelle.js";
+import { bereinigen, gruppenSpalteVorschlagen, vorschlagen, zieleVon } from "../werkverzeichnis/zuordnung.js";
 
 /**
- * Import von Werken aus einer Tabelle (#239). Dieser Teil (#348): Datei wählen,
- * im Browser lesen, Blatt und Kopfzeile wählen, Vorschau. Geschrieben wird
- * noch nichts; Zuordnung der Spalten (#349) und Schreiben (#350) folgen.
+ * Import von Werken aus einer Tabelle (#239): Datei wählen, im Browser lesen,
+ * Blatt und Kopfzeile wählen, Vorschau (#348); Spalten den Feldern zuordnen
+ * und die Werkgruppe wählen (#349). Geschrieben wird noch nichts (#350).
  */
 
 const VORSCHAU = 10;
@@ -49,6 +53,37 @@ function Import() {
     try { return { t: tabelle(zeilen, kopf) }; } catch (e) { return { fehler: e.message }; }
   }, [datei, blatt, kopf]);
   const t = ergebnis?.t;
+
+  // Feldliste und Werkgruppen; zurück aus einem anderen Tab (Feld angelegt) neu laden.
+  const { data: kuenstlerDaten, error: kuenstlerFehler } = useKuenstler();
+  const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
+  useEffect(() => {
+    const zurueck = () => {
+      client.invalidateQueries({ queryKey: SCHLUESSEL.kuenstler });
+      client.invalidateQueries({ queryKey: SCHLUESSEL.werkgruppen });
+    };
+    addEventListener("focus", zurueck);
+    return () => removeEventListener("focus", zurueck);
+  }, []);
+  const felder = useMemo(() => kuenstlerDaten && felderVon(kuenstlerDaten), [kuenstlerDaten]);
+
+  // Die Zuordnung gehört zu einer Tabelle (Datei, Blatt, Kopfzeile); für eine
+  // andere gilt wieder der Vorschlag nach Namen.
+  const fuer = datei && `${blatt}:${kopf}`;
+  const vorschlag = useMemo(() => {
+    if (!t || !felder || !gruppen) return undefined;
+    const spalte = gruppenSpalteVorschlagen(t.spalten, t.daten, gruppen);
+    return {
+      ziele: vorschlagen(t.spalten, felder),
+      gruppe: { art: spalte !== undefined ? "spalte" : "fest", spalte: spalte ?? "", fest: gruppen.length === 1 ? gruppen[0].id : "" },
+    };
+  }, [t, felder, gruppen]);
+  const [gewaehlt, setGewaehlt] = useState();   // { datei, fuer, zuordnung }
+  const roh = gewaehlt && gewaehlt.datei === datei && gewaehlt.fuer === fuer ? gewaehlt.zuordnung : vorschlag;
+  // Gegen den heutigen Stand: archivierte Felder, gelöschte Werkgruppen.
+  const zuordnung = useMemo(() => roh && t && felder && gruppen && bereinigen(roh, t, felder, gruppen),
+    [roh, t, felder, gruppen]);
+  const zielName = new Map((felder ? zieleVon(felder) : []).map(z => [z.ziel, z.name]));
 
   return (
     <div className="space-y-4">
@@ -117,6 +152,11 @@ function Import() {
                   {t.spalten.map(s => (
                     <th key={s.index} className="px-2 py-1 text-left align-bottom whitespace-nowrap">
                       <span className="block text-xs text-gray-500 font-normal">{buchstabe(s.index)}</span>{s.name}
+                      {zuordnung && (
+                        <span className={"block text-xs font-normal " + (zuordnung.ziele[s.index] ? "text-blue-800" : "text-gray-400")}>
+                          {zuordnung.ziele[s.index] ? `→ ${zielName.get(zuordnung.ziele[s.index])}` : "nicht übernommen"}
+                        </span>
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -133,6 +173,13 @@ function Import() {
               </tbody>
             </table>
           </div>
+          {(kuenstlerFehler || gruppenFehler) && (
+            <p className="text-red-700" role="alert">Feldliste oder Werkgruppen ließen sich nicht laden: {(kuenstlerFehler ?? gruppenFehler).message}</p>
+          )}
+          {zuordnung && (
+            <ImportZuordnung t={t} felder={felder} gruppen={gruppen} zuordnung={zuordnung}
+                             aendern={neu => setGewaehlt({ datei, fuer, zuordnung: neu })} />
+          )}
         </div>
       ))}
     </div>
