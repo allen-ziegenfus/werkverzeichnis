@@ -44,6 +44,7 @@ class Fehlergrenze extends Component {
 const KOMPONENTEN = {
   "/verwaltung/": nachladen(() => import("./Verwaltung.jsx")),
   "/verwaltung/werke/": nachladen(() => import("./WerkEditor.jsx")),
+  "/verwaltung/import/": nachladen(() => import("./Import.jsx")),
   "/verwaltung/werkgruppen/": nachladen(() => import("./Werkgruppen.jsx")),
   "/verwaltung/seiten/": nachladen(() => import("./Seiten.jsx")),
   "/verwaltung/einstellungen/": nachladen(() => import("./Einstellungen.jsx")),
