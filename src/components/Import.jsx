@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Zugang from "./Zugang.jsx";
 import ImportZuordnung from "./ImportZuordnung.jsx";
+import ImportSchreiben from "./ImportSchreiben.jsx";
 import { client, SCHLUESSEL, useKuenstler, useWerkgruppen } from "./abfragen.js";
 import { felderVon } from "../werkverzeichnis/felder.js";
 import { blaetterLesen, buchstabe, HOECHSTENS, kopfzeileRaten, tabelle, zuGross } from "../werkverzeichnis/tabelle.js";
@@ -9,22 +10,23 @@ import { bereinigen, gruppenSpalteVorschlagen, vorschlagen, zieleVon } from "../
 /**
  * Import von Werken aus einer Tabelle (#239): Datei wählen, im Browser lesen,
  * Blatt und Kopfzeile wählen, Vorschau (#348); Spalten den Feldern zuordnen
- * und die Werkgruppe wählen (#349). Geschrieben wird noch nichts (#350).
+ * und die Werkgruppe wählen (#349); prüfen und schreiben (#350).
  */
 
 const VORSCHAU = 10;
 const KOPF_AUSWAHL = 20;   // Die Kopfzeile steht unter den ersten so vielen nicht leeren Zeilen.
 
 export default function ImportSeite() {
-  return <Zugang berechtigung="werke.bearbeiten" kinder={() => <Import />} />;
+  return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer }) => <Import nutzer={nutzer} />} />;
 }
 
-function Import() {
+function Import({ nutzer }) {
   const [datei, setDatei] = useState();       // { name, blaetter }
   const [blatt, setBlatt] = useState(0);
   const [kopf, setKopf] = useState(0);
   const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState();
+  const [schreibt, setSchreibt] = useState(false);   // während des Schreibens nichts an Datei und Zuordnung ändern
 
   async function waehlen(e) {
     const f = e.target.files?.[0];
@@ -89,19 +91,19 @@ function Import() {
     <div className="space-y-4">
       <p className="text-gray-600">
         Werke aus einer Tabelle übernehmen: CSV, XLS oder XLSX, eine Zeile je Werk, oben eine Zeile mit den
-        Spaltennamen. Die Datei wird nur hier im Browser gelesen; hier wird noch nichts gespeichert.
+        Spaltennamen. Die Datei wird nur hier im Browser gelesen; gespeichert wird erst nach dem Prüfen.
       </p>
 
       <label className="block">
         <span className="block font-semibold mb-1">Datei</span>
-        <input type="file" accept=".csv,.xls,.xlsx" onChange={waehlen} disabled={laedt}
+        <input type="file" accept=".csv,.xls,.xlsx" onChange={waehlen} disabled={laedt || schreibt}
                className="block text-sm file:mr-3 file:rounded file:border file:border-gray-400 file:bg-white file:px-3 file:py-1 file:shadow-sm" />
       </label>
       <p role="status" className={laedt ? "" : "sr-only"}>{laedt ? "Liest…" : datei ? `${datei.name} gelesen.` : ""}</p>
       {fehler && <p className="text-red-700" role="alert">{fehler}</p>}
 
       {datei && (
-        <div className="flex flex-wrap gap-x-6 gap-y-2 items-end">
+        <fieldset disabled={schreibt} className="flex flex-wrap gap-x-6 gap-y-2 items-end">
           {datei.blaetter.length > 1 && (
             <label>
               <span className="block text-sm text-gray-600">Blatt</span>
@@ -122,7 +124,7 @@ function Import() {
               ))}
             </select>
           </label>
-        </div>
+        </fieldset>
       )}
 
       {datei?.blaetter[blatt]?.abgeschnitten && (
@@ -177,8 +179,14 @@ function Import() {
             <p className="text-red-700" role="alert">Feldliste oder Werkgruppen ließen sich nicht laden: {(kuenstlerFehler ?? gruppenFehler).message}</p>
           )}
           {zuordnung && (
-            <ImportZuordnung t={t} felder={felder} gruppen={gruppen} zuordnung={zuordnung}
-                             aendern={neu => setGewaehlt({ datei, fuer, zuordnung: neu })} />
+            <fieldset disabled={schreibt} className="space-y-6">
+              <ImportZuordnung t={t} felder={felder} gruppen={gruppen} zuordnung={zuordnung}
+                               aendern={neu => setGewaehlt({ datei, fuer, zuordnung: neu })} />
+            </fieldset>
+          )}
+          {zuordnung && (
+            <ImportSchreiben t={t} zuordnung={zuordnung} felder={felder} gruppen={gruppen} nutzer={nutzer}
+                             datei={datei} laeuft={setSchreibt} />
           )}
         </div>
       ))}

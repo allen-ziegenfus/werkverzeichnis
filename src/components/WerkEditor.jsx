@@ -14,14 +14,12 @@ import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import WerkTabelle from "./WerkTabelle.jsx";
 import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
 import { felderVon } from "../werkverzeichnis/felder.js";
+import { INVNR_MUSTER } from "../werkverzeichnis/importPruefen.js";
 import { ANNEHMEN, ablehnen, hochladen } from "./hochladen.js";
 import Zugang from "./Zugang.jsx";
 import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
 import { hauptknopf, knopf } from "./knoepfe.js";
 
-// Erlaubte Inv. Nr. wie in den Regeln: Kennung = Inv. Nr. klein, passend zu slugify (catalog.ts);
-// Bindestriche nur einzeln und innen, slugify fasst sie sonst zusammen oder kürzt sie.
-const INVNR_MUSTER = /^[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*$/;
 
 /**
  * Der Werk-Editor (Firestore): bearbeiten und anlegen (#179), eine Künstler:in.
