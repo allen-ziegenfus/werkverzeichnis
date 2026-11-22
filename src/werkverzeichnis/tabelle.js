@@ -5,8 +5,12 @@
  * ohnehin Text (catalog.ts), und „0012“ soll nicht zu 12 werden.
  */
 
-/** Größte Datei und meiste Zeilen, die der Import liest. */
-export const HOECHSTENS = { bytes: 20 * 1024 * 1024, zeilen: 20_000 };
+/** Größte Datei, meiste Zeilen und Spalten, die der Import liest. */
+export const HOECHSTENS = { bytes: 20 * 1024 * 1024, zeilen: 20_000, spalten: 200 };
+
+/** Vor dem Einlesen: zu große Dateien gar nicht erst in den Speicher holen. */
+export const zuGross = bytes => bytes > HOECHSTENS.bytes
+  ? `Die Datei ist größer als ${HOECHSTENS.bytes / 1024 / 1024} MB.` : undefined;
 
 /** Spaltenbuchstabe wie in Excel: 0 → A, 26 → AA. */
 export function buchstabe(i) {
@@ -26,7 +30,7 @@ export function csvText(bytes) {
   return text.replace(/^﻿/, "");
 }
 
-const istCsv = name => /\.(csv|tsv|txt)$/i.test(name);
+const istCsv = name => /\.csv$/i.test(name);
 
 /**
  * Liest eine Datei (`name`, `bytes` als ArrayBuffer) in Blätter mit Zeilen aus
@@ -34,16 +38,31 @@ const istCsv = name => /\.(csv|tsv|txt)$/i.test(name);
  * mit leeren Zeilen.
  */
 export async function blaetterLesen(name, bytes) {
-  if (bytes.byteLength > HOECHSTENS.bytes) throw new Error(`Die Datei ist größer als ${HOECHSTENS.bytes / 1024 / 1024} MB.`);
+  const zuviel = zuGross(bytes.byteLength);
+  if (zuviel) throw new Error(zuviel);
   const XLSX = await import("xlsx");
+  // sheetRows: Formatierte leere Zeilen (bis 1048576) nicht alle einlesen; etwas
+  // Luft für Zeilen über der Kopfzeile, tabelle() meldet, wenn es zu viele sind.
+  const optionen = { dense: true, sheetRows: HOECHSTENS.zeilen + 21 };
   // raw: Text in CSV nicht als Zahl oder Datum deuten. Trennzeichen (, ; Tab) erkennt SheetJS.
   const mappe = istCsv(name)
-    ? XLSX.read(csvText(bytes), { type: "string", raw: true, dense: true })
-    : XLSX.read(bytes, { type: "array", dense: true });
+    ? XLSX.read(csvText(bytes), { ...optionen, type: "string", raw: true })
+    : XLSX.read(bytes, { ...optionen, type: "array" });
   return mappe.SheetNames.map(n => {
-    // raw: false liefert den Text, wie die Zelle ihn zeigt (formatierte Zahlen und Daten).
-    const zeilen = XLSX.utils.sheet_to_json(mappe.Sheets[n], { header: 1, raw: false, defval: "", blankrows: true });
-    return { name: n, zeilen: zeilen.map(z => z.map(z => String(z ?? "").trim())) };
+    const blatt = mappe.Sheets[n];
+    // Ebenso Spalten: Ein formatierter Bereich bis XFD wären 16384 je Zeile.
+    let abgeschnitten = false;
+    if (blatt["!ref"]) {
+      const bereich = XLSX.utils.decode_range(blatt["!ref"]);
+      if (bereich.e.c - bereich.s.c >= HOECHSTENS.spalten) {
+        bereich.e.c = bereich.s.c + HOECHSTENS.spalten - 1;
+        blatt["!ref"] = XLSX.utils.encode_range(bereich);
+        abgeschnitten = true;
+      }
+    }
+    // raw: false liefert den Text, wie die Zelle ihn zeigt; Daten im Standardformat deutsch.
+    const zeilen = XLSX.utils.sheet_to_json(blatt, { header: 1, raw: false, defval: "", blankrows: true, dateNF: "dd.mm.yyyy" });
+    return { name: n, abgeschnitten, zeilen: zeilen.map(z => z.map(z => String(z ?? "").trim())) };
   });
 }
 
@@ -72,15 +91,20 @@ export function tabelle(zeilen, kopf) {
   const darunter = zeilen.slice(kopf + 1).map((werte, i) => ({ nr: kopf + 2 + i, werte })).filter(z => !leer(z.werte));
   if (darunter.length > HOECHSTENS.zeilen) throw new Error(`Mehr als ${HOECHSTENS.zeilen} Zeilen; bitte aufteilen.`);
   const breite = Math.max(kopfzeile.length, ...darunter.map(z => z.werte.length), 0);
-  const vergeben = new Map();
+  // Erst die echten Namen, damit „Spalte B“ oder „Titel (2)“ aus der Datei Vorrang haben.
+  const vergeben = new Set(kopfzeile.filter(Boolean));
+  const gesehen = new Set();
   const spalten = [];
   for (let i = 0; i < breite; i++) {
     const titel = kopfzeile[i] ?? "";
     if (!titel && darunter.every(z => !z.werte[i])) continue;
-    let name = titel || `Spalte ${buchstabe(i)}`;
-    const n = (vergeben.get(name) ?? 0) + 1;
-    vergeben.set(name, n);
-    if (n > 1) name = `${name} (${n})`;
+    let name = titel;
+    if (!name || gesehen.has(name)) {
+      const basis = titel || `Spalte ${buchstabe(i)}`;
+      name = basis;
+      for (let n = 2; vergeben.has(name) || gesehen.has(name); n++) name = `${basis} (${n})`;
+    }
+    gesehen.add(name); vergeben.add(name);
     spalten.push({ index: i, name });
   }
   return { spalten, daten: darunter.map(z => ({ nr: z.nr, werte: spalten.map(s => z.werte[s.index] ?? "") })) };

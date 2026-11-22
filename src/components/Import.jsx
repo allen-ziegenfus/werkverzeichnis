@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import Zugang from "./Zugang.jsx";
-import { blaetterLesen, buchstabe, kopfzeileRaten, tabelle } from "../werkverzeichnis/tabelle.js";
+import { blaetterLesen, buchstabe, HOECHSTENS, kopfzeileRaten, tabelle, zuGross } from "../werkverzeichnis/tabelle.js";
 
 /**
  * Import von Werken aus einer Tabelle (#239). Dieser Teil (#348): Datei wählen,
@@ -9,6 +9,7 @@ import { blaetterLesen, buchstabe, kopfzeileRaten, tabelle } from "../werkverzei
  */
 
 const VORSCHAU = 10;
+const KOPF_AUSWAHL = 20;   // Die Kopfzeile steht unter den ersten so vielen Zeilen.
 
 export default function ImportSeite() {
   return <Zugang berechtigung="werke.bearbeiten" kinder={() => <Import />} />;
@@ -23,8 +24,12 @@ function Import() {
 
   async function waehlen(e) {
     const f = e.target.files?.[0];
+    // Sonst löst dieselbe Datei noch einmal (geändert oder nach einem Fehler) nichts aus.
+    e.target.value = "";
     if (!f) return;
-    setLaedt(true); setFehler(undefined); setDatei(undefined);
+    setFehler(undefined); setDatei(undefined);
+    if (zuGross(f.size)) { setFehler(zuGross(f.size)); return; }
+    setLaedt(true);
     try {
       const blaetter = await blaetterLesen(f.name, await f.arrayBuffer());
       // Das erste Blatt mit Inhalt; Excel legt oft leere „Tabelle2“, „Tabelle3“ an.
@@ -53,10 +58,10 @@ function Import() {
 
       <label className="block">
         <span className="block font-semibold mb-1">Datei</span>
-        <input type="file" accept=".csv,.tsv,.txt,.xls,.xlsx,.ods" onChange={waehlen} disabled={laedt}
+        <input type="file" accept=".csv,.xls,.xlsx" onChange={waehlen} disabled={laedt}
                className="block text-sm file:mr-3 file:rounded file:border file:border-gray-400 file:bg-white file:px-3 file:py-1 file:shadow-sm" />
       </label>
-      {laedt && <p role="status">Liest…</p>}
+      <p role="status" className={laedt ? "" : "sr-only"}>{laedt ? "Liest…" : datei ? `${datei.name} gelesen.` : ""}</p>
       {fehler && <p className="text-red-700" role="alert">{fehler}</p>}
 
       {datei && (
@@ -72,15 +77,21 @@ function Import() {
               </select>
             </label>
           )}
-          <label>
-            <span className="block text-sm text-gray-600">Spaltennamen in Zeile</span>
-            <input type="number" min={1} max={Math.max(1, zeilen.length)} value={kopf + 1}
-                   className="border border-gray-400 rounded px-2 py-1 w-24"
-                   onChange={e => { const n = Number(e.target.value); if (n >= 1 && n <= Math.max(1, zeilen.length)) setKopf(n - 1); }} />
+          <label className="min-w-0 max-w-full">
+            <span className="block text-sm text-gray-600">Spaltennamen in</span>
+            <select className="border border-gray-400 rounded px-2 py-1 max-w-full" value={kopf}
+                    onChange={e => setKopf(Number(e.target.value))}>
+              {zeilen.slice(0, KOPF_AUSWAHL).map((z, i) => z.some(c => c) && (
+                <option key={i} value={i}>Zeile {i + 1}: {z.filter(c => c).slice(0, 4).join(", ").slice(0, 60)}</option>
+              ))}
+            </select>
           </label>
         </div>
       )}
 
+      {datei?.blaetter[blatt]?.abgeschnitten && (
+        <p className="text-amber-800">Nur die ersten {HOECHSTENS.spalten} Spalten werden gelesen.</p>
+      )}
       {ergebnis?.fehler && <p className="text-red-700" role="alert">{ergebnis.fehler}</p>}
       {t && (t.daten.length === 0 ? (
         <p>Unter den Spaltennamen stehen keine Zeilen.</p>
@@ -91,7 +102,7 @@ function Import() {
             {t.spalten.length} {t.spalten.length === 1 ? "Spalte" : "Spalten"}
             {t.daten.length > VORSCHAU && <span className="text-gray-600">; hier die ersten {VORSCHAU}</span>}.
           </p>
-          <div className="overflow-x-auto border border-gray-200 rounded">
+          <div className="overflow-x-auto border border-gray-200 rounded" tabIndex={0} role="region" aria-label="Vorschau der Tabelle">
             <table className="text-sm border-collapse">
               <thead className="bg-gray-50">
                 <tr>
