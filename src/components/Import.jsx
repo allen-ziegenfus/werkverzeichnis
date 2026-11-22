@@ -79,7 +79,7 @@ function Import() {
     };
   }, [t, felder, gruppen]);
   const [gewaehlt, setGewaehlt] = useState();   // { datei, fuer, zuordnung }
-  const roh = gewaehlt?.datei === datei && gewaehlt?.fuer === fuer ? gewaehlt.zuordnung : vorschlag;
+  const roh = gewaehlt && gewaehlt.datei === datei && gewaehlt.fuer === fuer ? gewaehlt.zuordnung : vorschlag;
   // Gegen den heutigen Stand: archivierte Felder, gelöschte Werkgruppen.
   const zuordnung = useMemo(() => roh && t && felder && gruppen && bereinigen(roh, t, felder, gruppen),
     [roh, t, felder, gruppen]);
