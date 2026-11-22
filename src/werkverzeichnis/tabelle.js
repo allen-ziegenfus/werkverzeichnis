@@ -53,12 +53,15 @@ export async function blaetterLesen(name, bytes) {
     // Ebenso Spalten: Ein formatierter Bereich bis XFD wären 16384 je Zeile.
     let abgeschnitten = false;
     if (blatt["!ref"]) {
+      // Ab A1, auch wenn der Bereich laut Datei später beginnt (Excel: <dimension>
+      // B3:F20): Sonst stimmen Zeilennummern und Spaltenbuchstaben nicht.
       const bereich = XLSX.utils.decode_range(blatt["!ref"]);
-      if (bereich.e.c - bereich.s.c >= HOECHSTENS.spalten) {
-        bereich.e.c = bereich.s.c + HOECHSTENS.spalten - 1;
-        blatt["!ref"] = XLSX.utils.encode_range(bereich);
+      bereich.s.r = 0; bereich.s.c = 0;
+      if (bereich.e.c >= HOECHSTENS.spalten) {
+        bereich.e.c = HOECHSTENS.spalten - 1;
         abgeschnitten = true;
       }
+      blatt["!ref"] = XLSX.utils.encode_range(bereich);
     }
     // raw: false liefert den Text, wie die Zelle ihn zeigt.
     const zeilen = XLSX.utils.sheet_to_json(blatt, { header: 1, raw: false, defval: "", blankrows: true });
