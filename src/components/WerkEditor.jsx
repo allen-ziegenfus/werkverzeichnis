@@ -95,9 +95,11 @@ export function naechsteInvNr(invNr, werke) {
 
 function WerkEditor({ nutzer }) {
   const [fehler, setFehler] = useState();
-  // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
+  // Die Adresse (#281): ?werk=<Kennung> öffnet dieses Werk (auch aus der
+  // Werkzeugleiste), ?gruppe=<Kennung> zeigt die Liste dieser Werkgruppe.
   const ziel = useRef(new URLSearchParams(location.search).get("werk"));
-  const [gruppe, setGruppeRoh] = useState(() => ziel.current ? "" : letzteGruppe);
+  const [gruppe, setGruppeRoh] = useState(() => ziel.current ? ""
+    : new URLSearchParams(location.search).get("gruppe") ?? letzteGruppe);
   const aktuelleGruppe = useRef(gruppe);
   const setGruppe = g => { letzteGruppe = g; aktuelleGruppe.current = g; setGruppeRoh(g); };
   const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
@@ -157,6 +159,53 @@ function WerkEditor({ nutzer }) {
   }, []);
   useEffect(() => zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current), oeffnen),
     [werke, werkeAbfrage.isFetching]);
+
+  // Die Adresse folgt dem, was offen ist (#281). Ein Werk öffnen oder schließen
+  // ist ein Schritt für Zurück/Vor; eine andere Werkgruppe ersetzt nur die Adresse.
+  const adresse = werk ? `?werk=${encodeURIComponent(werk.id)}` : gruppe ? `?gruppe=${encodeURIComponent(gruppe)}` : "";
+  const ausDerAdresse = useRef(false);   // der Stand kam gerade aus Zurück/Vor: nichts hinzufügen
+  useEffect(() => {
+    // Nach Zurück/Vor schreibt nur der Browser die Adresse, bis der Stand sie eingeholt hat;
+    // sonst überschriebe ein Zwischenstand bei schnellem Zurück/Vor die neue Adresse.
+    if (ausDerAdresse.current) { if (location.search === adresse) ausDerAdresse.current = false; return; }
+    if (ziel.current || location.search === adresse) return;   // ein Werk aus der Adresse wird noch gesucht
+    const url = location.pathname + adresse + location.hash;
+    if (new URLSearchParams(location.search).get("werk") !== (werk?.id ?? null)) history.pushState(null, "", url);
+    else history.replaceState(null, "", url);
+  }, [adresse]);
+  // Zurück/Vor: öffnen, was die Adresse sagt. Ungespeichertes fragt wie jeder Wechsel;
+  // wer bleiben will, bekommt die Adresse des offenen Werks zurück.
+  const jetzt = useRef();
+  jetzt.current = { werk, werke, adresse, werkeAbfrage };
+  useEffect(() => {
+    const zurueck = () => {
+      const { werk, werke, adresse, werkeAbfrage } = jetzt.current;
+      const p = new URLSearchParams(location.search);
+      const w = p.get("werk");
+      if ((w ?? null) === (werk?.id ?? null) && (w || (p.get("gruppe") ?? "") === aktuelleGruppe.current)) return;
+      if (!verlassen()) { history.pushState(null, "", location.pathname + adresse + location.hash); return; }
+      ausDerAdresse.current = true;
+      setNeu(undefined); setSuche(""); setFehler(undefined); setHinweis(undefined);
+      if (!w) { setWerk(undefined); setGruppe(p.get("gruppe") ?? ""); return; }
+      const da = werke?.find(x => x.id === w);
+      if (da) { oeffnen(da); return; }
+      // In einer anderen Werkgruppe: wie beim Laden erst die Gruppe, dann das Werk (zielSuchen).
+      ziel.current = w; setWerk(undefined);
+      getDoc(doc(kuenstler, "works", w))
+        .then(d => {
+          if (!d.exists()) {
+            setFehler(`Werk „${w}“ nicht gefunden.`); ziel.current = null; ausDerAdresse.current = false;
+            history.replaceState(null, "", location.pathname + (aktuelleGruppe.current ? `?gruppe=${encodeURIComponent(aktuelleGruppe.current)}` : "") + location.hash);
+            return;
+          }
+          if (d.get("werkgruppe") !== aktuelleGruppe.current) setGruppe(d.get("werkgruppe"));
+          else werkeAbfrage.refetch();
+        })
+        .catch(e => setFehler(e.message));
+    };
+    addEventListener("popstate", zurueck);
+    return () => removeEventListener("popstate", zurueck);
+  }, []);
 
   async function oeffnen(w) {
     // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.
