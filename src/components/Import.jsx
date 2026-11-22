@@ -132,7 +132,7 @@ function Import({ nutzer }) {
       )}
       {datei?.blaetter[blatt]?.zeilenAus === "ende" && (
         <p className="text-amber-800">
-          Gelesen bis Zeile {datei.blaetter[blatt].gelesen}; laut Datei reicht das Blatt bis Zeile {datei.blaetter[blatt].bis}.
+          Gelesen bis Zeile {datei.blaetter[blatt].gelesen}{datei.blaetter[blatt].bis > datei.blaetter[blatt].gelesen ? `; laut Datei reicht das Blatt bis Zeile ${datei.blaetter[blatt].bis}` : ", danach nichts mehr"}.
           Meist sind das nur formatierte leere Zellen. Stehen dort weitere Werke, bitte die Datei aufteilen.
         </p>
       )}

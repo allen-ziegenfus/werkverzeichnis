@@ -47,12 +47,13 @@ export function pruefen(werke, vorhanden, { titel = id => id } = {}) {
     if (!id || id === "." || id === "..") { fehler("Aus dieser Inv. Nr. ergibt sich keine Kennung."); continue; }
     const zeilen = zeilenJe.get(id);
     if (zeilen.length > 1) {
-      fehler(`Dieselbe Inv. Nr. in den Zeilen ${zeilen.join(", ")}.`);
+      // Höchstens 10 Zeilennummern: Bei Tausenden Doppelten wäre jede Meldung sonst riesig.
+      fehler(`Dieselbe Inv. Nr. in den Zeilen ${zeilen.slice(0, 10).join(", ")}${zeilen.length > 10 ? ` und ${zeilen.length - 10} weiteren` : ""}.`);
       continue;
     }
     const anders = nachInvNr.get(InvNr.toLowerCase());
     if (anders !== undefined && anders !== id) { fehler(`Diese Inv. Nr. hat schon das Werk mit der Kennung „${anders}“.`); continue; }
-    if (w.gruppeWert && !w.werkgruppe) { fehler(`Keine Werkgruppe „${w.gruppeWert}“.`); continue; }
+    if (w.gruppeWert && !w.werkgruppe) { fehler(`Keine Werkgruppe „${w.gruppeWert}“, oder sie passt zu mehreren.`); continue; }
     const felder = Object.fromEntries(Object.entries(w.werte).map(([f, v]) => [f, text(v).trim()]).filter(([, v]) => v));
     const da = vorhanden.get(id);
     if (!da) {

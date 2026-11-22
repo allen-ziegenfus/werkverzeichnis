@@ -94,7 +94,7 @@ export default function ImportZuordnung({ t, felder, gruppen, zuordnung, aendern
         </fieldset>
         {unbekannt.length > 0 && (
           <div className="text-amber-800">
-            <p>Keine Werkgruppe gefunden für:</p>
+            <p>Keine (eindeutige) Werkgruppe gefunden für:</p>
             <ul className="list-disc pl-6">
               {unbekannt.slice(0, 10).map(u => <li key={u.wert}>„{u.wert}“ ({u.anzahl} {u.anzahl === 1 ? "Zeile" : "Zeilen"})</li>)}
               {unbekannt.length > 10 && <li>und {unbekannt.length - 10} weitere</li>}
