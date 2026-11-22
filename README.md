@@ -39,7 +39,7 @@ Angemeldete sehen unten auf jeder Seite der Website die Werkzeugleiste mit dem W
 
 Künstler:innen anlegen und Websites einrichten gehört nicht dazu (#27).
 
-Wer was darf, steht in `firestore.rules` (getestet mit `tools/rules_test.mjs`,
+Wer was darf, steht in `firestore.rules` (getestet mit `tools/rules_test.mjs`, auch als Check in PRs,
 deployt mit `tools/rules_deploy.mjs`, siehe unten); Super-Admins setzt `tools/super_admin.mjs`.
 
 ## Deployen

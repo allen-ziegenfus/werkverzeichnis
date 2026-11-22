@@ -1,0 +1,22 @@
+# Regeltests im PR (#320): tools/rules_test.mjs gegen den Test-Endpunkt der
+# Firebase Rules API, ohne Daten anzufassen. Der Trigger in infra/gcp lauscht
+# nur auf Regeln, Berechtigungen und den Test. Läuft als regeln-test@.
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: MUST_MATCH
+
+steps:
+  - id: install
+    name: node:24
+    entrypoint: bash
+    args: [-c, 'command -v yarn >/dev/null || npm install -g yarn@1; yarn install --frozen-lockfile --non-interactive --ignore-scripts']
+
+  - id: regeln
+    name: node:24
+    entrypoint: node
+    args: [tools/rules_test.mjs]
+    env:
+      - FIRESTORE_PROJECT=$PROJECT_ID
+      - FIRESTORE_DATABASE=${_FIRESTORE_DATABASE}
+
+timeout: 900s

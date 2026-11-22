@@ -91,7 +91,9 @@ sind deutsch. Englisch nur, wo eine Bibliothek es vorgibt.
   (`.github/workflows/pruefen.yml`). Die Testdaten überschreiben `public/*.json`.
 - Firestore-Regeln: `node tools/rules_test.mjs` vor jeder Änderung an
   `firestore.rules`; `src/werkverzeichnis/permissions.js` muss zur Tabelle in
-  den Regeln passen.
+  den Regeln passen. Ein PR nach `main`, der Regeln, Berechtigungen oder den
+  Test ändert, bekommt ihn außerdem als Check (Cloud Build,
+  `cloudbuild-regeln.yaml`, #320); Unter-PRs in Gruppen-Branches nicht.
 
 ## Deployen und Zugangsdaten
 
