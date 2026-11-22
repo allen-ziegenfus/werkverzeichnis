@@ -17,6 +17,8 @@ const NAMEN = {
   Titel: ["titel", "title", "werktitel"],
 };
 const SCHWACH = { InvNr: ["nr", "nummer"] };
+// Nur eigene Einträge: Ein Feld darf „constructor“ oder „toString“ heißen.
+const eigene = (liste, ziel) => Object.hasOwn(liste, ziel) ? liste[ziel] : [];
 
 /** Die Ziele zur Auswahl: [{ ziel, name }], Inv. Nr. und Titel zuerst. */
 export const zieleVon = felder => [
@@ -36,7 +38,7 @@ export function vorschlagen(spalten, felder) {
   const genau = new Map(ziele.map(z => [z.ziel, new Set([vergleichbar(z.ziel), vergleichbar(z.name)].filter(Boolean))]));
   const vergeben = new Set();
   const ergebnis = Object.fromEntries(spalten.map(s => [s.index, ""]));
-  for (const passt of [z => genau.get(z.ziel), z => new Set(NAMEN[z.ziel] ?? []), z => new Set(SCHWACH[z.ziel] ?? [])]) {
+  for (const passt of [z => genau.get(z.ziel), z => new Set(eigene(NAMEN, z.ziel)), z => new Set(eigene(SCHWACH, z.ziel))]) {
     for (const s of spalten) {
       if (ergebnis[s.index]) continue;
       const n = vergleichbar(s.name);
@@ -49,15 +51,21 @@ export function vorschlagen(spalten, felder) {
 
 /**
  * Zum Finden der Werkgruppe einer Zelle: Funktion Wert → Kennung oder
- * undefined, nach Titel, Kurztitel oder Kennung (vergleichbar).
+ * undefined, nach Kennung, dann Titel, dann Kurztitel (vergleichbar). Passt
+ * ein Titel oder Kurztitel zu mehreren Werkgruppen, gilt er als unbekannt,
+ * statt still die erste zu nehmen.
  */
 export function gruppenFinder(gruppen) {
   const nach = new Map();
-  for (const g of gruppen) for (const x of [g.id, g.titel, g.kurztitel]) {
-    const v = vergleichbar(x);
-    if (v && !nach.has(v)) nach.set(v, g.id);
+  for (const art of ["id", "titel", "kurztitel"]) {
+    const stufe = new Map();
+    for (const g of gruppen) {
+      const v = vergleichbar(g[art]);
+      if (v && !nach.has(v)) stufe.set(v, stufe.has(v) && stufe.get(v) !== g.id ? null : g.id);
+    }
+    for (const [v, id] of stufe) nach.set(v, id);
   }
-  return wert => nach.get(vergleichbar(wert));
+  return wert => nach.get(vergleichbar(wert)) ?? undefined;
 }
 
 /**

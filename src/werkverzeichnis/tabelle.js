@@ -68,11 +68,13 @@ export async function blaetterLesen(name, bytes) {
     const text = zeilen.map(z => z.map(z => String(z ?? "").trim()));
     // sheetRows schneidet ohne Fehler ab; !fullref ist dann der Bereich laut
     // Datei. Der kann auch nur formatierte leere Zellen umfassen. Zu lang, wenn
-    // der Inhalt bis an die Grenze reicht; sonst warnen, dass danach nichts
-    // gelesen ist (dort kann noch etwas stehen, nach einer Lücke).
+    // der Inhalt bis an die Grenze reicht, also wohl weitergeht (leere Zeilen
+    // am Ende liefert sheet_to_json nicht); sonst warnen, dass danach nichts
+    // gelesen ist (dort kann noch etwas stehen, nach einer Lücke). So sind
+    // 19.950 Werke mit formatierten leeren Zeilen dahinter nicht zu lang.
     const grenze = optionen.sheetRows - 1;   // sheetRows zählt eins mehr, als es liefert
     const bis = blatt["!fullref"] ? XLSX.utils.decode_range(blatt["!fullref"]).e.r + 1 : 0;
-    const zeilenAus = bis <= text.length ? undefined : text.length >= grenze - 100 ? "zu lang" : "ende";
+    const zeilenAus = bis <= text.length ? undefined : text.length >= grenze ? "zu lang" : "ende";
     return { name: n, abgeschnitten, zeilenAus, gelesen: text.length, bis, zeilen: text };
   });
 }
