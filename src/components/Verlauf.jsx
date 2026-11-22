@@ -97,52 +97,63 @@ function Verlauf({ kuenstlerId, ich, darf }) {
 function Build({ b, seit, ungefaehr, kuenstlerId, ich, darf }) {
   const [auf, setAuf] = useState(false);
   const erfolgreich = b.status === "fertig" && b.gelesen;
+  // Fehler bleiben sichtbar; Log und Hinweise zum Zeitraum stehen im aufgeklappten Teil (#345).
+  const fehler = <>
+    {b.meldung && <span className="block text-red-700">{b.meldung}</span>}
+    {b.status === "fehler" && <span className="block text-gray-600">Nichts online gegangen; die Änderungen kommen mit der nächsten Veröffentlichung.</span>}
+  </>;
   const hinweise = <>
-    {b.meldung && <div className="text-red-700">{b.meldung}</div>}
-    {b.status === "fehler" && <div className="text-gray-600">Nichts online gegangen; die Änderungen kommen mit der nächsten Veröffentlichung.</div>}
     {erfolgreich && seit && ungefaehr && <div className="text-gray-600">Zeitraum ungefähr: Was kurz nach dem Start gespeichert wurde, kann schon mit diesem Build online gegangen sein.</div>}
     {erfolgreich && !seit && <div className="text-gray-600">Was davor lag, ist hier nicht mehr abgegrenzt.</div>}
   </>;
-  const aufklappbar = erfolgreich && seit;
-  // Kopf: auf dem Handy untereinander, ab sm drei Spalten (#330).
+  const mitInhalt = erfolgreich && seit;
+  const aufklappbar = mitInhalt || b.logUrl || (erfolgreich && !seit);
+  // Kopf: auf dem Handy untereinander, ab sm drei Spalten (#330); Fehler darunter.
   const kopf = (
-    <span className="flex-1 min-w-0 flex flex-col gap-0.5 sm:grid sm:grid-cols-[11.5rem_11rem_minmax(0,1fr)] sm:gap-3">
-      <span className="text-gray-600">{wann(b.angefordert)}</span>
-      <span className={FARBE[b.status] ?? ""}>{LAEUFT.includes(b.status) && <Dreht />}{STATUS[b.status] ?? b.status}</span>
-      <span className="[overflow-wrap:anywhere]">
-        {b.anfragen.map(a => (
-          <span key={a.id} className="block">
-            {a.von}
-            {a.notiz && <span className="italic"> · „{a.notiz}“</span>}
-            {a.hinweis && <span className="text-gray-600"> · {a.hinweis}</span>}
-          </span>
-        ))}
+    <span className="flex-1 min-w-0">
+      <span className="flex flex-col gap-0.5 sm:grid sm:grid-cols-[11.5rem_11rem_minmax(0,1fr)] sm:gap-3">
+        <span className="text-gray-600">{wann(b.angefordert)}</span>
+        <span className={FARBE[b.status] ?? ""}>{LAEUFT.includes(b.status) && <Dreht />}{STATUS[b.status] ?? b.status}</span>
+        <span className="[overflow-wrap:anywhere]">
+          {b.anfragen.map(a => (
+            <span key={a.id} className="block">
+              {a.von}
+              {a.notiz && <span className="italic"> · „{a.notiz}“</span>}
+              {a.hinweis && <span className="text-gray-600"> · {a.hinweis}</span>}
+            </span>
+          ))}
+        </span>
       </span>
+      {(b.meldung || b.status === "fehler") && <span className="block mt-1">{fehler}</span>}
     </span>
   );
-  // Pfeil (▸, gedreht ▾) nur, wenn sich etwas aufklappen lässt; sonst gleich breiter Platz.
-  const pfeil = <span aria-hidden="true" className={"w-4 shrink-0 text-gray-500 transition-transform motion-reduce:transition-none "
-    + (auf ? "rotate-90" : "")}>{aufklappbar ? "▸" : ""}</span>;
-  const zusatz = b.logUrl || b.meldung || b.status === "fehler" || (erfolgreich && (!seit || ungefaehr));
+  // Pfeil rechts, zeigt zu nach unten, offen nach oben; ohne Aufklappen gleich breiter Platz.
+  const pfeil = (
+    <span aria-hidden="true" className="w-6 h-6 shrink-0 text-gray-500">
+      {aufklappbar && (
+        <svg viewBox="0 0 20 20" fill="currentColor" className={"w-6 h-6 transition-transform motion-reduce:transition-none "
+          + (auf ? "rotate-180" : "")}>
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
+        </svg>
+      )}
+    </span>
+  );
   return (
     <li className="bg-white border border-gray-200 rounded-lg shadow-sm">
       {aufklappbar ? (
-        <button className="w-full text-left flex items-start gap-2 px-3 py-2 rounded-lg hover:bg-gray-50"
+        // Die ganze Karte (zugeklappt) ist der Knopf.
+        <button className={"w-full text-left flex items-start gap-2 px-3 py-2 hover:bg-gray-50 " + (auf ? "rounded-t-lg" : "rounded-lg")}
                 aria-expanded={auf} onClick={() => setAuf(!auf)}>
-          {pfeil}{kopf}<span className="sr-only">Was ging online?</span>
+          {kopf}{pfeil}<span className="sr-only">{mitInhalt ? "Was ging online?" : "Einzelheiten"}</span>
         </button>
       ) : (
-        <div className="flex items-start gap-2 px-3 py-2">{pfeil}{kopf}</div>
+        <div className="flex items-start gap-2 px-3 py-2">{kopf}{pfeil}</div>
       )}
-      {zusatz && (
-        <div className="pl-9 pr-3 pb-2 space-y-0.5">
+      {auf && aufklappbar && (
+        <div className="border-t border-gray-200 px-3 pt-2 pb-3 space-y-1">
           {b.logUrl && <a className="underline" href={b.logUrl} target="_blank" rel="noreferrer">Log</a>}
           {hinweise}
-        </div>
-      )}
-      {auf && (
-        <div className="border-t border-gray-200 px-3 pb-3">
-          <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen} darf={darf} />
+          {mitInhalt && <Inhalt kuenstlerId={kuenstlerId} ich={ich} von={seit} bis={b.gelesen} darf={darf} />}
         </div>
       )}
     </li>
