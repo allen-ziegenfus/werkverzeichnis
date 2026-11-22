@@ -5,6 +5,8 @@
 export const BEREICHE = [
   { pfad: "/verwaltung/werke/", titel: "Werke", text: "Angaben zu einzelnen Werken ändern",
     berechtigung: "werke.bearbeiten" },
+  { pfad: "/verwaltung/import/", titel: "Import", text: "Werke aus einer Tabelle (CSV, XLS, XLSX) übernehmen",
+    berechtigung: "werke.bearbeiten" },
   { pfad: "/verwaltung/werkgruppen/", titel: "Werkgruppen", text: "Titel, Kurztitel und Reihenfolge",
     berechtigung: "werkgruppen.bearbeiten" },
   { pfad: "/verwaltung/seiten/", titel: "Seiten", text: "Einführung, Impressum und andere Textseiten",
