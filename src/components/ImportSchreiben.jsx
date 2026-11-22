@@ -130,7 +130,8 @@ export default function ImportSchreiben({ t, zuordnung, felder, gruppen, nutzer,
         });
       }
     } finally {
-      melden({ ende: true });
+      // Auch wenn ein Einzelversuch im letzten Stapel abbrach oder etwas Unerwartetes warf.
+      melden({ ende: true, abgebrochen: stand.abgebrochen || stand.fertig < stand.gesamt });
       laeuft(false);
       setGeprueft(undefined);   // Der Stand in Firestore ist ein anderer; erneut prüfen zeigt ihn.
       client.invalidateQueries({ queryKey: ["werke"] });
