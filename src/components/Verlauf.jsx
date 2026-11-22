@@ -149,7 +149,7 @@ function Build({ b, seit, ungefaehr, kuenstlerId, ich, darf }) {
       ) : (
         <div className="flex items-start gap-2 px-3 py-2">{kopf}{pfeil}</div>
       )}
-      {auf && (
+      {auf && aufklappbar && (
         <div className="border-t border-gray-200 px-3 pt-2 pb-3 space-y-1">
           {b.logUrl && <a className="underline" href={b.logUrl} target="_blank" rel="noreferrer">Log</a>}
           {hinweise}
