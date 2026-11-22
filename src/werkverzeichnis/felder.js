@@ -38,7 +38,10 @@ export const HOECHSTENS_FELDER = 100;
 // Namen am Werk-Dokument, die verwaltet werden oder fest sind, und die festen
 // Schlüssel im JSON der Website (build_data.ts); kein Feld darf so heißen.
 const VERGEBEN = ["InvNr", "Titel", "werkgruppe", "images", "updatedAt", "lastChange", "ausgeblendet", "slug",
-  "InventoryNumber", "Slug", "WerkgruppeSlug", "Art", "Bilder", "Thumbnail", "Eigenschaften"];
+  "InventoryNumber", "Slug", "WerkgruppeSlug", "Art", "Bilder", "Thumbnail", "Eigenschaften",
+  // Namen, die jedes Objekt erbt (#357): `daten[f]` gäbe für ein leeres Feld
+  // „constructor“ eine Funktion, der Editor und der Verlauf scheiterten daran.
+  ...Object.getOwnPropertyNames(Object.prototype)];
 
 /** Ist `d` eine brauchbare Feldliste? */
 export function gueltigeFelder(d) {
