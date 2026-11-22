@@ -142,11 +142,14 @@ resource "google_project_iam_member" "rolle" {
     # Datenmigrationen nach dem Deploy (tools/migrieren.mjs, #261).
     "deploy-datastore" = ["werkverzeichnis-deploy", "roles/datastore.user"]
     # Regeltests im PR (#320): nur der Test-Endpunkt der Rules API, der keine
-    # Daten liest. Die kleinste vordefinierte Rolle mit rulesets.test; Releases
-    # (welche Regeln gelten) ändert sie nicht. Eine eigene Rolle darf
-    # infra-manager@ nicht anlegen (kein iam.roleAdmin).
-    "regeln-test"      = ["regeln-test", "roles/firebaserules.developer"]
-    "regeln-test-logs" = ["regeln-test", "roles/logging.logWriter"]
+    # Daten liest. Die kleinste vordefinierte Rolle mit rulesets.test: Sie legt
+    # Rulesets an und löscht nicht freigegebene, ändert aber keine Releases
+    # (welche Regeln gelten). Eine eigene Rolle darf infra-manager@ nicht
+    # anlegen (kein iam.roleAdmin). serviceUsageConsumer für den Header
+    # x-goog-user-project in rules_test.mjs.
+    "regeln-test"         = ["regeln-test", "roles/firebaserules.developer"]
+    "regeln-test-logs"    = ["regeln-test", "roles/logging.logWriter"]
+    "regeln-test-dienste" = ["regeln-test", "roles/serviceusage.serviceUsageConsumer"]
   }
   project = var.projekt_id
   member  = local.konten[each.value[0]]
@@ -392,6 +395,7 @@ resource "google_cloudbuild_trigger" "regeln_pr" {
   service_account = google_service_account.konto["regeln-test"].id
   included_files = [
     "firestore.rules", "src/werkverzeichnis/permissions.js", "tools/rules_test.mjs", "cloudbuild-regeln.yaml",
+    "package.json", "yarn.lock", # google-auth-library
   ]
 
   repository_event_config {
