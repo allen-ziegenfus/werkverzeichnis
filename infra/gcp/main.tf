@@ -110,6 +110,7 @@ resource "google_service_account" "konto" {
     publish-function       = "Veröffentlichen: Build starten, Status eintragen"
     upload-function        = "Bilder hochladen: signierte Upload-URLs (#180)"
     werkverzeichnis-deploy = "Regeln und Funktionen deployen (#3)"
+    regeln-test            = "Regeltests im PR (#320)"
   }
   account_id   = each.key
   display_name = each.value
@@ -140,6 +141,12 @@ resource "google_project_iam_member" "rolle" {
     "deploy-iam-lesen" = ["werkverzeichnis-deploy", "roles/iam.securityReviewer"]
     # Datenmigrationen nach dem Deploy (tools/migrieren.mjs, #261).
     "deploy-datastore" = ["werkverzeichnis-deploy", "roles/datastore.user"]
+    # Regeltests im PR (#320): nur der Test-Endpunkt der Rules API, der keine
+    # Daten liest. Die kleinste vordefinierte Rolle mit rulesets.test; Releases
+    # (welche Regeln gelten) ändert sie nicht. Eine eigene Rolle darf
+    # infra-manager@ nicht anlegen (kein iam.roleAdmin).
+    "regeln-test"      = ["regeln-test", "roles/firebaserules.developer"]
+    "regeln-test-logs" = ["regeln-test", "roles/logging.logWriter"]
   }
   project = var.projekt_id
   member  = local.konten[each.value[0]]
@@ -324,7 +331,7 @@ resource "google_cloudbuild_trigger" "seite" {
   ignored_files = [
     "infra/**", "zentrale/**", "gcf/**", "firestore.rules", "docs/**", "**/*.md",
     ".github/**", ".macroscope/**",
-    "cloudbuild-terraform.yaml", "cloudbuild-zentrale.yaml", "cloudbuild-backend.yaml",
+    "cloudbuild-terraform.yaml", "cloudbuild-zentrale.yaml", "cloudbuild-backend.yaml", "cloudbuild-regeln.yaml",
   ]
 
   repository_event_config {
@@ -372,6 +379,34 @@ resource "google_cloudbuild_trigger" "backend" {
     _BUCKET             = local.bucket  # für gcf/.env (#137)
     _R2_BUCKET          = var.bilder_bucket
   }
+}
+
+# Regeltests in jedem PR, der Regeln oder Berechtigungen ändert (#320), als
+# Check am PR. Führt Code aus dem PR aus, aber nur mit dem Konto regeln-test@;
+# bei PRs von außen erst nach einem Kommentar /gcbrun der Repo-Eigentümer:in.
+resource "google_cloudbuild_trigger" "regeln_pr" {
+  name            = "werkverzeichnis-regeln-pr-${var.branch}"
+  description     = "Regeltests (PR auf ${var.branch})"
+  location        = var.region
+  filename        = "cloudbuild-regeln.yaml"
+  service_account = google_service_account.konto["regeln-test"].id
+  included_files = [
+    "firestore.rules", "src/werkverzeichnis/permissions.js", "tools/rules_test.mjs", "cloudbuild-regeln.yaml",
+  ]
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.repo.id
+    pull_request {
+      branch          = "^${var.branch}$"
+      comment_control = "COMMENTS_ENABLED_FOR_EXTERNAL_CONTRIBUTORS_ONLY"
+    }
+  }
+
+  substitutions = {
+    _FIRESTORE_DATABASE = var.firestore_datenbank
+  }
+
+  depends_on = [google_project_iam_member.rolle]
 }
 
 # Die Funktionen laufen unter eigenen Konten; wer sie deployt, muss diese verwenden dürfen.
