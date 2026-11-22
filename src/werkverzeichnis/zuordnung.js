@@ -65,7 +65,9 @@ export function gruppenFinder(gruppen) {
     }
     for (const [v, id] of stufe) nach.set(v, id);
   }
-  return wert => nach.get(vergleichbar(wert)) ?? undefined;
+  // Genau die Kennung zuerst: „a-b“ und „ab“ sind vergleichbar gleich.
+  const kennungen = new Set(gruppen.map(g => g.id));
+  return wert => kennungen.has(wert) ? wert : nach.get(vergleichbar(wert)) ?? undefined;
 }
 
 /**
