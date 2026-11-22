@@ -53,13 +53,13 @@ Fehler sollen vor dem Push auffallen, nicht erst im PR.
    postet nichts und wechselt keinen Branch (der Worktree ist der der Session).
    Befunde mit Datei:Zeile, konkretem Fehlerfall und Vorschlag, Maßstab sind diese
    Datei und `.macroscope/correctness/`.
-3. **Befunde beheben**, dann pushen und den PR öffnen.
-4. **Macroscope** läuft nur von Hand und kostet je Prüfung mindestens 0,50 $,
-   auch für einen kleinen Folge-Push. Darum einmal je PR nach `main` (bei
-   Gruppen nur der Gruppen-PR), nach Rückfrage bei der Repo-Eigentümer:in, mit
-   dem Kommentar `@macroscope-app review`. Seine Hinweise beheben, die Fixes
-   durch das Review der zweiten Session, dann in einem Push ohne erneute
-   Macroscope-Prüfung; im PR beantworten.
+3. **Macroscope** vor jedem PR nach `main` (bei Gruppen einmal auf dem
+   Gruppen-Branch vor dem Gruppen-PR, nicht je Unter-PR): lokal mit
+   `macroscope codereview --raw --base main` (CLI, angemeldet). Jede Prüfung
+   kostet, darum einmal je PR, nicht je Folge-Commit. Seine Hinweise beheben,
+   die Fixes durch das Review des Agenten `reviewer`, ohne erneute
+   Macroscope-Prüfung. Nicht mehr per `@macroscope-app review` im PR.
+4. **Befunde beheben**, dann pushen und den PR öffnen.
 
 Änderungen unter `infra/` erst pushen, wenn kein Terraform-Lauf läuft (Vorschau
 oder Anwenden); gleichzeitige Läufe sperren sich die Deployments.
