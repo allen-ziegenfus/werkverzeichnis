@@ -117,10 +117,11 @@ export function fehlt(zuordnung) {
 
 /**
  * Ein Werk aus einer Zeile (für #350): { nr, InvNr, werte: { ziel: Text },
- * werkgruppe }. `werte` sind Felder des Werk-Dokuments wie im Editor, Titel
+ * werkgruppe, gruppeWert }. `werte` sind Felder des Werk-Dokuments wie im Editor, Titel
  * eingeschlossen; alle zugeordneten Zellen außer Inv. Nr., auch leere
  * (was leer überschreibt nichts, entscheidet das Schreiben). `werkgruppe` ist
- * die Kennung oder undefined (unbekannt oder leer). `finden` aus gruppenFinder.
+ * die Kennung oder undefined (unbekannt oder leer), `gruppeWert` die Zelle
+ * dazu (leer bei fester Werkgruppe). `finden` aus gruppenFinder.
  */
 export function werkAusZeile(zeile, zuordnung, t, finden) {
   const werte = {};
@@ -131,7 +132,7 @@ export function werkAusZeile(zeile, zuordnung, t, finden) {
     else if (ziel) werte[ziel] = zeile.werte[i];
   });
   const { art, fest, spalte } = zuordnung.gruppe;
-  const werkgruppe = art === "fest" ? fest || undefined
-    : finden(zeile.werte[t.spalten.findIndex(s => s.index === spalte)] ?? "");
-  return { nr: zeile.nr, InvNr, werte, werkgruppe };
+  const gruppeWert = art === "fest" ? "" : zeile.werte[t.spalten.findIndex(s => s.index === spalte)] ?? "";
+  const werkgruppe = art === "fest" ? fest || undefined : finden(gruppeWert);
+  return { nr: zeile.nr, InvNr, werte, werkgruppe, gruppeWert };
 }
