@@ -43,6 +43,15 @@ export const useWerkgruppen = () => useQuery({
     .sort((a, b) => a.reihenfolge - b.reihenfolge),
 });
 
+/** Zahl der Werke je Werkgruppe (#282), ausgeblendete eingeschlossen: { Kennung: Zahl }. */
+export const useAnzahlJeGruppe = gruppen => useQuery({
+  // Unter „werke“: Wer alle Werke neu laden lässt (Import), lädt auch die Zahlen neu.
+  queryKey: ["werke", "anzahlJeGruppe", ...(gruppen ?? []).map(g => g.id)],
+  enabled: !!gruppen,
+  queryFn: async () => Object.fromEntries(await Promise.all(gruppen.map(async g =>
+    [g.id, (await getCountFromServer(query(collection(kuenstler, "works"), where("werkgruppe", "==", g.id)))).data().count]))),
+});
+
 /** Die Werke einer Werkgruppe als { id, data }, nach Inv. Nr. */
 export const useWerke = gruppe => useQuery({
   queryKey: SCHLUESSEL.werke(gruppe),
