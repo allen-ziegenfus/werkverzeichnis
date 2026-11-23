@@ -8,15 +8,14 @@ import Skelett from "./Skelett.jsx";
 import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
 import { hauptknopf } from "./knoepfe.js";
+import { werkgruppeAendern, werkgruppenFassung } from "./werkgruppeSchreiben.js";
 
 /**
  * Die Werkgruppen der Künstler:in dieser Website: Titel, Kurztitel, Reihenfolge.
  * Jede Änderung schreibt einen Eintrag in `werkgruppenverlauf` (#106).
  */
 
-/** Was der Verlauf je Werkgruppe festhält, wie werkgruppenFassung() in firestore.rules. */
-export const werkgruppenFassung = d => d && ({ titel: d.titel, kurztitel: d.kurztitel ?? null,
-  reihenfolge: d.reihenfolge, cover: d.cover ?? null });
+export { werkgruppenFassung };
 export const WERKGRUPPENFELDER = { titel: "Titel", kurztitel: "Kurztitel", reihenfolge: "Reihe", cover: "Titelbild" };
 
 const zuKennung = (s, max) => slugify(s, { lower: true }).replace(/[^a-z0-9-]/g, "").slice(0, max);
@@ -67,14 +66,7 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
   async function aendern(g, aenderungen) {
     setFehler(undefined);
     try {
-      const ref = doc(sammlung, g.id);
-      await runTransaction(db, async tx => {
-        const jetzt = (await tx.get(ref)).data();
-        const eintrag = doc(verlauf);
-        tx.set(eintrag, { werkgruppe: g.id, by: ich, at: serverTimestamp(),
-          vorher: werkgruppenFassung(jetzt), nachher: werkgruppenFassung({ ...jetzt, ...aenderungen }) });
-        tx.update(ref, { ...aenderungen, updatedAt: serverTimestamp(), lastChange: eintrag.id });
-      });
+      await werkgruppeAendern(g.id, aenderungen, ich);
       await laden();
     } catch (e) {
       setFehler(meldung(e));

@@ -126,3 +126,24 @@ test("Ein Bild auf ein anderes ziehen ordnet um, ohne hochzuladen (#372)", async
   expect(Object.keys(d).filter(k => k.includes("/uploads/"))).toEqual([]);
   await expect(page.getByText(/Hochgeladen/)).toHaveCount(0);
 });
+
+test("Als Titelbild der Werkgruppe: gespeichert mit Eintrag im Werkgruppenverlauf (#378)", async ({ verwaltung }) => {
+  const page = await verwaltung(OB2);
+  await page.getByRole("button", { name: "ob2b.jpg als Titelbild der Werkgruppe" }).click();
+  await expect(page.getByText(/ist jetzt das Titelbild der Werkgruppe „Objekte“/)).toBeVisible();
+  await expect(bild(page, "ob2b.jpg")).toContainText("Titelbild der Werkgruppe");
+  await expect(page.getByRole("button", { name: "ob2b.jpg ist das Titelbild der Werkgruppe" })).toBeDisabled();
+  const d = await daten(page);
+  const g = d["artists/k/werkgruppen/objekte"];
+  expect(g.cover).toBe("artists/test/ob2b.jpg");
+  expect(d[`artists/k/werkgruppenverlauf/${g.lastChange}`]).toMatchObject({
+    werkgruppe: "objekte", by: "testperson@example.org",
+    vorher: { cover: "artists/test/objekte.jpg" }, nachher: { cover: "artists/test/ob2b.jpg", titel: "Objekte" },
+  });
+});
+
+test("Ohne werkgruppen.bearbeiten (Rolle editor) kein Knopf fürs Titelbild", async ({ verwaltung }) => {
+  const page = await verwaltung(OB2, { daten: d => { d["artists/k"].roles = { "testperson@example.org": "editor" }; } });
+  await expect(page.getByRole("button", { name: "ob2b.jpg nach vorn" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /als Titelbild/ })).toHaveCount(0);
+});

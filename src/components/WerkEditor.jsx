@@ -16,6 +16,8 @@ import WerkTabelle from "./WerkTabelle.jsx";
 import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
 import { felderVon } from "../werkverzeichnis/felder.js";
 import { INVNR_MUSTER } from "../werkverzeichnis/importPruefen.js";
+import { darf } from "../werkverzeichnis/permissions.js";
+import { werkgruppeAendern } from "./werkgruppeSchreiben.js";
 import { ANNEHMEN, ablehnen, hochladen } from "./hochladen.js";
 import Zugang from "./Zugang.jsx";
 import Feldfehler, { fehlerAttribute, fehlerRand } from "./Feldfehler.jsx";
@@ -76,7 +78,7 @@ const dateienVonAussen = e => {
 
 
 export default function WerkEditorSeite() {
-  return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer }) => <WerkEditor nutzer={nutzer} />} />;
+  return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer, wer }) => <WerkEditor nutzer={nutzer} wer={wer} />} />;
 }
 
 /**
@@ -99,7 +101,7 @@ export function naechsteInvNr(invNr, werke) {
   return "";
 }
 
-function WerkEditor({ nutzer }) {
+function WerkEditor({ nutzer, wer }) {
   const [fehler, setFehler] = useState();
   // Die Adresse (#281): ?werk=<Kennung> öffnet dieses Werk (auch aus der
   // Werkzeugleiste), ?gruppe=<Kennung> zeigt die Liste dieser Werkgruppe.
@@ -390,6 +392,20 @@ function WerkEditor({ nutzer }) {
     neu.splice(neu.indexOf(auf) + (i < j ? 1 : 0), 0, pfad);
     return neu;
   }, "Reihenfolge gespeichert. Auf der Website nach dem nächsten Veröffentlichen.");
+  // Titelbild der Werkgruppe (#378): nur mit werkgruppen.bearbeiten, mit Eintrag im Werkgruppenverlauf.
+  const darfTitelbild = darf(wer, "werkgruppen.bearbeiten");
+  const titelbild = gruppen?.find(g => g.id === werk?.data.werkgruppe)?.cover ?? null;
+  async function alsTitelbild(pfad) {
+    setBildFehler(undefined); setBildHinweis(undefined);
+    try {
+      await werkgruppeAendern(werk.data.werkgruppe, { cover: pfad }, nutzer.email);
+      await client.invalidateQueries({ queryKey: SCHLUESSEL.werkgruppen });
+      setBildHinweis(`„${pfad.split("/").pop()}“ ist jetzt das Titelbild der Werkgruppe „${gruppenTitel ?? werk.data.werkgruppe}“. `
+        + "Auf der Website nach dem nächsten Veröffentlichen; zurücknehmen unter Werkgruppen im Verlauf.");
+    } catch (e) {
+      setBildFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+    }
+  }
   const bildEntfernen = pfad => {
     const name = pfad.split("/").pop();
     // Titelbild einer Werkgruppe: Das bleibt dort (Werkgruppen), sonst wunderte man sich auf der Startseite.
@@ -695,6 +711,7 @@ function WerkEditor({ nutzer }) {
             <h3 id="werk-bilder" className="text-lg">Bilder</h3>
             {(bilderGleich ?? werk.data.images)?.length > 0 ? (
               <BildListe bilder={bilderGleich ?? werk.data.images} verschieben={bildVerschieben} entfernen={bildEntfernen} einordnen={bildEinordnen}
+                         titelbild={titelbild} alsTitelbild={darfTitelbild ? alsTitelbild : undefined}
                          gesperrt={laedt ? "Erst das Hochladen abwarten." : speichert ? "Speichert…"
                            : nichtAngehaengt ? "Erst die hochgeladene Datei anhängen."
                            : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />

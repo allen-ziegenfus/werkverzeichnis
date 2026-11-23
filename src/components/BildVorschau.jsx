@@ -107,9 +107,10 @@ export const EIGENES_BILD = "application/x-werkverzeichnis-bild";
  * Website. Mit `verschieben(pfad, schritt)` und `entfernen(pfad)` je Bild Knöpfe
  * zum Ordnen und Entfernen (#262; die Rückfrage stellt `entfernen`); `gesperrt`
  * (Text) sperrt sie mit Begründung. Mit `einordnen(pfad, aufPfad)` lässt sich ein
- * Bild auch auf ein anderes ziehen (#372).
+ * Bild auch auf ein anderes ziehen (#372). `titelbild` (Pfad) markiert das
+ * Titelbild der Werkgruppe, `alsTitelbild(pfad)` setzt es (#378).
  */
-export default function BildListe({ bilder, verschieben, entfernen, einordnen, gesperrt }) {
+export default function BildListe({ bilder, verschieben, entfernen, einordnen, gesperrt, titelbild, alsTitelbild }) {
   const [ueber, setUeber] = useState();     // Pfad, über dem gerade ein eigenes Bild schwebt
   const eigenes = e => [...e.dataTransfer.types].includes(EIGENES_BILD);
   const ziehen = p => einordnen && !gesperrt ? {
@@ -134,7 +135,7 @@ export default function BildListe({ bilder, verschieben, entfernen, einordnen, g
       <ul className="flex flex-wrap gap-3">
         {bilder.map((p, i) => (
           <Bild key={p} pfad={p} melden={melden} oeffnen={() => setOffen(p)} erstes={i === 0 && bilder.length > 1}
-                ziehen={ziehen(p)} ziel={ueber === p}>
+                ziehen={ziehen(p)} ziel={ueber === p} titelbild={p === titelbild} breit={!!alsTitelbild}>
             {(verschieben || entfernen) && (
               <div className="flex gap-1 mt-auto" title={gesperrt}>
                 {verschieben && <>
@@ -143,6 +144,12 @@ export default function BildListe({ bilder, verschieben, entfernen, einordnen, g
                   <button type="button" className={knopfKlein + " px-2"} disabled={!!gesperrt || i === bilder.length - 1}
                           aria-label={`${p.split("/").pop()} nach hinten`} onClick={() => verschieben(p, 1)}>→</button>
                 </>}
+                {alsTitelbild && (
+                  <button type="button" className={knopfKlein + " px-2"} disabled={!!gesperrt || p === titelbild}
+                          aria-label={p === titelbild ? `${p.split("/").pop()} ist das Titelbild der Werkgruppe` : `${p.split("/").pop()} als Titelbild der Werkgruppe`}
+                          title={gesperrt ?? (p === titelbild ? "Titelbild der Werkgruppe" : "Als Titelbild der Werkgruppe")}
+                          onClick={() => alsTitelbild(p)}>{p === titelbild ? "★" : "☆"}</button>
+                )}
                 {entfernen && (
                   <button type="button" className={knopfKlein + " px-2 ml-auto"} disabled={!!gesperrt}
                           aria-label={`${p.split("/").pop()} entfernen`} title={gesperrt ?? "Vom Werk entfernen"}
@@ -164,7 +171,7 @@ export default function BildListe({ bilder, verschieben, entfernen, einordnen, g
   );
 }
 
-function Bild({ pfad, melden, oeffnen, erstes, ziehen = {}, ziel, children }) {
+function Bild({ pfad, melden, oeffnen, erstes, ziehen = {}, ziel, titelbild, breit, children }) {
   const medium = useMediumLive(pfad);
   useEffect(() => melden(pfad, medium), [medium]);
   // Die eigene Datei, bis der Server mehr weiß; danach freigeben.
@@ -173,7 +180,7 @@ function Bild({ pfad, melden, oeffnen, erstes, ziehen = {}, ziel, children }) {
   useEffect(() => { if (medium) { lokalVergessen(pfad); setEigene(undefined); } }, [medium, pfad]);
   const name = pfad.split("/").pop();
   return (
-    <li className={"w-28 text-xs flex flex-col gap-1 rounded" + (ziehen.draggable ? " cursor-grab" : "")
+    <li className={(breit ? "w-32" : "w-28") + " text-xs flex flex-col gap-1 rounded" + (ziehen.draggable ? " cursor-grab" : "")
                    + (ziel ? " outline outline-2 outline-offset-2 outline-blue-600" : "")}
         title={ziehen.draggable ? "Zum Ordnen auf ein anderes Bild ziehen" : undefined} {...ziehen}>
       {medium?.art === "bild" ? (
@@ -204,6 +211,7 @@ function Bild({ pfad, melden, oeffnen, erstes, ziehen = {}, ziel, children }) {
       <div className="break-all" title={medium?.fehler ?? medium?.lesefehler}>{name}</div>
       {/* Das erste ist das Vorschaubild in Listen und auf der Website. */}
       {erstes && <div className="text-gray-600">Vorschaubild</div>}
+      {titelbild && <div className="text-gray-600">Titelbild der Werkgruppe</div>}
       {children}
     </li>
   );
