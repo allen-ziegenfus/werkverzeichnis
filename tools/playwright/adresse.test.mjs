@@ -99,3 +99,21 @@ test("Seiten: Seite in der Adresse, Neuladen bleibt, Zurück/Vor (#366)", async 
   await page.getByRole("button", { name: /Zurück zu den Seiten/ }).click();
   await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
 });
+
+test("Seiten: Seite aus der Adresse gibt es nicht: Liste, Adresse der Liste", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/seiten/?seite=gibtsnicht");
+  await expect(page.getByRole("button", { name: /^Impressum/ })).toBeVisible();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
+});
+
+test("Seiten: offene Seite löschen, dann Zurück: Liste statt der gelöschten Seite", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/seiten/");
+  await page.getByRole("button", { name: /^Impressum/ }).click();
+  await expect(page).toHaveURL(/\?seite=impressum$/);
+  page.on("dialog", d => d.accept());
+  await page.getByRole("button", { name: "Seite löschen" }).click();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
+  await expect(page.getByRole("button", { name: /^Einführung/ })).toBeVisible();
+});

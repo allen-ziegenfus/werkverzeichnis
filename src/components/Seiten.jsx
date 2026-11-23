@@ -76,7 +76,8 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
     zielSuchen(ziel, abfrage, d => d.seiten.find(x => x.id === ziel.current),
       s => { oeffnetAusAdresse.current = true; setOffen(s); });
     if (vorher && !ziel.current && !oeffnetAusAdresse.current) setZielAufgegeben(n => n + 1);
-  }, [seiten, abfrage.isFetching]);
+  // dataUpdatedAt: Ein schnelles Nachladen mit gleichen Daten ändert sonst nichts, das hier auslöst.
+  }, [seiten, abfrage.isFetching, abfrage.dataUpdatedAt]);
 
   // Die Adresse folgt der offenen Seite (#366, wie die Werke #281): Öffnen und
   // Schließen sind Schritte für Zurück/Vor; Zurück/Vor selbst behandelt VerwaltungApp.
