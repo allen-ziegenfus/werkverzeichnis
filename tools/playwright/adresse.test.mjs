@@ -23,7 +23,7 @@ test("Zurück und Vor wechseln zwischen Liste und Werk, auch über Werkgruppen",
   await expect(titel(page)).toHaveText("OB1 · Kiste mit Deckel");
   await page.getByRole("button", { name: /Zurück zur Liste/ }).click();
   await expect(page).toHaveURL(/\?gruppe=objekte$/);
-  await page.getByText("Ohne Bild").first().click();
+  await page.getByText("OB3", { exact: true }).click();
   await expect(titel(page)).toHaveText("OB3 · Ohne Bild");
 
   await page.goBack();

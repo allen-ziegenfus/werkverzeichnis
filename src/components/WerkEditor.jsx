@@ -10,6 +10,7 @@ import { vomServer } from "./firestoreLite.js";
 import BildListe, { lokalMerken } from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
 import { useEtwasUngespeichert, useUngespeichert, verlassen } from "./ungespeichert.js";
+import { adresseSetzen } from "./adresse.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import WerkTabelle from "./WerkTabelle.jsx";
 import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
@@ -157,55 +158,27 @@ function WerkEditor({ nutzer }) {
       })
       .catch(e => setFehler(e.message));
   }, []);
-  useEffect(() => zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current), oeffnen),
+  // Gefunden: ziel ist dann schon leer, das Werk aber erst im nächsten Zeichnen offen.
+  const oeffnetAusAdresse = useRef(false);
+  useEffect(() => zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current),
+    w => { oeffnetAusAdresse.current = true; oeffnen(w); }),
     [werke, werkeAbfrage.isFetching]);
 
   // Die Adresse folgt dem, was offen ist (#281). Ein Werk öffnen oder schließen
   // ist ein Schritt für Zurück/Vor; eine andere Werkgruppe ersetzt nur die Adresse.
+  // Zurück/Vor selbst behandelt VerwaltungApp: Es fragt bei Ungespeichertem und
+  // baut den Bereich neu auf, der die Adresse dann wie beim Laden liest.
   const adresse = werk ? `?werk=${encodeURIComponent(werk.id)}` : gruppe ? `?gruppe=${encodeURIComponent(gruppe)}` : "";
-  const ausDerAdresse = useRef(false);   // der Stand kam gerade aus Zurück/Vor: nichts hinzufügen
+  const zuletztOffen = useRef(null);   // Kennung des zuletzt offenen Werks, für „Schritt oder ersetzen“
   useEffect(() => {
-    // Nach Zurück/Vor schreibt nur der Browser die Adresse, bis der Stand sie eingeholt hat;
-    // sonst überschriebe ein Zwischenstand bei schnellem Zurück/Vor die neue Adresse.
-    if (ausDerAdresse.current) { if (location.search === adresse) ausDerAdresse.current = false; return; }
-    if (ziel.current || location.search === adresse) return;   // ein Werk aus der Adresse wird noch gesucht
-    const url = location.pathname + adresse + location.hash;
-    if (new URLSearchParams(location.search).get("werk") !== (werk?.id ?? null)) history.pushState(null, "", url);
-    else history.replaceState(null, "", url);
+    // Ein Werk aus der Adresse wird noch gesucht oder gleich geöffnet: Die Adresse stimmt schon.
+    if (ziel.current || (oeffnetAusAdresse.current && !werk)) return;
+    oeffnetAusAdresse.current = false;
+    const schritt = (werk?.id ?? null) !== zuletztOffen.current;
+    zuletztOffen.current = werk?.id ?? null;
+    if (location.search === adresse) return;
+    adresseSetzen(location.pathname + adresse + location.hash, { schritt });
   }, [adresse]);
-  // Zurück/Vor: öffnen, was die Adresse sagt. Ungespeichertes fragt wie jeder Wechsel;
-  // wer bleiben will, bekommt die Adresse des offenen Werks zurück.
-  const jetzt = useRef();
-  jetzt.current = { werk, werke, adresse, werkeAbfrage };
-  useEffect(() => {
-    const zurueck = () => {
-      const { werk, werke, adresse, werkeAbfrage } = jetzt.current;
-      const p = new URLSearchParams(location.search);
-      const w = p.get("werk");
-      if ((w ?? null) === (werk?.id ?? null) && (w || (p.get("gruppe") ?? "") === aktuelleGruppe.current)) return;
-      if (!verlassen()) { history.pushState(null, "", location.pathname + adresse + location.hash); return; }
-      ausDerAdresse.current = true;
-      setNeu(undefined); setSuche(""); setFehler(undefined); setHinweis(undefined);
-      if (!w) { setWerk(undefined); setGruppe(p.get("gruppe") ?? ""); return; }
-      const da = werke?.find(x => x.id === w);
-      if (da) { oeffnen(da); return; }
-      // In einer anderen Werkgruppe: wie beim Laden erst die Gruppe, dann das Werk (zielSuchen).
-      ziel.current = w; setWerk(undefined);
-      getDoc(doc(kuenstler, "works", w))
-        .then(d => {
-          if (!d.exists()) {
-            setFehler(`Werk „${w}“ nicht gefunden.`); ziel.current = null; ausDerAdresse.current = false;
-            history.replaceState(null, "", location.pathname + (aktuelleGruppe.current ? `?gruppe=${encodeURIComponent(aktuelleGruppe.current)}` : "") + location.hash);
-            return;
-          }
-          if (d.get("werkgruppe") !== aktuelleGruppe.current) setGruppe(d.get("werkgruppe"));
-          else werkeAbfrage.refetch();
-        })
-        .catch(e => setFehler(e.message));
-    };
-    addEventListener("popstate", zurueck);
-    return () => removeEventListener("popstate", zurueck);
-  }, []);
 
   async function oeffnen(w) {
     // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.

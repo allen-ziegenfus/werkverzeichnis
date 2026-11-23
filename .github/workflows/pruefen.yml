@@ -92,6 +92,6 @@ jobs:
         with:
           name: verwaltung
           path: |
-            tools/playwright/ergebnisse/
-            tools/playwright/bericht/
+            node_modules/.cache/playwright/
+          include-hidden-files: true   # .cache
           retention-days: 14

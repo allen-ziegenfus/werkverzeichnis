@@ -1,9 +1,10 @@
-import { Component, lazy, Suspense, useEffect, useRef, useState } from "react";
+import { Component, lazy, Suspense, useEffect, useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { client } from "./abfragen.js";
 import { BEREICHE } from "./bereiche.js";
 import Skelett from "./Skelett.jsx";
 import { verlassen } from "./ungespeichert.js";
+import { adresseSetzen, stelle } from "./adresse.js";
 import VerwaltungKopf from "./VerwaltungKopf.jsx";
 import { knopf } from "./knoepfe.js";
 
@@ -54,15 +55,16 @@ const KOMPONENTEN = {
 const TITEL = { "/verwaltung/": "Übersicht", ...Object.fromEntries(BEREICHE.map(b => [b.pfad, b.titel])) };
 
 const normal = p => (p.endsWith("/") ? p : p + "/");
-const hier = () => ({ pfad: normal(location.pathname), suche: location.search });
+// nr: jeder Wechsel (Link, Zurück/Vor) baut den Bereich neu auf, auch wenn die
+// Adresse gleich aussieht wie zuletzt hier gemerkt: Bereiche setzen sie selbst (#281).
+let wechsel = 0;
+const hier = () => ({ pfad: normal(location.pathname), suche: location.search, nr: ++wechsel });
 
 export default function VerwaltungApp({ kuenstlerName }) {
   const [ort, setOrt] = useState(hier);
-  // Die Stelle des gezeigten Eintrags im Browser-Verlauf (history.state.i).
-  const stelle = useRef(history.state?.i ?? 0);
 
   useEffect(() => {
-    if (history.state?.i == null) history.replaceState({ ...history.state, i: stelle.current }, "");
+    if (history.state?.i == null) adresseSetzen(location.href);
     const wechseln = () => setOrt(hier());
     // Zurück/Vor im Browser lässt sich nicht abbrechen; abgelehnt, springt der
     // Browser zum gezeigten Eintrag zurück, und das popstate dorthin gilt nicht.
@@ -70,8 +72,8 @@ export default function VerwaltungApp({ kuenstlerName }) {
     const zurueck = () => {
       const i = history.state?.i ?? 0;
       if (i === zurueckholen) { zurueckholen = null; return; }
-      if (verlassen()) { stelle.current = i; wechseln(); }
-      else if (i !== stelle.current) { zurueckholen = stelle.current; history.go(stelle.current - i); }
+      if (verlassen()) { stelle.i = i; wechseln(); }
+      else if (i !== stelle.i) { zurueckholen = stelle.i; history.go(stelle.i - i); }
     };
     // Links innerhalb der Verwaltung abfangen; neue Tabs, Downloads und
     // alles außerhalb bleiben normale Links.
@@ -84,7 +86,7 @@ export default function VerwaltungApp({ kuenstlerName }) {
       e.preventDefault();
       if (url.pathname + url.search !== location.pathname + location.search) {
         if (!verlassen()) return;
-        history.pushState({ i: ++stelle.current }, "", url);
+        adresseSetzen(url, { schritt: true });
         wechseln();
       }
       window.scrollTo(0, 0);
@@ -104,7 +106,7 @@ export default function VerwaltungApp({ kuenstlerName }) {
       <main className="max-w-5xl mx-auto px-4 py-6">
         <h1 className="text-2xl mb-4">{titel}</h1>
         {/* Neu aufbauen bei jedem Wechsel, auch ?werk=…: Die Bereiche lesen die Adresse beim Start. */}
-        <Fehlergrenze key={ort.pfad + ort.suche}>
+        <Fehlergrenze key={ort.nr}>
           <Suspense fallback={<Skelett />}>
             {Bereich ? <Bereich /> : <p>Diesen Bereich gibt es nicht.</p>}
           </Suspense>
