@@ -496,6 +496,26 @@ function WerkEditor({ nutzer }) {
     if (text) setSuche("");
   };
 
+  const brotkrumen = (
+    <nav aria-label="Brotkrumen" className="text-sm min-w-0">
+      <ol className="flex flex-wrap gap-x-1 items-center">
+        <li><button type="button" className="underline disabled:opacity-40" disabled={speichert || !!laedt}
+                    onClick={() => gruppeWaehlen("")}>Werke</button></li>
+        <li aria-hidden="true">›</li>
+        <li>
+          {werk || neu ? (
+            <button type="button" className="underline disabled:opacity-40" disabled={speichert || !!laedt}
+                    onClick={() => verlassen() && (setWerk(undefined), setNeu(undefined))}>{gruppenName}</button>
+          ) : <span aria-current="page" className="font-semibold">{gruppenName}</span>}
+        </li>
+        {werk && <><li aria-hidden="true">›</li>
+          <li aria-current="page" className="font-semibold min-w-0 truncate text-base">
+            {werk.data.InvNr}{werk.data.Titel && ` · ${werk.data.Titel}`}
+          </li></>}
+      </ol>
+    </nav>
+  );
+
   return (
     <div className="space-y-4">
       {fehler && !werk && <p className="text-red-700">{fehler}</p>}
@@ -520,23 +540,9 @@ function WerkEditor({ nutzer }) {
           ))}
         </ul>
       )}
-      {/* Brotkrumen (#282): Werke › Werkgruppe › Werk, jeder Teil eine Ebene zurück. */}
-      {gruppen && gruppe && (
-        <nav aria-label="Brotkrumen" className="text-sm">
-          <ol className="flex flex-wrap gap-x-1 items-center">
-            <li><button type="button" className="underline disabled:opacity-40" disabled={speichert || !!laedt}
-                        onClick={() => gruppeWaehlen("")}>Werke</button></li>
-            <li aria-hidden="true">›</li>
-            <li>
-              {werk || neu ? (
-                <button type="button" className="underline disabled:opacity-40" disabled={speichert || !!laedt}
-                        onClick={() => verlassen() && (setWerk(undefined), setNeu(undefined))}>{gruppenName}</button>
-              ) : <span aria-current="page" className="font-semibold">{gruppenName}</span>}
-            </li>
-            {werk && <><li aria-hidden="true">›</li><li aria-current="page" className="font-semibold">{werk.data.InvNr}</li></>}
-          </ol>
-        </nav>
-      )}
+      {/* Brotkrumen (#282): Werke › Werkgruppe › Werk, jeder Teil eine Ebene zurück. Mit offenem
+          Werk in der stehenden Werkleiste statt hier, dort scrollen sie nicht weg (#375). */}
+      {gruppen && gruppe && !werk && brotkrumen}
 
       {gruppe && !werke && !ladefehler && <Skelett />}
       {werke && !werk && (
@@ -612,13 +618,7 @@ function WerkEditor({ nutzer }) {
               Die Felder darum nur lesbar, solange gespeichert wird (auch Bilder ordnen, #262): Getipptes ginge sonst verloren. */}
           {/* Bleibt beim Scrollen unter dem Kopf stehen: welches Werk offen ist, Speichern (#260). */}
           <div ref={setLeiste} className="sticky top-[var(--kopf-sichtbar,0px)] z-30 -mx-4 px-4 py-2 bg-white border-b flex flex-wrap gap-x-3 gap-y-1 items-center">
-            <button className="underline text-sm disabled:opacity-40" disabled={speichert || !!laedt}
-                    onClick={() => verlassen() && setWerk(undefined)}>
-              ← <span className="sm:hidden">Liste</span><span className="hidden sm:inline">Zurück zur Liste</span>
-            </button>
-            <span className="order-first w-full sm:order-none sm:w-auto sm:flex-1 min-w-0 truncate font-semibold">
-              {werk.data.InvNr}{werk.data.Titel && ` · ${werk.data.Titel}`}
-            </span>
+            <div className="w-full sm:w-auto sm:flex-1 min-w-0">{brotkrumen}</div>
             <button className={hauptknopf + " ml-auto sm:ml-0"} disabled={!geaendert.length || speichert || !!laedt || abgleich.konflikte.length > 0} onClick={speichern}>
               {speichert ? "Speichere…" : "Speichern"}
             </button>
