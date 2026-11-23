@@ -2,9 +2,11 @@
  * Bilder hochladen (#180). Die Verwaltung legt artists/{a}/uploads/{id} an
  * (firestore.rules: nur mit `werke.bearbeiten`, Typ und Größe geprüft); diese
  * Funktion prüft noch einmal und schreibt eine signierte URL zurück, mit der der
- * Browser genau eine neue Datei unter artists/{a}/works/{werk}/ anlegt. Daraus
- * macht die Bildfunktion (index.js) wie bei jedem Original die Webversionen; ans
- * Werk hängt sie der Editor mit Verlaufseintrag.
+ * Browser genau eine neue Datei unter artists/{a}/works/{werk}/ anlegt, für das
+ * Titelbild einer Werkgruppe (#380, mit `werkgruppen.bearbeiten`) unter
+ * artists/{a}/werkgruppen/{id}/. Daraus macht die Bildfunktion (index.js) wie
+ * bei jedem Original die Webversionen; ans Werk bzw. die Werkgruppe hängt sie
+ * die Verwaltung mit Verlaufseintrag.
  *
  * Status: angefordert → bereit (url, pfad, ablauf) | fehler (meldung).
  *
@@ -35,14 +37,16 @@ const GUELTIG = 15 * 60 * 1000;
  * Browser; vorne steht die Zeit, damit zwei gleichnamige Dateien sich nicht
  * treffen (anlegen kann die URL ohnehin nur, was es noch nicht gibt).
  */
-export function pruefen({ kuenstler, werk, name, typ, groesse }, jetzt = Date.now()) {
-  if (typeof werk !== "string" || !/^[a-z0-9.-]+$/.test(werk)) return { fehler: "Ungültiges Werk." };
+export function pruefen({ kuenstler, werk, werkgruppe, name, typ, groesse }, jetzt = Date.now()) {
+  if ((werk === undefined) === (werkgruppe === undefined)) return { fehler: "Genau ein Werk oder eine Werkgruppe angeben." };
+  const [ordner, id] = werk !== undefined ? ["works", werk] : ["werkgruppen", werkgruppe];
+  if (typeof id !== "string" || !/^[a-z0-9.-]+$/.test(id)) return { fehler: werk !== undefined ? "Ungültiges Werk." : "Ungültige Werkgruppe." };
   if (typeof name !== "string" || !/^[a-z0-9][a-z0-9._-]{0,99}$/.test(name)) return { fehler: "Ungültiger Dateiname." };
   const endung = name.split(".").pop();
   if (!TYPEN[endung] || TYPEN[endung] !== typ) return { fehler: "Dateityp nicht erlaubt (JPEG, PNG, WebP, GIF, TIFF, PDF)." };
   if (!Number.isInteger(groesse) || groesse <= 0) return { fehler: "Ungültige Dateigröße." };
   if (groesse > HOECHSTENS) return { fehler: "Datei zu groß (höchstens 50 MB)." };
-  return { pfad: `artists/${kuenstler}/works/${werk}/${jetzt.toString(36)}-${name}` };
+  return { pfad: `artists/${kuenstler}/${ordner}/${id}/${jetzt.toString(36)}-${name}` };
 }
 
 export const hochladen = onDocumentCreated({
@@ -55,7 +59,7 @@ export const hochladen = onDocumentCreated({
   const anfrage = ereignis.data.data();
   const { kuenstler } = ereignis.params;
   const { pfad, fehler } = pruefen({ kuenstler, ...anfrage });
-  // Die Regeln prüfen, dass es das Werk gibt; gelöscht werden Werke nicht.
+  // Die Regeln prüfen, dass es das Werk bzw. die Werkgruppe gibt; gelöscht werden beide nicht.
   if (fehler) {
     await ref.update({ status: "fehler", meldung: fehler });
     return;

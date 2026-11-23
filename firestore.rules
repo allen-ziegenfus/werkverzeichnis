@@ -328,19 +328,28 @@ service cloud.firestore {
     }
 
     // Bilder hochladen (#180): Wer Werke bearbeiten darf, fragt für ein
-    // vorhandenes Werk eine Upload-URL an; die Funktion `hochladen`
-    // (gcf/upload.js) prüft noch einmal und schreibt Status, URL und Pfad
-    // zurück. Lesen nur die eigene Anfrage: Die URL ist ein Schreibrecht.
-    // Typen und Größe wie TYPEN und HOECHSTENS dort.
+    // vorhandenes Werk eine Upload-URL an, wer Werkgruppen bearbeiten darf, für
+    // eine vorhandene Werkgruppe ihr Titelbild (#380); genau eins von beiden. Die
+    // Funktion `hochladen` (gcf/upload.js) prüft noch einmal und schreibt Status,
+    // URL und Pfad zurück. Lesen nur die eigene Anfrage: Die URL ist ein
+    // Schreibrecht. Typen und Größe wie TYPEN und HOECHSTENS dort.
+    function uploadFuer(kuenstler, d) {
+      return ("werk" in d && !("werkgruppe" in d) && darf(kuenstler, "werke.bearbeiten")
+          && d.werk is string
+          && exists(/databases/$(database)/documents/artists/$(kuenstler)/works/$(d.werk)))
+        || ("werkgruppe" in d && !("werk" in d) && darf(kuenstler, "werkgruppen.bearbeiten")
+          && d.werkgruppe is string
+          && exists(/databases/$(database)/documents/artists/$(kuenstler)/werkgruppen/$(d.werkgruppe)));
+    }
+
     match /artists/{kuenstler}/uploads/{u} {
-      allow get: if darf(kuenstler, "werke.bearbeiten") && resource.data.von == emailAdresse();
-      allow create: if darf(kuenstler, "werke.bearbeiten")
-        && request.resource.data.keys().hasOnly(["von", "angefordert", "status", "werk", "name", "typ", "groesse"])
+      allow get: if (darf(kuenstler, "werke.bearbeiten") || darf(kuenstler, "werkgruppen.bearbeiten"))
+        && resource.data.von == emailAdresse();
+      allow create: if request.resource.data.keys().hasOnly(["von", "angefordert", "status", "werk", "werkgruppe", "name", "typ", "groesse"])
         && request.resource.data.von == emailAdresse()
         && request.resource.data.angefordert == request.time
         && request.resource.data.status == "angefordert"
-        && request.resource.data.werk is string
-        && exists(/databases/$(database)/documents/artists/$(kuenstler)/works/$(request.resource.data.werk))
+        && uploadFuer(kuenstler, request.resource.data)
         && request.resource.data.name is string
         && request.resource.data.name.matches('[a-z0-9][a-z0-9._-]{0,99}')
         && request.resource.data.typ in ["image/jpeg", "image/png", "image/webp", "image/gif", "image/tiff", "application/pdf"]

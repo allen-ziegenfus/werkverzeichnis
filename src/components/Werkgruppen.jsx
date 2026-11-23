@@ -7,16 +7,21 @@ import { db, KUENSTLER } from "./firebaseClient.js";
 import Skelett from "./Skelett.jsx";
 import { useUngespeichert } from "./ungespeichert.js";
 import Zugang from "./Zugang.jsx";
-import { hauptknopf } from "./knoepfe.js";
+import { hauptknopf, knopfKlein } from "./knoepfe.js";
+import { Vorschaubild } from "./BildVorschau.jsx";
+import { ablehnen, hochladen, TYPEN } from "./hochladen.js";
+import { werkgruppeAendern, werkgruppenFassung } from "./werkgruppeSchreiben.js";
 
 /**
- * Die Werkgruppen der Künstler:in dieser Website: Titel, Kurztitel, Reihenfolge.
- * Jede Änderung schreibt einen Eintrag in `werkgruppenverlauf` (#106).
+ * Die Werkgruppen der Künstler:in dieser Website: Titel, Kurztitel, Reihenfolge,
+ * Titelbild (#380, hochgeladen, gehört zu keinem Werk). Jede Änderung schreibt
+ * einen Eintrag in `werkgruppenverlauf` (#106).
  */
 
-/** Was der Verlauf je Werkgruppe festhält, wie werkgruppenFassung() in firestore.rules. */
-export const werkgruppenFassung = d => d && ({ titel: d.titel, kurztitel: d.kurztitel ?? null,
-  reihenfolge: d.reihenfolge, cover: d.cover ?? null });
+/** Titelbilder nur als Bild, kein PDF. */
+const BILDTYPEN = Object.keys(TYPEN).filter(e => TYPEN[e].startsWith("image/")).map(e => "." + e).join(",");
+
+export { werkgruppenFassung };
 export const WERKGRUPPENFELDER = { titel: "Titel", kurztitel: "Kurztitel", reihenfolge: "Reihe", cover: "Titelbild" };
 
 const zuKennung = (s, max) => slugify(s, { lower: true }).replace(/[^a-z0-9-]/g, "").slice(0, max);
@@ -30,7 +35,10 @@ export default function WerkgruppenSeite() {
 function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
   const { data: gruppen, error: ladefehler } = useWerkgruppen();
   const [titel, setTitel] = useState("");
-  useUngespeichert(!!titel.trim());   // neue Werkgruppe eingetippt, aber nicht hinzugefügt (#324)
+  const [laedt, setLaedt] = useState();                 // { id, name, anteil }; bis das cover gespeichert ist
+  const [nichtGesetzt, setNichtGesetzt] = useState();   // hochgeladen, aber cover nicht gespeichert: { g, pfad }
+  // Neue Werkgruppe eingetippt, aber nicht hinzugefügt (#324); Titelbild lädt oder ist noch nicht gespeichert (#380).
+  useUngespeichert(!!titel.trim() || !!laedt || !!nichtGesetzt);
   const [fehler, setFehler] = useState();
   const sammlung = collection(db, "artists", kuenstlerId, "werkgruppen");
   const verlauf = collection(db, "artists", kuenstlerId, "werkgruppenverlauf");
@@ -43,6 +51,7 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
   }, [gruppen === undefined]);
 
   const laden = () => client.invalidateQueries({ queryKey: SCHLUESSEL.werkgruppen });
+  const [hinweis, setHinweis] = useState();
 
   async function hinzufuegen() {
     setFehler(undefined);
@@ -65,31 +74,60 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
   }
 
   async function aendern(g, aenderungen) {
-    setFehler(undefined);
+    setFehler(undefined); setHinweis(undefined);
     try {
-      const ref = doc(sammlung, g.id);
-      await runTransaction(db, async tx => {
-        const jetzt = (await tx.get(ref)).data();
-        const eintrag = doc(verlauf);
-        tx.set(eintrag, { werkgruppe: g.id, by: ich, at: serverTimestamp(),
-          vorher: werkgruppenFassung(jetzt), nachher: werkgruppenFassung({ ...jetzt, ...aenderungen }) });
-        tx.update(ref, { ...aenderungen, updatedAt: serverTimestamp(), lastChange: eintrag.id });
-      });
+      await werkgruppeAendern(g.id, aenderungen, ich);
       await laden();
+      return true;
     } catch (e) {
       setFehler(meldung(e));
+    }
+  }
+
+  // Titelbild setzen: Die Webversionen entstehen erst nach dem Hochladen (17–45 s);
+  // ein Veröffentlichen davor scheitert (build_data.ts: „web versions … not made yet“, STRICT).
+  async function titelbildSetzen(g, pfad) {
+    if (!await aendern(g, { cover: pfad })) { setNichtGesetzt({ g, pfad }); return; }
+    setNichtGesetzt(undefined);
+    setHinweis(`Titelbild von „${g.titel}“ gespeichert. Die Webversionen entstehen in etwa einer Minute; erst danach veröffentlichen.`);
+  }
+
+  async function titelbildHochladen(g, datei) {
+    const grund = ablehnen(datei) ?? (TYPEN[datei.name.split(".").pop().toLowerCase()]?.startsWith("image/")
+      ? undefined : `${datei.name}: Ein Titelbild muss ein Bild sein (JPEG, PNG, WebP, GIF, TIFF).`);
+    setHinweis(undefined); setNichtGesetzt(undefined);
+    if (grund) { setFehler(grund); return; }
+    setFehler(undefined);
+    setLaedt({ id: g.id, name: datei.name, anteil: 0 });
+    // Gesperrt bis das cover gespeichert ist: sonst liefen zwei Speichervorgänge gegeneinander.
+    try {
+      const pfad = await hochladen({ werkgruppe: g.id, datei, von: ich,
+        fortschritt: anteil => setLaedt(l => l && { ...l, anteil }) });
+      await titelbildSetzen(g, pfad);
+    } catch (e) {
+      setFehler(meldung(e));
+    } finally {
+      setLaedt(undefined);
     }
   }
 
   return (
     <div className="space-y-2">
       {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
+      {nichtGesetzt && <p className="text-sm">
+        Hochgeladen, aber nicht als Titelbild von „{nichtGesetzt.g.titel}“ gespeichert.{" "}
+        <button className={knopfKlein} onClick={() => titelbildSetzen(nichtGesetzt.g, nichtGesetzt.pfad)}>Noch einmal speichern</button>{" "}
+        <button className={knopfKlein} onClick={() => setNichtGesetzt(undefined)}>Verwerfen</button>
+      </p>}
+      {hinweis && <p className="text-green-800 text-sm" role="status">{hinweis}</p>}
+      {laedt && <p className="text-sm" role="status">{laedt.anteil < 1
+        ? <>Lade „{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %</> : <>Speichere „{laedt.name}“ als Titelbild…</>}</p>}
       {ladefehler && !gruppen && <p className="text-red-700 text-sm">{meldung(ladefehler)}</p>}
       {!gruppen && !ladefehler && <Skelett />}
-      {gruppen && <table className="text-sm w-full">
+      {gruppen && <div className="overflow-x-auto"><table className="text-sm w-full">
         <thead>
           <tr className="text-left text-gray-600">
-            <th className="w-16">Reihe</th><th>Titel</th><th>Kurztitel</th><th>Kennung</th>
+            <th className="w-16">Reihe</th><th>Titel</th><th>Kurztitel</th><th className="hidden sm:table-cell">Kennung</th><th>Titelbild</th>
           </tr>
         </thead>
         <tbody>
@@ -112,11 +150,24 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
                        onBlur={e => e.target.value !== (g.kurztitel ?? "")
                          && aendern(g, { kurztitel: e.target.value.trim() || null })} />
               </td>
-              <td className="font-mono text-gray-600">{g.id}</td>
+              <td className="font-mono text-gray-600 hidden sm:table-cell">{g.id}</td>
+              <td>
+                <div className="flex gap-2 items-center">
+                  {g.cover ? <Vorschaubild key={g.cover} pfad={g.cover} /> : <span className="text-gray-600 text-xs w-12">keins</span>}
+                  {bearbeitbar && (
+                    <label className={knopfKlein + " whitespace-nowrap" + (laedt || nichtGesetzt ? " opacity-40 cursor-not-allowed" : " cursor-pointer")}>
+                      Hochladen…
+                      <input type="file" className="sr-only" accept={BILDTYPEN} disabled={!!laedt || !!nichtGesetzt}
+                             aria-label={`Titelbild von ${g.titel} hochladen`}
+                             onChange={e => { const d = e.target.files[0]; e.target.value = ""; if (d) titelbildHochladen(g, d); }} />
+                    </label>
+                  )}
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
-      </table>}
+      </table></div>}
       {bearbeitbar && (
         <>
           <p className="text-xs text-gray-600">Änderungen werden beim Verlassen des Feldes gespeichert.</p>

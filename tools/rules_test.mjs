@@ -403,6 +403,9 @@ const faelle = [
     const werkDa = [{ function: "exists", args: [{ exactValue: `${wurzel}/artists/kutscher/works/ob1` }], result: { value: true } }];
     const anfrage = { von: EDITOR, angefordert: JETZT, status: "angefordert", werk: "ob1", name: "scan.jpg", typ: "image/jpeg", groesse: 1000 };
     const pfad = "artists/kutscher/uploads/u1";
+    const gruppeDa = [{ function: "exists", args: [{ exactValue: `${wurzel}/artists/kutscher/werkgruppen/kreise` }], result: { value: true } }];
+    const { werk: _, ...ohneWerk } = anfrage;
+    const titelbild = { ...ohneWerk, von: ADMIN, werkgruppe: "kreise" };
     return [
       fall("Upload anfragen", "ALLOW", als(EDITOR), "create", pfad, { daten: anfrage, mocks: werkDa }),
       fall("Upload ohne Werk", "DENY", als(EDITOR), "create", pfad, { daten: anfrage }),
@@ -418,6 +421,14 @@ const faelle = [
       fall("fremde Upload-Anfrage lesen", "DENY", als(ADMIN), "get", pfad, { vorhanden: { ...anfrage, status: "bereit", url: "https://x" } }),
       fall("Upload-Anfrage ändern", "DENY", als(EDITOR), "update", pfad,
         { daten: { ...anfrage, status: "bereit" }, vorhanden: anfrage }),
+      // Titelbild einer Werkgruppe (#380): mit werkgruppen.bearbeiten, für eine vorhandene Werkgruppe.
+      fall("Titelbild hochladen", "ALLOW", als(ADMIN), "create", pfad, { daten: titelbild, mocks: gruppeDa }),
+      fall("Titelbild ohne Werkgruppe", "DENY", als(ADMIN), "create", pfad, { daten: titelbild }),
+      fall("Titelbild als Editor", "DENY", als(EDITOR), "create", pfad, { daten: { ...titelbild, von: EDITOR }, mocks: gruppeDa }),
+      fall("Upload für Werk und Werkgruppe", "DENY", als(ADMIN), "create", pfad,
+        { daten: { ...titelbild, werk: "ob1" }, mocks: [...werkDa, ...gruppeDa] }),
+      fall("Upload mit werkgruppe: null", "DENY", als(EDITOR), "create", pfad, { daten: { ...anfrage, werkgruppe: null }, mocks: werkDa }),
+      fall("eigene Titelbild-Anfrage lesen", "ALLOW", als(ADMIN), "get", pfad, { vorhanden: { ...titelbild, status: "bereit", url: "https://x" } }),
     ];
   })(),
 ];

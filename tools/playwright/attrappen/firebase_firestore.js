@@ -76,7 +76,7 @@ export async function addDoc(c, d) {
   const r = doc(c);
   // Testdaten: wie die Funktion hochladen (gcf/upload.js), sofort mit Test-URL.
   if (c.pfad.endsWith("/uploads")) d = { ...d, status: "bereit", url: "/__upload/" + d.name,
-    pfad: c.pfad.replace(/uploads$/, "works/") + d.werk + "/test-" + d.name };
+    pfad: c.pfad.replace(/uploads$/, d.werkgruppe ? "werkgruppen/" + d.werkgruppe : "works/" + d.werk) + "/test-" + d.name };
   setzen(r, d); return r;
 }
 export const startAfter = () => null; export const documentId = () => "__id";

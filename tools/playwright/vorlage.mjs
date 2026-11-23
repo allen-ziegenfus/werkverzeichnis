@@ -16,6 +16,7 @@ import { test as basis, expect } from "@playwright/test";
 import { testdaten } from "./testdaten.mjs";
 
 const attrappe = name => fs.readFileSync(new URL(`attrappen/${name}`, import.meta.url), "utf8");
+const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
 const ATTRAPPEN = [
   [/\/firebase_auth\.js(\?|$)/, attrappe("firebase_auth.js")],
   [/\/firebase_firestore_lite\.js(\?|$)/, attrappe("firebase_firestore_lite.js")],
@@ -31,6 +32,8 @@ export const test = basis.extend({
     for (const [muster, quelltext] of ATTRAPPEN) {
       await page.route(muster, r => r.fulfill({ contentType: "text/javascript", body: quelltext }));
     }
+    // Webversionen (/bilder/…) liegen auf der veröffentlichten Seite, nicht im Dev-Server: ein 1×1-Bild.
+    await page.route(/\/bilder\//, r => r.fulfill({ contentType: "image/png", body: PIXEL }));
     await use(async (pfad, { daten, schalter = {} } = {}) => {
       const d = testdaten();
       daten?.(d);
