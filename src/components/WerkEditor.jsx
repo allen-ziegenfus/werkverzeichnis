@@ -10,6 +10,7 @@ import { vomServer } from "./firestoreLite.js";
 import BildListe, { lokalMerken } from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
 import { useEtwasUngespeichert, useUngespeichert, verlassen } from "./ungespeichert.js";
+import { adresseSetzen } from "./adresse.js";
 import VerlaufListe, { wann } from "./VerlaufListe.jsx";
 import WerkTabelle from "./WerkTabelle.jsx";
 import { feldNamen, gleicherWert, werkWert } from "./werkFeld.js";
@@ -95,9 +96,11 @@ export function naechsteInvNr(invNr, werke) {
 
 function WerkEditor({ nutzer }) {
   const [fehler, setFehler] = useState();
-  // ?werk=<Kennung> (aus der Werkzeugleiste) öffnet dieses Werk direkt.
+  // Die Adresse (#281): ?werk=<Kennung> öffnet dieses Werk (auch aus der
+  // Werkzeugleiste), ?gruppe=<Kennung> zeigt die Liste dieser Werkgruppe.
   const ziel = useRef(new URLSearchParams(location.search).get("werk"));
-  const [gruppe, setGruppeRoh] = useState(() => ziel.current ? "" : letzteGruppe);
+  const [gruppe, setGruppeRoh] = useState(() => ziel.current ? ""
+    : new URLSearchParams(location.search).get("gruppe") ?? letzteGruppe);
   const aktuelleGruppe = useRef(gruppe);
   const setGruppe = g => { letzteGruppe = g; aktuelleGruppe.current = g; setGruppeRoh(g); };
   const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
@@ -155,8 +158,32 @@ function WerkEditor({ nutzer }) {
       })
       .catch(e => setFehler(e.message));
   }, []);
-  useEffect(() => zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current), oeffnen),
-    [werke, werkeAbfrage.isFetching]);
+  // Gefunden: ziel ist dann schon leer, das Werk aber erst im nächsten Zeichnen offen.
+  const oeffnetAusAdresse = useRef(false);
+  // Aufgegeben (nicht in der Liste der Werkgruppe): Die Adresse soll dann die Liste zeigen.
+  const [zielAufgegeben, setZielAufgegeben] = useState(0);
+  useEffect(() => {
+    const vorher = ziel.current;
+    zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current),
+      w => { oeffnetAusAdresse.current = true; oeffnen(w); });
+    if (vorher && !ziel.current && !oeffnetAusAdresse.current) setZielAufgegeben(n => n + 1);
+  }, [werke, werkeAbfrage.isFetching]);
+
+  // Die Adresse folgt dem, was offen ist (#281). Ein Werk öffnen oder schließen
+  // ist ein Schritt für Zurück/Vor; eine andere Werkgruppe ersetzt nur die Adresse.
+  // Zurück/Vor selbst behandelt VerwaltungApp: Es fragt bei Ungespeichertem und
+  // baut den Bereich neu auf, der die Adresse dann wie beim Laden liest.
+  const adresse = werk ? `?werk=${encodeURIComponent(werk.id)}` : gruppe ? `?gruppe=${encodeURIComponent(gruppe)}` : "";
+  const zuletztOffen = useRef(null);   // Kennung des zuletzt offenen Werks, für „Schritt oder ersetzen“
+  useEffect(() => {
+    // Ein Werk aus der Adresse wird noch gesucht oder gleich geöffnet: Die Adresse stimmt schon.
+    if (ziel.current || (oeffnetAusAdresse.current && !werk)) return;
+    oeffnetAusAdresse.current = false;
+    const schritt = (werk?.id ?? null) !== zuletztOffen.current;
+    zuletztOffen.current = werk?.id ?? null;
+    if (location.search === adresse) return;
+    adresseSetzen(location.pathname + adresse + location.hash, { schritt });
+  }, [adresse, zielAufgegeben]);
 
   async function oeffnen(w) {
     // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.

@@ -6,7 +6,9 @@
  *   TESTDATEN=tools/testdaten/katalog.json yarn data
  *   yarn test:verwaltung
  *
- * Screenshots jedes Tests unter tools/playwright/ergebnisse/ (im PR als Artefakt).
+ * Screenshots jedes Tests unter node_modules/.cache/playwright/ (im PR als
+ * Artefakt): Dort beobachtet Vite nichts; im Projekt brachten die Spuren der
+ * laufenden Tests den Dev-Server zum Absturz (ENOENT im Datei-Beobachter).
  */
 import { defineConfig, devices } from "@playwright/test";
 
@@ -15,12 +17,12 @@ const PORT = 4398;
 export default defineConfig({
   testDir: ".",
   testMatch: "*.test.mjs",
-  outputDir: "ergebnisse",
+  outputDir: "../../node_modules/.cache/playwright/ergebnisse",
   globalSetup: "./aufwaermen.mjs",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["list"], ["html", { outputFolder: "bericht", open: "never" }]] : "list",
+  reporter: process.env.CI ? [["list"], ["html", { outputFolder: "../../node_modules/.cache/playwright/bericht", open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
     screenshot: "on",
