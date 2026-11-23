@@ -1,12 +1,13 @@
 // Attrappe von firebase/firestore für die Playwright-Tests (#321): Daten im Speicher (window.__testdaten), nur was die Verwaltung braucht.
-// Schalter für Fehlerfälle: window.__einmalScheitern, __getDocScheitern, __zaehlenScheitern, __kuenstlerVerzoegern (ms), __altStand.
+// Schalter für Fehlerfälle: window.__einmalScheitern, __getDocScheitern, __zaehlenScheitern, __kuenstlerVerzoegern (ms), __transaktionVerzoegern (ms), __altStand.
 const daten = window.__testdaten ?? {}; window.__daten = daten;
 // Feste Zeiten in den Testdaten: { __ms: Zahl } wird ein Timestamp.
 const fest = ms => ({ toDate: () => new Date(ms), toMillis: () => ms, seconds: ms / 1000 });
 (function beleben(o) { for (const [k, v] of Object.entries(o ?? {})) {
   if (v && typeof v === "object") { if ("__ms" in v) o[k] = fest(v.__ms); else beleben(v); } } })(daten);
 let n = 0;
-const ts = () => ({ toDate: () => new Date(), toMillis: () => Date.now(), seconds: Date.now() / 1000 });
+// Ein Zeitpunkt, fest beim Schreiben (sonst sähe jeder Vergleich von updatedAt eine fremde Änderung).
+const ts = () => fest(Date.now());
 export class FieldPath { constructor(...t) { this.t = t; } }
 export const deleteField = () => ({ __loeschen: true });
 export const serverTimestamp = () => ts();
@@ -66,6 +67,7 @@ export async function setDoc(r, d) { setzen(r, d); }
 export async function updateDoc(r, ...a) { aendern(r, paare(a)); }
 const paare = a => a.length === 1 ? a[0] : Object.fromEntries(Array.from({ length: a.length / 2 }, (_, i) => [a[2 * i] instanceof FieldPath ? a[2 * i].t.join(".") : a[2 * i], a[2 * i + 1]]));
 export async function runTransaction(db, f) {
+  if (window.__transaktionVerzoegern) await new Promise(z => setTimeout(z, window.__transaktionVerzoegern));
   if (window.__einmalScheitern) { window.__einmalScheitern = false; throw Object.assign(new Error("Netz weg (Testdaten)"), { code: "unavailable" }); }
   return f({ get: snapDokA, set: (r, d) => setzen(r, d), update: (r, ...a) => aendern(r, paare(a)), delete: r => delete daten[r.pfad] });
 }

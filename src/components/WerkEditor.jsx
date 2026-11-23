@@ -254,7 +254,7 @@ function WerkEditor({ nutzer }) {
         const davor = pruefen ? werk.data : jetzt.data() ?? {};
         // Ohne Prüfung nur, was sich auf dem Server wirklich ändert.
         const werte = typeof neu === "function" ? neu(davor) : neu;
-        const felder = Object.entries(werte).filter(([f, wert]) => pruefen || (davor[f] ?? null) !== (wert ?? null));
+        const felder = Object.entries(werte).filter(([f, wert]) => pruefen || !gleicherWert(davor[f] ?? null, wert ?? null));
         if (!felder.length) return;
         const changes = Object.fromEntries(felder.map(([f, wert]) =>
           [f, { from: davor[f] ?? null, to: wert ?? null }]));
@@ -334,6 +334,38 @@ function WerkEditor({ nutzer }) {
     if (ok) setBildHinweis(`Hochgeladen und gespeichert (${namen.join(", ")}). Auf der Website nach dem nächsten Veröffentlichen.`);
     return ok;
   }
+
+  /**
+   * Ordnen und Entfernen (#262), gleich gespeichert mit Verlaufseintrag (im
+   * Verlauf zurücknehmbar). Wie beim Anhängen auf dem Stand des Servers: Ein
+   * gleichzeitig angehängtes Bild bleibt. Das Original bleibt im Bucket.
+   */
+  async function bilderAendern(aendern, meldung) {
+    setBildFehler(undefined); setBildHinweis(undefined);
+    let anders = false;   // auf dem Server-Stand; schon so (woanders geändert): nichts geschrieben
+    const ok = await schreiben(davor => {
+      const neu = aendern(davor.images ?? []);
+      anders = !gleicherWert(neu, davor.images ?? []);
+      return { images: neu };
+    }, {}, undefined, { pruefen: false });
+    if (ok) setBildHinweis(anders ? meldung : "Nichts geändert: Inzwischen stand es woanders schon so.");
+  }
+  const bildVerschieben = (pfad, schritt) => bilderAendern(liste => {
+    const i = liste.indexOf(pfad), j = i + schritt;
+    if (i < 0 || j < 0 || j >= liste.length) return liste;
+    const neu = [...liste];
+    [neu[i], neu[j]] = [neu[j], neu[i]];
+    return neu;
+  }, "Reihenfolge gespeichert. Auf der Website nach dem nächsten Veröffentlichen.");
+  const bildEntfernen = pfad => {
+    const name = pfad.split("/").pop();
+    // Titelbild einer Werkgruppe: Das bleibt dort (Werkgruppen), sonst wunderte man sich auf der Startseite.
+    const titelbild = gruppen?.filter(g => g.cover === pfad).map(g => `„${g.titel}“`);
+    if (!window.confirm(`„${name}“ vom Werk entfernen? Das Original bleibt gespeichert; im Verlauf lässt es sich zurücknehmen.`
+      + (titelbild?.length ? `\n\nEs ist auch das Titelbild der Werkgruppe ${titelbild.join(", ")} und bleibt das, bis dort ein anderes gewählt ist.` : ""))) return;
+    bilderAendern(liste => liste.filter(p => p !== pfad),
+      `„${name}“ entfernt; im Verlauf zurücknehmbar. Auf der Website nach dem nächsten Veröffentlichen.`);
+  };
 
   async function bilderHochladen(dateien) {
     const abgelehnt = dateien.map(ablehnen).filter(Boolean);
@@ -511,7 +543,8 @@ function WerkEditor({ nutzer }) {
       {werk && !kuenstlerDaten && !ladefehler && <Skelett />}
       {werk && kuenstlerDaten && (
         <div className="space-y-3">
-          {/* Gesperrt während des Speicherns und Hochladens: danach öffnet schreiben() das Werk neu (#213, #180). */}
+          {/* Gesperrt während des Speicherns und Hochladens: danach öffnet schreiben() das Werk neu (#213, #180).
+              Die Felder darum nur lesbar, solange gespeichert wird (auch Bilder ordnen, #262): Getipptes ginge sonst verloren. */}
           {/* Bleibt beim Scrollen unter dem Kopf stehen: welches Werk offen ist, Speichern (#260). */}
           <div ref={setLeiste} className="sticky top-[var(--kopf-sichtbar,0px)] z-30 -mx-4 px-4 py-2 bg-white border-b flex flex-wrap gap-x-3 gap-y-1 items-center">
             <button className="underline text-sm disabled:opacity-40" disabled={speichert || !!laedt}
@@ -547,10 +580,10 @@ function WerkEditor({ nutzer }) {
               {f === "InvNr" ? (
                 <input className="border p-1 w-full bg-gray-100" value={entwurf[f] ?? ""} readOnly />
               ) : LANG.includes(f) || String(entwurf[f] ?? "").length > 80 ? (
-                <textarea className="border p-1 w-full disabled:bg-gray-100" rows={3} value={entwurf[f] ?? ""} disabled={!!laedt}
+                <textarea className="border p-1 w-full disabled:bg-gray-100" rows={3} value={entwurf[f] ?? ""} disabled={!!laedt} readOnly={speichert}
                           onChange={e => setEntwurf({ ...entwurf, [f]: e.target.value })} />
               ) : (
-                <input className="border p-1 w-full disabled:bg-gray-100" value={entwurf[f] ?? ""} disabled={!!laedt}
+                <input className="border p-1 w-full disabled:bg-gray-100" value={entwurf[f] ?? ""} disabled={!!laedt} readOnly={speichert}
                        onChange={e => setEntwurf({ ...entwurf, [f]: e.target.value })} />
               )}
             </label>
@@ -596,7 +629,10 @@ function WerkEditor({ nutzer }) {
                    }}>
             <h3 id="werk-bilder" className="text-lg">Bilder</h3>
             {werk.data.images?.length > 0 ? (
-              <BildListe bilder={werk.data.images} />
+              <BildListe bilder={werk.data.images} verschieben={bildVerschieben} entfernen={bildEntfernen}
+                         gesperrt={laedt ? "Erst das Hochladen abwarten." : speichert ? "Speichert…"
+                           : nichtAngehaengt ? "Erst die hochgeladene Datei anhängen."
+                           : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
             ) : <p className="text-sm text-gray-600">Noch keine Bilder.</p>}
             <div className="flex gap-2 items-center flex-wrap">
               {/* Ein Label als Knopf: Das Dateifeld selbst lässt sich nicht gestalten. */}
