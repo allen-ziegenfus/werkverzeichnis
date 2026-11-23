@@ -21,7 +21,7 @@ test("Zurück und Vor wechseln zwischen Liste und Werk, auch über Werkgruppen",
   const page = await verwaltung("/verwaltung/werke/?gruppe=objekte");
   await page.getByText("Kiste mit Deckel").first().click();
   await expect(titel(page)).toHaveText("OB1 · Kiste mit Deckel");
-  await page.getByRole("button", { name: /Zurück zur Liste/ }).click();
+  await page.getByRole("navigation", { name: "Brotkrumen" }).getByRole("button", { name: "Objekte" }).click();
   await expect(page).toHaveURL(/\?gruppe=objekte$/);
   await page.getByText("OB3", { exact: true }).click();
   await expect(titel(page)).toHaveText("OB3 · Ohne Bild");
