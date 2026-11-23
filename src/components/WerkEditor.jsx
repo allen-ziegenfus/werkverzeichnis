@@ -167,7 +167,8 @@ function WerkEditor({ nutzer }) {
     zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current),
       w => { oeffnetAusAdresse.current = true; oeffnen(w); });
     if (vorher && !ziel.current && !oeffnetAusAdresse.current) setZielAufgegeben(n => n + 1);
-  }, [werke, werkeAbfrage.isFetching]);
+  // dataUpdatedAt: Ein schnelles Nachladen mit gleichen Daten ändert sonst nichts, das hier auslöst.
+  }, [werke, werkeAbfrage.isFetching, werkeAbfrage.dataUpdatedAt]);
 
   // Die Adresse folgt dem, was offen ist (#281). Ein Werk öffnen oder schließen
   // ist ein Schritt für Zurück/Vor; eine andere Werkgruppe ersetzt nur die Adresse.

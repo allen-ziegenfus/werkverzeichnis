@@ -82,3 +82,38 @@ test("Zurück mit ungespeicherten Änderungen fragt; Abbrechen bleibt im Werk", 
   await expect(page).toHaveURL(/\?gruppe=objekte$/);
   await expect(page.getByText("Kiste mit Deckel")).toBeVisible();
 });
+
+test("Seiten: Seite in der Adresse, Neuladen bleibt, Zurück/Vor (#366)", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/seiten/");
+  await page.getByRole("button", { name: /^Einführung/ }).click();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/\?seite=einfuhrung$/);
+  const titelFeld = page.getByLabel("Titel", { exact: true });
+  await expect(titelFeld).toHaveValue("Einführung");
+  await page.reload();
+  await expect(titelFeld).toHaveValue("Einführung");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
+  await expect(page.getByRole("button", { name: /^Impressum/ })).toBeVisible();
+  await page.goForward();
+  await expect(titelFeld).toHaveValue("Einführung");
+  await page.getByRole("button", { name: /Zurück zu den Seiten/ }).click();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
+});
+
+test("Seiten: Seite aus der Adresse gibt es nicht: Liste, Adresse der Liste", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/seiten/?seite=gibtsnicht");
+  await expect(page.getByRole("button", { name: /^Impressum/ })).toBeVisible();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
+});
+
+test("Seiten: offene Seite löschen, dann Zurück: Liste statt der gelöschten Seite", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/seiten/");
+  await page.getByRole("button", { name: /^Impressum/ }).click();
+  await expect(page).toHaveURL(/\?seite=impressum$/);
+  page.on("dialog", d => d.accept());
+  await page.getByRole("button", { name: "Seite löschen" }).click();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/verwaltung\/seiten\/$/);
+  await expect(page.getByRole("button", { name: /^Einführung/ })).toBeVisible();
+});
