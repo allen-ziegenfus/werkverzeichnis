@@ -7,7 +7,7 @@ import { useAbgleich } from "./Abgleich.jsx";
 import { useHoeheAls } from "./hoehe.js";
 import { kuenstler, db } from "./firebaseClient.js";
 import { vomServer } from "./firestoreLite.js";
-import BildListe, { lokalMerken } from "./BildVorschau.jsx";
+import BildListe, { EIGENES_BILD, lokalMerken } from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
 import { useEtwasUngespeichert, useUngespeichert, verlassen } from "./ungespeichert.js";
 import { adresseSetzen } from "./adresse.js";
@@ -66,6 +66,13 @@ const einheitlich = v => ({ id: v.id, by: v.by, at: v.at, rueckgaengig: v.rueckg
   felder: Object.fromEntries(Object.entries(v.changes ?? {}).filter(([f]) => f !== "InvNr")
     .map(([f, c]) => [f, { von: c.from ?? null, zu: c.to ?? null }])) });
 const gleich = (f, a, b) => gleicherWert(a ?? "", b ?? "");
+
+// Dateien von außen (zum Hochladen); ein gezogenes eigenes Bild ist keine (#372),
+// auch wenn der Browser es als Datei mitgibt.
+const dateienVonAussen = e => {
+  const typen = [...(e.dataTransfer?.types ?? [])];
+  return typen.includes("Files") && !typen.includes(EIGENES_BILD);
+};
 
 // Die zuletzt gewählte Werkgruppe, für die Rückkehr aus einem anderen Bereich.
 let letzteGruppe = "";
@@ -137,7 +144,7 @@ function WerkEditor({ nutzer }) {
     if (!werk) return;
     const nicht = e => {
       if (e.type === "drop") { zieht.current = 0; setZiehen(false); setZiehGrund(undefined); }
-      if (e.defaultPrevented || ![...(e.dataTransfer?.types ?? [])].includes("Files")) return;
+      if (e.defaultPrevented || !dateienVonAussen(e)) return;
       e.preventDefault();
       if (e.type === "dragover") e.dataTransfer.dropEffect = "none";
     };
@@ -361,6 +368,14 @@ function WerkEditor({ nutzer }) {
     if (i < 0 || j < 0 || j >= liste.length) return liste;
     const neu = [...liste];
     [neu[i], neu[j]] = [neu[j], neu[i]];
+    return neu;
+  }, "Reihenfolge gespeichert. Auf der Website nach dem nächsten Veröffentlichen.");
+  // Auf ein anderes Bild gezogen (#372): davor bzw. dahinter, je nach Richtung.
+  const bildEinordnen = (pfad, auf) => bilderAendern(liste => {
+    const i = liste.indexOf(pfad), j = liste.indexOf(auf);
+    if (i < 0 || j < 0 || i === j) return liste;
+    const neu = liste.filter(p => p !== pfad);
+    neu.splice(neu.indexOf(auf) + (i < j ? 1 : 0), 0, pfad);
     return neu;
   }, "Reihenfolge gespeichert. Auf der Website nach dem nächsten Veröffentlichen.");
   const bildEntfernen = pfad => {
@@ -612,9 +627,9 @@ function WerkEditor({ nutzer }) {
           {/* Dateien lassen sich auch hierher ziehen, unter denselben Bedingungen wie der Knopf (#270). */}
           <section className={"space-y-2 pt-4 mt-4 border-t rounded" + (ziehen ? " outline-dashed outline-2 outline-blue-500 bg-blue-50" : "")}
                    aria-labelledby="werk-bilder"
-                   onDragEnter={e => { if ([...e.dataTransfer.types].includes("Files")) zieht.current++; }}
+                   onDragEnter={e => { if (dateienVonAussen(e)) zieht.current++; }}
                    onDragOver={e => {
-                     if (![...e.dataTransfer.types].includes("Files")) return;
+                     if (!dateienVonAussen(e)) return;
                      e.preventDefault();
                      // Gesperrt: Der Browser lässt dann nicht ablegen, darum den Grund schon jetzt zeigen.
                      const grund = laedt ? "Lädt gerade hoch; weitere Dateien danach."
@@ -627,7 +642,7 @@ function WerkEditor({ nutzer }) {
                    }}
                    onDragLeave={() => { if (--zieht.current <= 0) { zieht.current = 0; setZiehen(false); setZiehGrund(undefined); } }}
                    onDrop={e => {
-                     if (![...e.dataTransfer.types].includes("Files")) return;
+                     if (!dateienVonAussen(e)) return;
                      e.preventDefault(); zieht.current = 0; setZiehen(false); setZiehGrund(undefined);
                      if (laedt || speichert || nichtAngehaengt || geaendert.length) return;
                      const d = [...e.dataTransfer.files];
@@ -635,7 +650,7 @@ function WerkEditor({ nutzer }) {
                    }}>
             <h3 id="werk-bilder" className="text-lg">Bilder</h3>
             {(bilderGleich ?? werk.data.images)?.length > 0 ? (
-              <BildListe bilder={bilderGleich ?? werk.data.images} verschieben={bildVerschieben} entfernen={bildEntfernen}
+              <BildListe bilder={bilderGleich ?? werk.data.images} verschieben={bildVerschieben} entfernen={bildEntfernen} einordnen={bildEinordnen}
                          gesperrt={laedt ? "Erst das Hochladen abwarten." : speichert ? "Speichert…"
                            : nichtAngehaengt ? "Erst die hochgeladene Datei anhängen."
                            : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />

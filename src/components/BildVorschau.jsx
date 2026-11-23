@@ -99,13 +99,32 @@ function lokalVergessen(pfad, nurUrl = false) {
 const Dreht = () => <span aria-hidden="true" className="inline-block w-3 h-3 shrink-0 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin motion-reduce:[animation-duration:3s]" />;
 const IN_ARBEIT = "Webversionen werden erzeugt";
 
+/** Datentyp beim Ziehen eines eigenen Bilds (#372): ordnet um, statt hochzuladen. */
+export const EIGENES_BILD = "application/x-werkverzeichnis-bild";
+
 /**
  * Die Bilder eines Werks im Editor; ein Klick öffnet die Lightbox wie auf der
  * Website. Mit `verschieben(pfad, schritt)` und `entfernen(pfad)` je Bild Knöpfe
  * zum Ordnen und Entfernen (#262; die Rückfrage stellt `entfernen`); `gesperrt`
- * (Text) sperrt sie mit Begründung.
+ * (Text) sperrt sie mit Begründung. Mit `einordnen(pfad, aufPfad)` lässt sich ein
+ * Bild auch auf ein anderes ziehen (#372).
  */
-export default function BildListe({ bilder, verschieben, entfernen, gesperrt }) {
+export default function BildListe({ bilder, verschieben, entfernen, einordnen, gesperrt }) {
+  const [ueber, setUeber] = useState();     // Pfad, über dem gerade ein eigenes Bild schwebt
+  const eigenes = e => [...e.dataTransfer.types].includes(EIGENES_BILD);
+  const ziehen = p => einordnen && !gesperrt ? {
+    draggable: true,
+    onDragStart: e => { e.dataTransfer.setData(EIGENES_BILD, p); e.dataTransfer.effectAllowed = "move"; },
+    onDragOver: e => { if (!eigenes(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; setUeber(p); },
+    onDragLeave: () => setUeber(u => u === p ? undefined : u),
+    onDragEnd: () => setUeber(undefined),
+    onDrop: e => {
+      if (!eigenes(e)) return;
+      e.preventDefault(); e.stopPropagation(); setUeber(undefined);
+      const von = e.dataTransfer.getData(EIGENES_BILD);
+      if (von && von !== p) einordnen(von, p);
+    },
+  } : {};
   const [media, setMedia] = useState({});   // Pfad → Medium, für die Lightbox
   const [offen, setOffen] = useState();     // Pfad des geöffneten Bilds
   const fertig = bilder.filter(p => media[p]?.art === "bild");
@@ -114,7 +133,8 @@ export default function BildListe({ bilder, verschieben, entfernen, gesperrt }) 
     <>
       <ul className="flex flex-wrap gap-3">
         {bilder.map((p, i) => (
-          <Bild key={p} pfad={p} melden={melden} oeffnen={() => setOffen(p)} erstes={i === 0 && bilder.length > 1}>
+          <Bild key={p} pfad={p} melden={melden} oeffnen={() => setOffen(p)} erstes={i === 0 && bilder.length > 1}
+                ziehen={ziehen(p)} ziel={ueber === p}>
             {(verschieben || entfernen) && (
               <div className="flex gap-1 mt-auto" title={gesperrt}>
                 {verschieben && <>
@@ -144,7 +164,7 @@ export default function BildListe({ bilder, verschieben, entfernen, gesperrt }) 
   );
 }
 
-function Bild({ pfad, melden, oeffnen, erstes, children }) {
+function Bild({ pfad, melden, oeffnen, erstes, ziehen = {}, ziel, children }) {
   const medium = useMediumLive(pfad);
   useEffect(() => melden(pfad, medium), [medium]);
   // Die eigene Datei, bis der Server mehr weiß; danach freigeben.
@@ -153,16 +173,18 @@ function Bild({ pfad, melden, oeffnen, erstes, children }) {
   useEffect(() => { if (medium) { lokalVergessen(pfad); setEigene(undefined); } }, [medium, pfad]);
   const name = pfad.split("/").pop();
   return (
-    <li className="w-28 text-xs flex flex-col gap-1">
+    <li className={"w-28 text-xs flex flex-col gap-1 rounded" + (ziehen.draggable ? " cursor-grab" : "")
+                   + (ziel ? " outline outline-2 outline-offset-2 outline-blue-600" : "")}
+        title={ziehen.draggable ? "Zum Ordnen auf ein anderes Bild ziehen" : undefined} {...ziehen}>
       {medium?.art === "bild" ? (
         <button type="button" onClick={oeffnen} title="Groß ansehen" className="block">
-          <img src={klein(medium)} alt={name} loading="lazy"
+          <img draggable={false} src={klein(medium)} alt={name} loading="lazy"
                className="w-28 h-28 object-contain bg-gray-100 rounded border" />
         </button>
       ) : eigene && !medium ? (
         <div className="relative w-28 h-28" title={IN_ARBEIT}>
           {/* Nicht darstellbar (etwa HEIC, TIFF außer Safari): Platzhalter, die Datei freigeben. */}
-          <img src={eigene} alt={name} onError={() => { lokalVergessen(pfad, true); setEigene(undefined); }}
+          <img draggable={false} src={eigene} alt={name} onError={() => { lokalVergessen(pfad, true); setEigene(undefined); }}
                className="w-28 h-28 object-contain bg-gray-100 rounded border" />
           <div className="absolute inset-x-0 bottom-0 m-px rounded-b bg-white/90 px-1 py-0.5 flex items-center gap-1 text-[10px] leading-tight text-gray-700">
             <Dreht />{IN_ARBEIT}
@@ -199,6 +221,6 @@ export function Vorschaubild({ pfad, ersatz }) {
   // ersatz: das veröffentlichte Bild, solange es keinen Eintrag gibt.
   const src = medium?.art === "bild" ? klein(medium) : medium === null ? ersatz : undefined;
   if (!src || kaputt === src) return <div className="w-12 h-12 bg-gray-100 rounded" />;
-  return <img src={src} alt="" loading="lazy" className="w-12 h-12 object-cover rounded"
+  return <img draggable={false} src={src} alt="" loading="lazy" className="w-12 h-12 object-cover rounded"
               onError={() => setKaputt(src)} />;
 }
