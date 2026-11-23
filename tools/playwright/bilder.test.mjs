@@ -109,6 +109,6 @@ test("Scheitert das Speichern, gilt wieder die gespeicherte Reihenfolge", async 
   await page.evaluate(() => { window.__einmalScheitern = true; });
   await page.getByRole("button", { name: "ob2b.jpg nach vorn" }).click();
   await expect(page.getByText("Netz weg (Testdaten)")).toBeVisible();
-  const namen = await page.locator("section", { has: page.locator("#werk-bilder") }).locator("li .break-all").allTextContents();
-  expect(namen).toEqual(["ob2a.jpg", "ob2b.jpg"]);
+  const namen = () => page.locator("section", { has: page.locator("#werk-bilder") }).locator("li .break-all").allTextContents();
+  await expect.poll(namen).toEqual(["ob2a.jpg", "ob2b.jpg"]);
 });
