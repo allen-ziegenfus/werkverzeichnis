@@ -120,7 +120,8 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
         <button className={knopfKlein} onClick={() => setNichtGesetzt(undefined)}>Verwerfen</button>
       </p>}
       {hinweis && <p className="text-green-800 text-sm" role="status">{hinweis}</p>}
-      {laedt && <p className="text-sm" role="status">Lade „{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %</p>}
+      {laedt && <p className="text-sm" role="status">{laedt.anteil < 1
+        ? <>Lade „{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %</> : <>Speichere „{laedt.name}“ als Titelbild…</>}</p>}
       {ladefehler && !gruppen && <p className="text-red-700 text-sm">{meldung(ladefehler)}</p>}
       {!gruppen && !ladefehler && <Skelett />}
       {gruppen && <table className="text-sm w-full">
