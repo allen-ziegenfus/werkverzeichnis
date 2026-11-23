@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { adresseSetzen } from "./adresse.js";
 import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
 import { slugify } from "../werkverzeichnis/slugify";
 import { darf } from "../werkverzeichnis/permissions.js";
@@ -66,10 +67,30 @@ function Seiten({ kuenstlerId, ich, bearbeitbar }) {
   const [offen, setOffen] = useState();   // eine Seite, oder { id: "" } für eine neue
   const laden = () => client.invalidateQueries({ queryKey: SCHLUESSEL.seiten });
 
-  // ?seite=<Kennung> (aus der Werkzeugleiste) öffnet diese Seite direkt, einmal.
+  // ?seite=<Kennung> (aus der Werkzeugleiste oder einem Neuladen) öffnet diese Seite direkt.
   const ziel = useRef(new URLSearchParams(location.search).get("seite"));
-  useEffect(() => zielSuchen(ziel, abfrage, d => d.seiten.find(x => x.id === ziel.current), setOffen),
-    [seiten, abfrage.isFetching]);
+  const oeffnetAusAdresse = useRef(false);   // gefunden, aber erst im nächsten Zeichnen offen
+  const [zielAufgegeben, setZielAufgegeben] = useState(0);
+  useEffect(() => {
+    const vorher = ziel.current;
+    zielSuchen(ziel, abfrage, d => d.seiten.find(x => x.id === ziel.current),
+      s => { oeffnetAusAdresse.current = true; setOffen(s); });
+    if (vorher && !ziel.current && !oeffnetAusAdresse.current) setZielAufgegeben(n => n + 1);
+  }, [seiten, abfrage.isFetching]);
+
+  // Die Adresse folgt der offenen Seite (#366, wie die Werke #281): Öffnen und
+  // Schließen sind Schritte für Zurück/Vor; Zurück/Vor selbst behandelt VerwaltungApp.
+  // Eine neue, noch nicht gespeicherte Seite hat keine eigene Adresse.
+  const adresse = offen?.id ? `?seite=${encodeURIComponent(offen.id)}` : "";
+  const zuletztOffen = useRef(null);
+  useEffect(() => {
+    if (ziel.current || (oeffnetAusAdresse.current && !offen)) return;
+    oeffnetAusAdresse.current = false;
+    const schritt = (offen?.id || null) !== zuletztOffen.current;
+    zuletztOffen.current = offen?.id || null;
+    if (location.search === adresse) return;
+    adresseSetzen(location.pathname + adresse + location.hash, { schritt });
+  }, [adresse, zielAufgegeben]);
 
   if (offen) return (
     <Seite sammlung={sammlung} verlauf={verlauf} ich={ich} seite={offen} bearbeitbar={bearbeitbar} seiten={seiten}
