@@ -160,9 +160,14 @@ function WerkEditor({ nutzer }) {
   }, []);
   // Gefunden: ziel ist dann schon leer, das Werk aber erst im nächsten Zeichnen offen.
   const oeffnetAusAdresse = useRef(false);
-  useEffect(() => zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current),
-    w => { oeffnetAusAdresse.current = true; oeffnen(w); }),
-    [werke, werkeAbfrage.isFetching]);
+  // Aufgegeben (nicht in der Liste der Werkgruppe): Die Adresse soll dann die Liste zeigen.
+  const [zielAufgegeben, setZielAufgegeben] = useState(0);
+  useEffect(() => {
+    const vorher = ziel.current;
+    zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current),
+      w => { oeffnetAusAdresse.current = true; oeffnen(w); });
+    if (vorher && !ziel.current && !oeffnetAusAdresse.current) setZielAufgegeben(n => n + 1);
+  }, [werke, werkeAbfrage.isFetching]);
 
   // Die Adresse folgt dem, was offen ist (#281). Ein Werk öffnen oder schließen
   // ist ein Schritt für Zurück/Vor; eine andere Werkgruppe ersetzt nur die Adresse.
@@ -178,7 +183,7 @@ function WerkEditor({ nutzer }) {
     zuletztOffen.current = werk?.id ?? null;
     if (location.search === adresse) return;
     adresseSetzen(location.pathname + adresse + location.hash, { schritt });
-  }, [adresse]);
+  }, [adresse, zielAufgegeben]);
 
   async function oeffnen(w) {
     // Ein anderes Werk: Upload-Fehler und nicht angehängte Datei des vorigen gehören nicht dazu.

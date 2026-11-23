@@ -35,10 +35,33 @@ test("Zurück und Vor wechseln zwischen Liste und Werk, auch über Werkgruppen",
   await page.goForward();
   await expect(titel(page)).toHaveText("OB3 · Ohne Bild");
 
-  // Ein Werk einer anderen Werkgruppe aus der Adresse (wie ein geschickter Link), dann zurück.
-  await page.goto("/verwaltung/werke/?werk=fivi1");
+  // Ein Link in der Verwaltung auf ein Werk einer anderen Werkgruppe (wie aus „Veröffentlichen“), dann zurück.
+  await page.evaluate(() => {
+    const a = Object.assign(document.createElement("a"), { href: "/verwaltung/werke/?werk=fivi1", textContent: "Zum Film" });
+    document.querySelector("main").prepend(a);
+  });
+  await page.getByRole("link", { name: "Zum Film" }).click();
   await expect(page.getByText("FiVi1 · Ein Film")).toBeVisible();
   await expect(page.locator("select").first()).toHaveValue("filme-und-video");
+  await expect(page).toHaveURL(/\?werk=fivi1$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\?werk=ob3$/);
+  await expect(titel(page)).toHaveText("OB3 · Ohne Bild");
+});
+
+test("Werk aus der Adresse gibt es nicht: Meldung, Adresse bleibt", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/werke/?werk=gibtsnicht");
+  await expect(page.getByText("Werk „gibtsnicht“ nicht gefunden.")).toBeVisible();
+  await expect(page).toHaveURL(/\?werk=gibtsnicht$/);
+});
+
+test("Werk nicht in der Liste seiner Werkgruppe: Liste, Adresse wird die der Gruppe", async ({ verwaltung }) => {
+  // Das Dokument nennt eine Werkgruppe, deren Liste es nicht enthält (Abfrage nach werkgruppe).
+  const page = await verwaltung("/verwaltung/werke/?werk=ob3", {
+    schalter: { __altStand: { "artists/k/works/ob3": { InvNr: "OB3", Titel: "Ohne Bild", werkgruppe: "filme-und-video" } } },
+  });
+  await expect(page.locator("select").first()).toHaveValue("filme-und-video");
+  await expect(page).toHaveURL(/\?gruppe=filme-und-video$/);
 });
 
 test("Zurück mit ungespeicherten Änderungen fragt; Abbrechen bleibt im Werk", async ({ verwaltung }) => {
