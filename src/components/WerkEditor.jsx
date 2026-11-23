@@ -160,10 +160,16 @@ function WerkEditor({ nutzer }) {
     getDoc(doc(kuenstler, "works", ziel.current))
       .then(w => {
         if (w.exists()) setGruppe(w.get("werkgruppe"));
-        else { setFehler(`Werk „${ziel.current}“ nicht gefunden.`); ziel.current = null; }
+        else aufgeben(`Werk „${ziel.current}“ nicht gefunden.`);
       })
-      .catch(e => setFehler(e.message));
+      .catch(e => aufgeben(e.message));
   }, []);
+  // Nicht gefunden oder nicht lesbar: Meldung, die Liste der Werkgruppen, und die
+  // Adresse wird ersetzt (sonst führte Zurück nach dem nächsten Schritt wieder hierher).
+  function aufgeben(meldung) {
+    setFehler(meldung); ziel.current = null;
+    nurErsetzen.current = true; setZielAufgegeben(n => n + 1);
+  }
   // Gefunden: ziel ist dann schon leer, das Werk aber erst im nächsten Zeichnen offen.
   const oeffnetAusAdresse = useRef(false);
   // Aufgegeben (nicht in der Liste der Werkgruppe): Die Adresse soll dann die Liste zeigen.
@@ -324,6 +330,7 @@ function WerkEditor({ nutzer }) {
       });
       const w = { id, data: (await vomServer(ref).catch(() => getDoc(ref))).data() };
       client.invalidateQueries({ queryKey: SCHLUESSEL.werke(gruppe) });
+      client.invalidateQueries({ queryKey: ["werke", "anzahlJeGruppe"] });   // die Zahl in der Liste der Werkgruppen
       setNeu(undefined);
       const hier = aktuelleGruppe.current === startGruppe && offen.current === startOffen;
       if (hier) await oeffnen(w);

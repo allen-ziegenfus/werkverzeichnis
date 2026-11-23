@@ -49,10 +49,18 @@ test("Zurück und Vor wechseln zwischen Liste und Werk, auch über Werkgruppen",
   await expect(titel(page)).toHaveText("OB3 · Ohne Bild");
 });
 
-test("Werk aus der Adresse gibt es nicht: Meldung, Adresse bleibt", async ({ verwaltung }) => {
+test("Werk aus der Adresse gibt es nicht: Meldung, Liste, Adresse der Liste", async ({ verwaltung }) => {
   const page = await verwaltung("/verwaltung/werke/?werk=gibtsnicht");
   await expect(page.getByText("Werk „gibtsnicht“ nicht gefunden.")).toBeVisible();
-  await expect(page).toHaveURL(/\?werk=gibtsnicht$/);
+  await expect(page.getByRole("list", { name: "Werkgruppen" })).toBeVisible();
+  await expect(page).toHaveURL(/\/verwaltung\/werke\/$/);
+});
+
+test("Werk aus der Adresse nicht lesbar (Netz): Meldung und Liste statt leerer Seite", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/werke/?werk=ob1", { schalter: { __getDocScheitern: true } });
+  await expect(page.getByText("Nachladen weg (Testdaten)")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Werkgruppen" })).toBeVisible();
+  await expect(page).toHaveURL(/\/verwaltung\/werke\/$/);
 });
 
 test("Werk nicht in der Liste seiner Werkgruppe: Liste, Adresse wird die der Gruppe", async ({ verwaltung }) => {

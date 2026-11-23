@@ -49,3 +49,15 @@ test("Ungespeichertes: Brotkrume „Werke“ fragt, Abbrechen bleibt im Werk", a
   await expect(page.getByLabel("Jahr", { exact: true })).toHaveValue("1999");
   await expect(page).toHaveURL(/\?werk=ob1$/);
 });
+
+test("Nach dem Anlegen eines Werks stimmt die Zahl in der Liste", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/werke/");
+  await expect(liste(page).getByRole("button", { name: /Objekte/ })).toContainText("4 Werke");
+  await liste(page).getByRole("button", { name: /Objekte/ }).click();
+  await page.getByRole("button", { name: "+ Neues Werk" }).first().click();
+  await page.getByLabel(/Inv\. Nr\./).first().fill("OB9");
+  await page.getByRole("button", { name: /anlegen/i }).first().click();
+  await expect(page.getByText(/Angelegt \(OB9\)/)).toBeVisible();
+  await krumen(page).getByRole("button", { name: "Werke" }).click();
+  await expect(liste(page).getByRole("button", { name: /Objekte/ })).toContainText("5 Werke");
+});
