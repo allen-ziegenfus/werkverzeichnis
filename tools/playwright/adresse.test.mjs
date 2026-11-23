@@ -8,7 +8,7 @@ const titel = page => page.getByText(/^OB\d+ · /);
 
 test("Werkgruppe und Werk in der Adresse, Neuladen bleibt im Werk", async ({ verwaltung }) => {
   const page = await verwaltung("/verwaltung/werke/");
-  await page.locator("select").first().selectOption({ label: "Objekte" });
+  await page.getByRole("list", { name: "Werkgruppen" }).getByRole("button", { name: /Objekte/ }).click();
   await expect(page).toHaveURL(/\/verwaltung\/werke\/\?gruppe=objekte$/);
   await page.getByText("Kiste mit Deckel").first().click();
   await expect(page).toHaveURL(/\?werk=ob1$/);
@@ -42,7 +42,7 @@ test("Zurück und Vor wechseln zwischen Liste und Werk, auch über Werkgruppen",
   });
   await page.getByRole("link", { name: "Zum Film" }).click();
   await expect(page.getByText("FiVi1 · Ein Film")).toBeVisible();
-  await expect(page.locator("select").first()).toHaveValue("filme-und-video");
+  await expect(page.getByRole("navigation", { name: "Brotkrumen" })).toContainText("Film- und Videoarbeiten");
   await expect(page).toHaveURL(/\?werk=fivi1$/);
   await page.goBack();
   await expect(page).toHaveURL(/\?werk=ob3$/);
@@ -60,7 +60,7 @@ test("Werk nicht in der Liste seiner Werkgruppe: Liste, Adresse wird die der Gru
   const page = await verwaltung("/verwaltung/werke/?werk=ob3", {
     schalter: { __altStand: { "artists/k/works/ob3": { InvNr: "OB3", Titel: "Ohne Bild", werkgruppe: "filme-und-video" } } },
   });
-  await expect(page.locator("select").first()).toHaveValue("filme-und-video");
+  await expect(page.getByRole("navigation", { name: "Brotkrumen" })).toContainText("Film- und Videoarbeiten");
   await expect(page).toHaveURL(/\?gruppe=filme-und-video$/);
 });
 

@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection, deleteField, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where,
 } from "firebase/firestore";
-import { client, SCHLUESSEL, useKuenstler, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
+import { client, SCHLUESSEL, useAnzahlJeGruppe, useKuenstler, useVeroeffentlicht, useWerke, useWerkgruppen, zielSuchen } from "./abfragen.js";
 import { useAbgleich } from "./Abgleich.jsx";
 import { useHoeheAls } from "./hoehe.js";
 import { kuenstler, db } from "./firebaseClient.js";
 import { vomServer } from "./firestoreLite.js";
-import BildListe, { EIGENES_BILD, lokalMerken } from "./BildVorschau.jsx";
+import BildListe, { EIGENES_BILD, lokalMerken, Vorschaubild } from "./BildVorschau.jsx";
 import Skelett from "./Skelett.jsx";
 import { useEtwasUngespeichert, useUngespeichert, verlassen } from "./ungespeichert.js";
 import { adresseSetzen } from "./adresse.js";
@@ -74,8 +74,6 @@ const dateienVonAussen = e => {
   return typen.includes("Files") && !typen.includes(EIGENES_BILD);
 };
 
-// Die zuletzt gewählte Werkgruppe, für die Rückkehr aus einem anderen Bereich.
-let letzteGruppe = "";
 
 export default function WerkEditorSeite() {
   return <Zugang berechtigung="werke.bearbeiten" kinder={({ nutzer }) => <WerkEditor nutzer={nutzer} />} />;
@@ -107,10 +105,11 @@ function WerkEditor({ nutzer }) {
   // Werkzeugleiste), ?gruppe=<Kennung> zeigt die Liste dieser Werkgruppe.
   const ziel = useRef(new URLSearchParams(location.search).get("werk"));
   const [gruppe, setGruppeRoh] = useState(() => ziel.current ? ""
-    : new URLSearchParams(location.search).get("gruppe") ?? letzteGruppe);
+    : new URLSearchParams(location.search).get("gruppe") ?? "");   // ohne: die Liste der Werkgruppen (#282)
   const aktuelleGruppe = useRef(gruppe);
-  const setGruppe = g => { letzteGruppe = g; aktuelleGruppe.current = g; setGruppeRoh(g); };
+  const setGruppe = g => { aktuelleGruppe.current = g; setGruppeRoh(g); };
   const { data: gruppen, error: gruppenFehler } = useWerkgruppen();
+  const { data: anzahl } = useAnzahlJeGruppe(gruppen);
   const werkeAbfrage = useWerke(gruppe);
   const { data: werke, error: werkeFehler } = werkeAbfrage;
   const { data: veroeffentlicht } = useVeroeffentlicht();
@@ -173,22 +172,28 @@ function WerkEditor({ nutzer }) {
     const vorher = ziel.current;
     zielSuchen(ziel, werkeAbfrage, ws => ws.find(x => x.id === ziel.current),
       w => { oeffnetAusAdresse.current = true; oeffnen(w); });
-    if (vorher && !ziel.current && !oeffnetAusAdresse.current) setZielAufgegeben(n => n + 1);
+    if (vorher && !ziel.current && !oeffnetAusAdresse.current) { nurErsetzen.current = true; setZielAufgegeben(n => n + 1); }
   // dataUpdatedAt: Ein schnelles Nachladen mit gleichen Daten ändert sonst nichts, das hier auslöst.
   }, [werke, werkeAbfrage.isFetching, werkeAbfrage.dataUpdatedAt]);
 
-  // Die Adresse folgt dem, was offen ist (#281). Ein Werk öffnen oder schließen
-  // ist ein Schritt für Zurück/Vor; eine andere Werkgruppe ersetzt nur die Adresse.
+  // Die Adresse folgt dem, was offen ist (#281). Ein Werk oder eine Werkgruppe
+  // öffnen oder schließen ist ein Schritt für Zurück/Vor (#282); nur das
+  // Nachziehen nach einem aufgegebenen Ziel aus der Adresse ersetzt sie.
   // Zurück/Vor selbst behandelt VerwaltungApp: Es fragt bei Ungespeichertem und
   // baut den Bereich neu auf, der die Adresse dann wie beim Laden liest.
   const adresse = werk ? `?werk=${encodeURIComponent(werk.id)}` : gruppe ? `?gruppe=${encodeURIComponent(gruppe)}` : "";
   const zuletztOffen = useRef(null);   // Kennung des zuletzt offenen Werks, für „Schritt oder ersetzen“
+  const zuletztGruppe = useRef(gruppe);   // ebenso die Werkgruppe
+  const nurErsetzen = useRef(false);
   useEffect(() => {
     // Ein Werk aus der Adresse wird noch gesucht oder gleich geöffnet: Die Adresse stimmt schon.
     if (ziel.current || (oeffnetAusAdresse.current && !werk)) return;
     oeffnetAusAdresse.current = false;
-    const schritt = (werk?.id ?? null) !== zuletztOffen.current;
+    const schritt = !nurErsetzen.current
+      && ((werk?.id ?? null) !== zuletztOffen.current || gruppe !== zuletztGruppe.current);
     zuletztOffen.current = werk?.id ?? null;
+    zuletztGruppe.current = gruppe;
+    nurErsetzen.current = false;
     if (location.search === adresse) return;
     adresseSetzen(location.pathname + adresse + location.hash, { schritt });
   }, [adresse, zielAufgegeben]);
@@ -468,6 +473,11 @@ function WerkEditor({ nutzer }) {
   const gesucht = suche.trim();
   const alsInvNr = /\d/.test(gesucht) && INVNR_MUSTER.test(gesucht);
   // Nach einem Werk gleich das nächste (#240): die Inv. Nr. hochgezählt vorgeschlagen.
+  const gruppenName = gruppenTitel ?? gruppe;
+  const gruppeWaehlen = g => {
+    if (!verlassen()) return;
+    setGruppe(g); setWerk(undefined); setNeu(undefined); setSuche("");
+  };
   const naechstesWerk = () => {
     if (!verlassen()) return;
     setWerk(undefined); setSuche(""); setFehler(undefined); setHinweis(undefined);
@@ -486,12 +496,39 @@ function WerkEditor({ nutzer }) {
         ? `Kein Zugriff mit ${nutzer.email}.` : ladefehler.message}</p>}
 
       {!gruppen && !ladefehler && <Skelett zeilen={1} />}
-      {gruppen && (
-        <select className="border p-1 w-full" value={gruppe} disabled={speichert || !!laedt}
-                onChange={e => { if (verlassen()) { setGruppe(e.target.value); setWerk(undefined); setNeu(undefined); setSuche(""); } }}>
-          <option value="">Werkgruppe wählen…</option>
-          {gruppen.map(g => <option key={g.id} value={g.id}>{g.titel}</option>)}
-        </select>
+      {/* Die Werkgruppen als Liste (#282); ein Klick zeigt ihre Werke. */}
+      {gruppen && !gruppe && !ziel.current && (
+        <ul className="divide-y border rounded" aria-label="Werkgruppen">
+          {gruppen.map(g => (
+            <li key={g.id}>
+              <button type="button" className="w-full flex items-center gap-3 p-2 text-left hover:bg-gray-50"
+                      onClick={() => gruppeWaehlen(g.id)}>
+                <Vorschaubild key={g.cover} pfad={g.cover} />
+                <span className="flex-1 font-medium">{g.titel}</span>
+                <span className="text-sm text-gray-600">
+                  {anzahl?.[g.id] === undefined ? "" : `${anzahl[g.id]} ${anzahl[g.id] === 1 ? "Werk" : "Werke"}`}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {/* Brotkrumen (#282): Werke › Werkgruppe › Werk, jeder Teil eine Ebene zurück. */}
+      {gruppen && gruppe && (
+        <nav aria-label="Brotkrumen" className="text-sm">
+          <ol className="flex flex-wrap gap-x-1 items-center">
+            <li><button type="button" className="underline disabled:opacity-40" disabled={speichert || !!laedt}
+                        onClick={() => gruppeWaehlen("")}>Werke</button></li>
+            <li aria-hidden="true">›</li>
+            <li>
+              {werk || neu ? (
+                <button type="button" className="underline disabled:opacity-40" disabled={speichert || !!laedt}
+                        onClick={() => verlassen() && (setWerk(undefined), setNeu(undefined))}>{gruppenName}</button>
+              ) : <span aria-current="page" className="font-semibold">{gruppenName}</span>}
+            </li>
+            {werk && <><li aria-hidden="true">›</li><li aria-current="page" className="font-semibold">{werk.data.InvNr}</li></>}
+          </ol>
+        </nav>
       )}
 
       {gruppe && !werke && !ladefehler && <Skelett />}
