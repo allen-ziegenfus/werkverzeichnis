@@ -49,7 +49,8 @@ export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
       </div>
       <div className="max-w-5xl mx-auto px-4 pt-2 pb-2 flex flex-wrap items-end gap-x-4 gap-y-2">
         {/* Weiße Linie unter den Reitern fasst sie zusammen; der aktive sitzt darauf (#377). */}
-        <nav className="flex gap-1 overflow-x-auto w-full border-b-2 border-white">
+        {/* Ohne Reiter (lädt noch, keine Rechte) keine leere Linie. */}
+        <nav className={"flex gap-1 overflow-x-auto w-full" + (bereiche.length ? " border-b-2 border-white" : "")}>
           {bereiche.map(b => (
             <a key={b.pfad} href={b.pfad}
                aria-current={b.pfad === aktiv ? "page" : undefined}
@@ -65,7 +66,6 @@ export default function VerwaltungKopf({ kuenstlerName, aktiv }) {
                  dunkel className="ml-auto" />
         )}
       </div>
-      {!bereiche.length && <div className="h-2" />}
     </header>
   );
 }
