@@ -5,7 +5,8 @@ import { kuenstler } from "./firebaseClient.js";
  * Ein Original in den Bucket laden (#180): Upload-Anfrage in Firestore, die
  * Funktion `hochladen` (gcf/upload.js) antwortet mit einer signierten URL, dann
  * der PUT direkt aus dem Browser. Ergebnis ist der Pfad im Bucket; ans Werk
- * hängt ihn der Editor. Typen und Größe wie TYPEN und HOECHSTENS in upload.js.
+ * hängt ihn der Editor, an die Werkgruppe (`werkgruppe` statt `werk`, #380) die
+ * Seite Werkgruppen. Typen und Größe wie TYPEN und HOECHSTENS in upload.js.
  */
 export const TYPEN = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif",
@@ -59,11 +60,12 @@ function hochschicken(url, datei, typ, fortschritt) {
   });
 }
 
-export async function hochladen({ werk, datei, von, fortschritt }) {
+export async function hochladen({ werk, werkgruppe, datei, von, fortschritt }) {
   const name = dateiname(datei.name);
   const typ = TYPEN[name.split(".").pop()];
   const ref = await addDoc(collection(kuenstler, "uploads"), {
-    von, angefordert: serverTimestamp(), status: "angefordert", werk, name, typ, groesse: datei.size,
+    von, angefordert: serverTimestamp(), status: "angefordert", name, typ, groesse: datei.size,
+    ...(werkgruppe !== undefined ? { werkgruppe } : { werk }),
   });
   const { url, pfad } = await antwortAbwarten(ref);
   await hochschicken(url, datei, typ, fortschritt);

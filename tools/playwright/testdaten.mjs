@@ -24,5 +24,8 @@ export function testdaten() {
   for (const { slug, ...s } of katalog.seiten) {
     d[`artists/k/seiten/${slug}`] = { ...s, updatedAt: FRUEHER };
   }
+  // Webversionen (#380: ein Titelbild braucht Webversionen): pfade → medien wie gcf/process.js.
+  for (const [id, m] of Object.entries(katalog.medien)) d[`artists/k/medien/${id}`] = m;
+  for (const [pfad, id] of Object.entries(katalog.dateien)) d[`artists/k/pfade/${encodeURIComponent(pfad)}`] = { medium: id };
   return d;
 }
