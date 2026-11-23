@@ -102,7 +102,8 @@ const IN_ARBEIT = "Webversionen werden erzeugt";
 /**
  * Die Bilder eines Werks im Editor; ein Klick öffnet die Lightbox wie auf der
  * Website. Mit `verschieben(pfad, schritt)` und `entfernen(pfad)` je Bild Knöpfe
- * zum Ordnen und Entfernen (#262); `gesperrt` (Text) sperrt sie mit Begründung.
+ * zum Ordnen und Entfernen (#262; die Rückfrage stellt `entfernen`); `gesperrt`
+ * (Text) sperrt sie mit Begründung.
  */
 export default function BildListe({ bilder, verschieben, entfernen, gesperrt }) {
   const [media, setMedia] = useState({});   // Pfad → Medium, für die Lightbox
@@ -125,7 +126,7 @@ export default function BildListe({ bilder, verschieben, entfernen, gesperrt }) 
                 {entfernen && (
                   <button type="button" className={knopfKlein + " px-2 ml-auto"} disabled={!!gesperrt}
                           aria-label={`${p.split("/").pop()} entfernen`} title={gesperrt ?? "Vom Werk entfernen"}
-                          onClick={() => window.confirm(`„${p.split("/").pop()}“ vom Werk entfernen? Das Original bleibt gespeichert; im Verlauf lässt es sich zurücknehmen.`) && entfernen(p)}>
+                          onClick={() => entfernen(p)}>
                     ✕</button>
                 )}
               </div>
