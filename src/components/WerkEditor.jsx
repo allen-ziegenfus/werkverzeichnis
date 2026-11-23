@@ -542,7 +542,8 @@ function WerkEditor({ nutzer }) {
       )}
       {/* Brotkrumen (#282): Werke › Werkgruppe › Werk, jeder Teil eine Ebene zurück. Mit offenem
           Werk in der stehenden Werkleiste statt hier, dort scrollen sie nicht weg (#375). */}
-      {gruppen && gruppe && !werk && brotkrumen}
+      {/* Ohne Werkleiste (Künstler:in-Daten laden noch oder fehlen) weiter hier. */}
+      {gruppen && gruppe && !(werk && kuenstlerDaten) && brotkrumen}
 
       {gruppe && !werke && !ladefehler && <Skelett />}
       {werke && !werk && (

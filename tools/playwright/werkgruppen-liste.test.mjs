@@ -25,7 +25,8 @@ test("Brotkrumen führen je eine Ebene zurück; Zurück im Browser ebenso", asyn
   await expect(krumen(page)).toHaveText(/Werke\s*›\s*Objekte\s*›\s*OB1 · Kiste mit Deckel/);
   // In der stehenden Werkleiste (#375): bleibt beim Scrollen sichtbar, kein „Zurück zur Liste“ mehr.
   await expect(krumen(page)).toHaveCount(1);
-  await page.mouse.wheel(0, 3000);
+  await page.locator("#werk-verlauf").scrollIntoViewIfNeeded();
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
   await expect(krumen(page)).toBeInViewport();
   await expect(page.getByText("Zurück zur Liste")).toHaveCount(0);
   await krumen(page).getByRole("button", { name: "Objekte" }).click();
