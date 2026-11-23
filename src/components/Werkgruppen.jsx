@@ -35,7 +35,10 @@ export default function WerkgruppenSeite() {
 function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
   const { data: gruppen, error: ladefehler } = useWerkgruppen();
   const [titel, setTitel] = useState("");
-  useUngespeichert(!!titel.trim());   // neue Werkgruppe eingetippt, aber nicht hinzugefügt (#324)
+  const [laedt, setLaedt] = useState();                 // { id, name, anteil }; bis das cover gespeichert ist
+  const [nichtGesetzt, setNichtGesetzt] = useState();   // hochgeladen, aber cover nicht gespeichert: { g, pfad }
+  // Neue Werkgruppe eingetippt, aber nicht hinzugefügt (#324); Titelbild lädt oder ist noch nicht gespeichert (#380).
+  useUngespeichert(!!titel.trim() || !!laedt || !!nichtGesetzt);
   const [fehler, setFehler] = useState();
   const sammlung = collection(db, "artists", kuenstlerId, "werkgruppen");
   const verlauf = collection(db, "artists", kuenstlerId, "werkgruppenverlauf");
@@ -49,8 +52,6 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
 
   const laden = () => client.invalidateQueries({ queryKey: SCHLUESSEL.werkgruppen });
   const [hinweis, setHinweis] = useState();
-  const [laedt, setLaedt] = useState();                 // { id, name, anteil }
-  const [nichtGesetzt, setNichtGesetzt] = useState();   // hochgeladen, aber cover nicht gespeichert: { g, pfad }
 
   async function hinzufuegen() {
     setFehler(undefined);
@@ -84,11 +85,11 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
   }
 
   // Titelbild setzen: Die Webversionen entstehen erst nach dem Hochladen (17–45 s);
-  // bis dahin zeigt die Website nach einem Veröffentlichen noch den Platzhalter.
+  // ein Veröffentlichen davor scheitert (build_data.ts: „web versions … not made yet“, STRICT).
   async function titelbildSetzen(g, pfad) {
     if (!await aendern(g, { cover: pfad })) { setNichtGesetzt({ g, pfad }); return; }
     setNichtGesetzt(undefined);
-    setHinweis(`Titelbild von „${g.titel}“ gespeichert. Die Webversionen entstehen in etwa einer Minute; auf der Website nach dem nächsten Veröffentlichen.`);
+    setHinweis(`Titelbild von „${g.titel}“ gespeichert. Die Webversionen entstehen in etwa einer Minute; erst danach veröffentlichen.`);
   }
 
   async function titelbildHochladen(g, datei) {
@@ -98,17 +99,16 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
     if (grund) { setFehler(grund); return; }
     setFehler(undefined);
     setLaedt({ id: g.id, name: datei.name, anteil: 0 });
-    let pfad;
+    // Gesperrt bis das cover gespeichert ist: sonst liefen zwei Speichervorgänge gegeneinander.
     try {
-      pfad = await hochladen({ werkgruppe: g.id, datei, von: ich,
+      const pfad = await hochladen({ werkgruppe: g.id, datei, von: ich,
         fortschritt: anteil => setLaedt(l => l && { ...l, anteil }) });
+      await titelbildSetzen(g, pfad);
     } catch (e) {
       setFehler(meldung(e));
-      return;
     } finally {
       setLaedt(undefined);
     }
-    await titelbildSetzen(g, pfad);
   }
 
   return (
@@ -116,7 +116,8 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
       {fehler && <p className="text-red-700 text-sm">{fehler}</p>}
       {nichtGesetzt && <p className="text-sm">
         Hochgeladen, aber nicht als Titelbild von „{nichtGesetzt.g.titel}“ gespeichert.{" "}
-        <button className={knopfKlein} onClick={() => titelbildSetzen(nichtGesetzt.g, nichtGesetzt.pfad)}>Noch einmal speichern</button>
+        <button className={knopfKlein} onClick={() => titelbildSetzen(nichtGesetzt.g, nichtGesetzt.pfad)}>Noch einmal speichern</button>{" "}
+        <button className={knopfKlein} onClick={() => setNichtGesetzt(undefined)}>Verwerfen</button>
       </p>}
       {hinweis && <p className="text-green-800 text-sm" role="status">{hinweis}</p>}
       {laedt && <p className="text-sm" role="status">Lade „{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %</p>}

@@ -206,7 +206,7 @@ async function bauen() {
     suchMetadaten.InvNrs.push(...eintraege.map(e => e.InvNr));
 
     // Ohne Titelbild das erste Bild der Werkgruppe, sonst der Platzhalter (#182):
-    // Titelbilder lassen sich in der Verwaltung noch nicht setzen (#180).
+    // Titelbilder lädt die Seite Werkgruppen hoch (#380); ältere stammen aus dem Import.
     const erstesBild = eintraege.map(e => e.Bilder[0]).find(b => b !== PLATZHALTER && !b.video);
     // Ein Titelbild aus einem ausgeblendeten Werk zeigt die Website nicht.
     const coverAusgeblendet = !!gruppe.cover && ausgeblendet.some(w => w.images?.includes(gruppe.cover!));

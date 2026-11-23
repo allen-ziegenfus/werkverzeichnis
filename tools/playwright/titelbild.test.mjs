@@ -60,3 +60,13 @@ test("Hochgeladen, aber Speichern scheitert: noch einmal speichern, ohne neu hoc
     .toBe("artists/k/werkgruppen/objekte/test-neues-titelbild.jpg");
   await expect(objekte(page).getByRole("img")).toHaveCount(0);   // neue Datei: noch keine Webversionen
 });
+
+test("Nicht gespeichertes Titelbild verwerfen gibt das Hochladen wieder frei", async ({ verwaltung }) => {
+  const page = await verwaltung(SEITE, { schalter: { __einmalScheitern: true } });
+  await hochladenErlauben(page);
+  await page.getByLabel("Titelbild von Objekte hochladen").setInputFiles(JPEG);
+  await page.getByRole("button", { name: "Verwerfen" }).click();
+  await expect(page.getByText("Hochgeladen, aber nicht als Titelbild")).toHaveCount(0);
+  await expect(page.getByLabel("Titelbild von Objekte hochladen")).toBeEnabled();
+  expect((await daten(page))["artists/k/werkgruppen/objekte"].cover).toBe("artists/test/objekte.jpg");
+});

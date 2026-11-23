@@ -427,6 +427,7 @@ const faelle = [
       fall("Titelbild als Editor", "DENY", als(EDITOR), "create", pfad, { daten: { ...titelbild, von: EDITOR }, mocks: gruppeDa }),
       fall("Upload für Werk und Werkgruppe", "DENY", als(ADMIN), "create", pfad,
         { daten: { ...titelbild, werk: "ob1" }, mocks: [...werkDa, ...gruppeDa] }),
+      fall("Upload mit werkgruppe: null", "DENY", als(EDITOR), "create", pfad, { daten: { ...anfrage, werkgruppe: null }, mocks: werkDa }),
       fall("eigene Titelbild-Anfrage lesen", "ALLOW", als(ADMIN), "get", pfad, { vorhanden: { ...titelbild, status: "bereit", url: "https://x" } }),
     ];
   })(),
