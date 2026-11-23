@@ -90,3 +90,25 @@ test("Titelbild einer Werkgruppe: die Rückfrage sagt es", async ({ verwaltung }
   await page.getByRole("button", { name: "ob2a.jpg entfernen" }).click();
   await expect.poll(() => frage).toContain("Titelbild der Werkgruppe „Objekte“");
 });
+
+test("Die neue Reihenfolge steht sofort da, noch während gespeichert wird", async ({ verwaltung }) => {
+  const page = await verwaltung(OB2);
+  await expect(page.getByRole("button", { name: "ob2b.jpg nach vorn" })).toBeVisible();
+  await page.evaluate(() => { window.__transaktionVerzoegern = 2000; });
+  await page.getByRole("button", { name: "ob2b.jpg nach vorn" }).click();
+  const namen = () => page.locator("section", { has: page.locator("#werk-bilder") }).locator("li .break-all").allTextContents();
+  await expect.poll(namen, { timeout: 1000 }).toEqual(["ob2b.jpg", "ob2a.jpg"]);
+  await expect(page.getByText("Reihenfolge gespeichert.")).toHaveCount(0);   // noch nicht gespeichert
+  await expect(page.getByText("Reihenfolge gespeichert.")).toBeVisible({ timeout: 10_000 });
+  expect(await namen()).toEqual(["ob2b.jpg", "ob2a.jpg"]);
+});
+
+test("Scheitert das Speichern, gilt wieder die gespeicherte Reihenfolge", async ({ verwaltung }) => {
+  const page = await verwaltung(OB2);
+  await expect(page.getByRole("button", { name: "ob2b.jpg nach vorn" })).toBeVisible();
+  await page.evaluate(() => { window.__einmalScheitern = true; });
+  await page.getByRole("button", { name: "ob2b.jpg nach vorn" }).click();
+  await expect(page.getByText("Netz weg (Testdaten)")).toBeVisible();
+  const namen = () => page.locator("section", { has: page.locator("#werk-bilder") }).locator("li .break-all").allTextContents();
+  await expect.poll(namen).toEqual(["ob2a.jpg", "ob2b.jpg"]);
+});

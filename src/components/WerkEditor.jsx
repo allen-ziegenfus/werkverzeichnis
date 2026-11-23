@@ -340,14 +340,19 @@ function WerkEditor({ nutzer }) {
    * Verlauf zurücknehmbar). Wie beim Anhängen auf dem Stand des Servers: Ein
    * gleichzeitig angehängtes Bild bleibt. Das Original bleibt im Bucket.
    */
+  // Sofort sichtbar, was gespeichert wird (#262): Die Transaktion mit Neuladen braucht
+  // ein, zwei Sekunden. Danach (oder bei einem Fehler) gilt wieder der gespeicherte Stand.
+  const [bilderGleich, setBilderGleich] = useState();
   async function bilderAendern(aendern, meldung) {
     setBildFehler(undefined); setBildHinweis(undefined);
+    setBilderGleich(aendern(werk.data.images ?? []));
     let anders = false;   // auf dem Server-Stand; schon so (woanders geändert): nichts geschrieben
     const ok = await schreiben(davor => {
       const neu = aendern(davor.images ?? []);
       anders = !gleicherWert(neu, davor.images ?? []);
       return { images: neu };
     }, {}, undefined, { pruefen: false });
+    setBilderGleich(undefined);
     if (ok) setBildHinweis(anders ? meldung : "Nichts geändert: Inzwischen stand es woanders schon so.");
   }
   const bildVerschieben = (pfad, schritt) => bilderAendern(liste => {
@@ -628,8 +633,8 @@ function WerkEditor({ nutzer }) {
                      if (d.length) bilderHochladen(d);
                    }}>
             <h3 id="werk-bilder" className="text-lg">Bilder</h3>
-            {werk.data.images?.length > 0 ? (
-              <BildListe bilder={werk.data.images} verschieben={bildVerschieben} entfernen={bildEntfernen}
+            {(bilderGleich ?? werk.data.images)?.length > 0 ? (
+              <BildListe bilder={bilderGleich ?? werk.data.images} verschieben={bildVerschieben} entfernen={bildEntfernen}
                          gesperrt={laedt ? "Erst das Hochladen abwarten." : speichert ? "Speichert…"
                            : nichtAngehaengt ? "Erst die hochgeladene Datei anhängen."
                            : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
