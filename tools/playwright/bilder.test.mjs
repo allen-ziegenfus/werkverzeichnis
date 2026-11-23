@@ -112,3 +112,17 @@ test("Scheitert das Speichern, gilt wieder die gespeicherte Reihenfolge", async 
   const namen = () => page.locator("section", { has: page.locator("#werk-bilder") }).locator("li .break-all").allTextContents();
   await expect.poll(namen).toEqual(["ob2a.jpg", "ob2b.jpg"]);
 });
+
+test("Ein Bild auf ein anderes ziehen ordnet um, ohne hochzuladen (#372)", async ({ verwaltung }) => {
+  const page = await verwaltung(OB2);
+  await expect(page.getByRole("button", { name: "ob2b.jpg nach vorn" })).toBeVisible();
+  await bild(page, "ob2b.jpg").dragTo(bild(page, "ob2a.jpg"));
+  await expect(page.getByText("Reihenfolge gespeichert.")).toBeVisible();
+  expect(await bilder(page)).toEqual(["artists/test/ob2b.jpg", "artists/test/ob2a.jpg"]);
+  // Zurück nach hinten ziehen: hinter das Ziel.
+  await bild(page, "ob2b.jpg").dragTo(bild(page, "ob2a.jpg"));
+  await expect.poll(() => bilder(page)).toEqual(["artists/test/ob2a.jpg", "artists/test/ob2b.jpg"]);
+  const d = await daten(page);
+  expect(Object.keys(d).filter(k => k.includes("/uploads/"))).toEqual([]);
+  await expect(page.getByText(/Hochgeladen/)).toHaveCount(0);
+});
