@@ -395,8 +395,9 @@ function WerkEditor({ nutzer, wer }) {
   // Titelbild der Werkgruppe (#378): nur mit werkgruppen.bearbeiten, mit Eintrag im Werkgruppenverlauf.
   const darfTitelbild = darf(wer, "werkgruppen.bearbeiten");
   const titelbild = gruppen?.find(g => g.id === werk?.data.werkgruppe)?.cover ?? null;
+  const [setztTitelbild, setSetztTitelbild] = useState(false);
   async function alsTitelbild(pfad) {
-    setBildFehler(undefined); setBildHinweis(undefined);
+    setBildFehler(undefined); setBildHinweis(undefined); setSetztTitelbild(true);
     try {
       await werkgruppeAendern(werk.data.werkgruppe, { cover: pfad }, nutzer.email);
       await client.invalidateQueries({ queryKey: SCHLUESSEL.werkgruppen });
@@ -404,6 +405,8 @@ function WerkEditor({ nutzer, wer }) {
         + "Auf der Website nach dem nächsten Veröffentlichen; zurücknehmen unter Werkgruppen im Verlauf.");
     } catch (e) {
       setBildFehler(e.code === "permission-denied" ? "Von den Regeln abgelehnt." : e.message);
+    } finally {
+      setSetztTitelbild(false);
     }
   }
   const bildEntfernen = pfad => {
@@ -712,6 +715,9 @@ function WerkEditor({ nutzer, wer }) {
             {(bilderGleich ?? werk.data.images)?.length > 0 ? (
               <BildListe bilder={bilderGleich ?? werk.data.images} verschieben={bildVerschieben} entfernen={bildEntfernen} einordnen={bildEinordnen}
                          titelbild={titelbild} alsTitelbild={darfTitelbild ? alsTitelbild : undefined}
+                         titelbildGesperrt={setztTitelbild ? "Setzt das Titelbild…"
+                           // Der Build nähme es nicht (Titelbild aus einem ausgeblendeten Werk).
+                           : werk.data.ausgeblendet ? "Das Werk ist ausgeblendet; sein Bild erschiene nicht als Titelbild." : undefined}
                          gesperrt={laedt ? "Erst das Hochladen abwarten." : speichert ? "Speichert…"
                            : nichtAngehaengt ? "Erst die hochgeladene Datei anhängen."
                            : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />

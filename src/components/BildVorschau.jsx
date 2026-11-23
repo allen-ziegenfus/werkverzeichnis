@@ -108,9 +108,10 @@ export const EIGENES_BILD = "application/x-werkverzeichnis-bild";
  * zum Ordnen und Entfernen (#262; die Rückfrage stellt `entfernen`); `gesperrt`
  * (Text) sperrt sie mit Begründung. Mit `einordnen(pfad, aufPfad)` lässt sich ein
  * Bild auch auf ein anderes ziehen (#372). `titelbild` (Pfad) markiert das
- * Titelbild der Werkgruppe, `alsTitelbild(pfad)` setzt es (#378).
+ * Titelbild der Werkgruppe, `alsTitelbild(pfad)` setzt es (#378; nur Bilder mit
+ * Webversionen, `titelbildGesperrt` als Grund sperrt alle).
  */
-export default function BildListe({ bilder, verschieben, entfernen, einordnen, gesperrt, titelbild, alsTitelbild }) {
+export default function BildListe({ bilder, verschieben, entfernen, einordnen, gesperrt, titelbild, alsTitelbild, titelbildGesperrt }) {
   const [ueber, setUeber] = useState();     // Pfad, über dem gerade ein eigenes Bild schwebt
   const eigenes = e => [...e.dataTransfer.types].includes(EIGENES_BILD);
   const ziehen = p => einordnen && !gesperrt ? {
@@ -145,9 +146,11 @@ export default function BildListe({ bilder, verschieben, entfernen, einordnen, g
                           aria-label={`${p.split("/").pop()} nach hinten`} onClick={() => verschieben(p, 1)}>→</button>
                 </>}
                 {alsTitelbild && (
-                  <button type="button" className={knopfKlein + " px-2"} disabled={!!gesperrt || p === titelbild}
+                  <button type="button" className={knopfKlein + " px-2"}
+                          disabled={!!gesperrt || !!titelbildGesperrt || p === titelbild || media[p]?.art !== "bild"}
                           aria-label={p === titelbild ? `${p.split("/").pop()} ist das Titelbild der Werkgruppe` : `${p.split("/").pop()} als Titelbild der Werkgruppe`}
-                          title={gesperrt ?? (p === titelbild ? "Titelbild der Werkgruppe" : "Als Titelbild der Werkgruppe")}
+                          title={gesperrt ?? titelbildGesperrt ?? (p === titelbild ? "Titelbild der Werkgruppe"
+                            : media[p]?.art !== "bild" ? "Nur ein Bild mit Webversionen kann Titelbild sein." : "Als Titelbild der Werkgruppe")}
                           onClick={() => alsTitelbild(p)}>{p === titelbild ? "★" : "☆"}</button>
                 )}
                 {entfernen && (

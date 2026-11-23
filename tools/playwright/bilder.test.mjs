@@ -129,16 +129,16 @@ test("Ein Bild auf ein anderes ziehen ordnet um, ohne hochzuladen (#372)", async
 
 test("Als Titelbild der Werkgruppe: gespeichert mit Eintrag im Werkgruppenverlauf (#378)", async ({ verwaltung }) => {
   const page = await verwaltung(OB2);
-  await page.getByRole("button", { name: "ob2b.jpg als Titelbild der Werkgruppe" }).click();
+  await page.getByRole("button", { name: "ob2a.jpg als Titelbild der Werkgruppe" }).click();
   await expect(page.getByText(/ist jetzt das Titelbild der Werkgruppe „Objekte“/)).toBeVisible();
-  await expect(bild(page, "ob2b.jpg")).toContainText("Titelbild der Werkgruppe");
-  await expect(page.getByRole("button", { name: "ob2b.jpg ist das Titelbild der Werkgruppe" })).toBeDisabled();
+  await expect(bild(page, "ob2a.jpg")).toContainText("Titelbild der Werkgruppe");
+  await expect(page.getByRole("button", { name: "ob2a.jpg ist das Titelbild der Werkgruppe" })).toBeDisabled();
   const d = await daten(page);
   const g = d["artists/k/werkgruppen/objekte"];
-  expect(g.cover).toBe("artists/test/ob2b.jpg");
+  expect(g.cover).toBe("artists/test/ob2a.jpg");
   expect(d[`artists/k/werkgruppenverlauf/${g.lastChange}`]).toMatchObject({
     werkgruppe: "objekte", by: "testperson@example.org",
-    vorher: { cover: "artists/test/objekte.jpg" }, nachher: { cover: "artists/test/ob2b.jpg", titel: "Objekte" },
+    vorher: { cover: "artists/test/objekte.jpg" }, nachher: { cover: "artists/test/ob2a.jpg", titel: "Objekte" },
   });
 });
 
@@ -146,4 +146,18 @@ test("Ohne werkgruppen.bearbeiten (Rolle editor) kein Knopf fürs Titelbild", as
   const page = await verwaltung(OB2, { daten: d => { d["artists/k"].roles = { "testperson@example.org": "editor" }; } });
   await expect(page.getByRole("button", { name: "ob2b.jpg nach vorn" })).toBeVisible();
   await expect(page.getByRole("button", { name: /als Titelbild/ })).toHaveCount(0);
+});
+
+test("Titelbild: nicht für Videos und nicht lesbare Bilder", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/werke/?werk=fivi1");
+  await expect(page.getByRole("button", { name: "fivi1.mp4 als Titelbild der Werkgruppe" })).toBeDisabled();
+  await page.goto(OB2);
+  await expect(page.getByRole("button", { name: "ob2a.jpg als Titelbild der Werkgruppe" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "ob2b.jpg als Titelbild der Werkgruppe" })).toBeDisabled();   // „fehler“ in den Testdaten
+});
+
+test("Titelbild: nicht aus einem ausgeblendeten Werk", async ({ verwaltung }) => {
+  const page = await verwaltung("/verwaltung/werke/?werk=ob1", { daten: d => { d["artists/k/works/ob1"].ausgeblendet = true; } });
+  await expect(page.getByRole("button", { name: "ob1.jpg als Titelbild der Werkgruppe" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "ob1.jpg als Titelbild der Werkgruppe" })).toHaveAttribute("title", /ausgeblendet/);
 });
