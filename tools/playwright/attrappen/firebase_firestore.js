@@ -6,7 +6,8 @@ const fest = ms => ({ toDate: () => new Date(ms), toMillis: () => ms, seconds: m
 (function beleben(o) { for (const [k, v] of Object.entries(o ?? {})) {
   if (v && typeof v === "object") { if ("__ms" in v) o[k] = fest(v.__ms); else beleben(v); } } })(daten);
 let n = 0;
-const ts = () => ({ toDate: () => new Date(), toMillis: () => Date.now(), seconds: Date.now() / 1000 });
+// Ein Zeitpunkt, fest beim Schreiben (sonst sähe jeder Vergleich von updatedAt eine fremde Änderung).
+const ts = () => fest(Date.now());
 export class FieldPath { constructor(...t) { this.t = t; } }
 export const deleteField = () => ({ __loeschen: true });
 export const serverTimestamp = () => ts();

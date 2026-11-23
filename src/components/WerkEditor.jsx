@@ -335,6 +335,26 @@ function WerkEditor({ nutzer }) {
     return ok;
   }
 
+  /**
+   * Ordnen und Entfernen (#262), gleich gespeichert mit Verlaufseintrag (im
+   * Verlauf zurücknehmbar). Wie beim Anhängen auf dem Stand des Servers: Ein
+   * gleichzeitig angehängtes Bild bleibt. Das Original bleibt im Bucket.
+   */
+  async function bilderAendern(aendern, meldung) {
+    setBildFehler(undefined); setBildHinweis(undefined);
+    const ok = await schreiben(davor => ({ images: aendern(davor.images ?? []) }), {}, undefined, { pruefen: false });
+    if (ok) setBildHinweis(meldung);
+  }
+  const bildVerschieben = (pfad, schritt) => bilderAendern(liste => {
+    const i = liste.indexOf(pfad), j = i + schritt;
+    if (i < 0 || j < 0 || j >= liste.length) return liste;
+    const neu = [...liste];
+    [neu[i], neu[j]] = [neu[j], neu[i]];
+    return neu;
+  }, "Reihenfolge gespeichert. Auf der Website nach dem nächsten Veröffentlichen.");
+  const bildEntfernen = pfad => bilderAendern(liste => liste.filter(p => p !== pfad),
+    `„${pfad.split("/").pop()}“ entfernt; im Verlauf zurücknehmbar. Auf der Website nach dem nächsten Veröffentlichen.`);
+
   async function bilderHochladen(dateien) {
     const abgelehnt = dateien.map(ablehnen).filter(Boolean);
     if (abgelehnt.length) { setBildFehler(abgelehnt.join(" ")); return; }
@@ -596,7 +616,10 @@ function WerkEditor({ nutzer }) {
                    }}>
             <h3 id="werk-bilder" className="text-lg">Bilder</h3>
             {werk.data.images?.length > 0 ? (
-              <BildListe bilder={werk.data.images} />
+              <BildListe bilder={werk.data.images} verschieben={bildVerschieben} entfernen={bildEntfernen}
+                         gesperrt={laedt ? "Erst das Hochladen abwarten." : speichert ? "Speichert…"
+                           : nichtAngehaengt ? "Erst die hochgeladene Datei anhängen."
+                           : geaendert.length ? "Erst speichern oder verwerfen." : undefined} />
             ) : <p className="text-sm text-gray-600">Noch keine Bilder.</p>}
             <div className="flex gap-2 items-center flex-wrap">
               {/* Ein Label als Knopf: Das Dateifeld selbst lässt sich nicht gestalten. */}

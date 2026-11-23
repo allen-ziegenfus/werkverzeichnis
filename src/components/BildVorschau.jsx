@@ -5,6 +5,7 @@ import { Lightbox } from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import { kuenstler, KUENSTLER } from "./firebaseClient.js";
 import { frischLesen } from "./firestoreLite.js";
+import { knopfKlein } from "./knoepfe.js";
 
 /**
  * Vorschau der Bilder in der Verwaltung (#259, #270). Die Bildfunktion
@@ -98,8 +99,12 @@ function lokalVergessen(pfad, nurUrl = false) {
 const Dreht = () => <span aria-hidden="true" className="inline-block w-3 h-3 shrink-0 rounded-full border-2 border-gray-300 border-t-gray-700 animate-spin motion-reduce:[animation-duration:3s]" />;
 const IN_ARBEIT = "Webversionen werden erzeugt";
 
-/** Die Bilder eines Werks im Editor; ein Klick öffnet die Lightbox wie auf der Website. */
-export default function BildListe({ bilder }) {
+/**
+ * Die Bilder eines Werks im Editor; ein Klick öffnet die Lightbox wie auf der
+ * Website. Mit `verschieben(pfad, schritt)` und `entfernen(pfad)` je Bild Knöpfe
+ * zum Ordnen und Entfernen (#262); `gesperrt` (Text) sperrt sie mit Begründung.
+ */
+export default function BildListe({ bilder, verschieben, entfernen, gesperrt }) {
   const [media, setMedia] = useState({});   // Pfad → Medium, für die Lightbox
   const [offen, setOffen] = useState();     // Pfad des geöffneten Bilds
   const fertig = bilder.filter(p => media[p]?.art === "bild");
@@ -107,7 +112,26 @@ export default function BildListe({ bilder }) {
   return (
     <>
       <ul className="flex flex-wrap gap-3">
-        {bilder.map(p => <Bild key={p} pfad={p} melden={melden} oeffnen={() => setOffen(p)} />)}
+        {bilder.map((p, i) => (
+          <Bild key={p} pfad={p} melden={melden} oeffnen={() => setOffen(p)} erstes={i === 0 && bilder.length > 1}>
+            {(verschieben || entfernen) && (
+              <div className="flex gap-1 mt-auto" title={gesperrt}>
+                {verschieben && <>
+                  <button type="button" className={knopfKlein + " px-2"} disabled={!!gesperrt || i === 0}
+                          aria-label={`${p.split("/").pop()} nach vorn`} onClick={() => verschieben(p, -1)}>←</button>
+                  <button type="button" className={knopfKlein + " px-2"} disabled={!!gesperrt || i === bilder.length - 1}
+                          aria-label={`${p.split("/").pop()} nach hinten`} onClick={() => verschieben(p, 1)}>→</button>
+                </>}
+                {entfernen && (
+                  <button type="button" className={knopfKlein + " px-2 ml-auto"} disabled={!!gesperrt}
+                          aria-label={`${p.split("/").pop()} entfernen`} title={gesperrt ?? "Vom Werk entfernen"}
+                          onClick={() => window.confirm(`„${p.split("/").pop()}“ vom Werk entfernen? Das Original bleibt gespeichert; im Verlauf lässt es sich zurücknehmen.`) && entfernen(p)}>
+                    ✕</button>
+                )}
+              </div>
+            )}
+          </Bild>
+        ))}
       </ul>
       {/* on.view: offen folgt dem Blättern, sonst springt sie zurück, wenn ein weiteres Bild fertig wird. */}
       <Lightbox open={fertig.includes(offen)} close={() => setOffen(undefined)}
@@ -119,7 +143,7 @@ export default function BildListe({ bilder }) {
   );
 }
 
-function Bild({ pfad, melden, oeffnen }) {
+function Bild({ pfad, melden, oeffnen, erstes, children }) {
   const medium = useMediumLive(pfad);
   useEffect(() => melden(pfad, medium), [medium]);
   // Die eigene Datei, bis der Server mehr weiß; danach freigeben.
@@ -128,7 +152,7 @@ function Bild({ pfad, melden, oeffnen }) {
   useEffect(() => { if (medium) { lokalVergessen(pfad); setEigene(undefined); } }, [medium, pfad]);
   const name = pfad.split("/").pop();
   return (
-    <li className="w-28 text-xs space-y-1">
+    <li className="w-28 text-xs flex flex-col gap-1">
       {medium?.art === "bild" ? (
         <button type="button" onClick={oeffnen} title="Groß ansehen" className="block">
           <img src={klein(medium)} alt={name} loading="lazy"
@@ -155,6 +179,9 @@ function Bild({ pfad, melden, oeffnen }) {
         </div>
       )}
       <div className="break-all" title={medium?.fehler ?? medium?.lesefehler}>{name}</div>
+      {/* Das erste ist das Vorschaubild in Listen und auf der Website. */}
+      {erstes && <div className="text-gray-600">Vorschaubild</div>}
+      {children}
     </li>
   );
 }
