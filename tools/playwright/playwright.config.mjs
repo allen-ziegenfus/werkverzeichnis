@@ -38,6 +38,7 @@ export default defineConfig({
     url: `http://localhost:${PORT}/verwaltung/`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { PUBLIC_KUENSTLER: "k" },
+    // SITE: Seiten der Website (auch die 404-Seite) brauchen sie; im PR gibt es keine .env.
+    env: { PUBLIC_KUENSTLER: "k", SITE: "https://example.org" },
   },
 });
