@@ -124,10 +124,10 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
         ? <>Lade „{laedt.name}“ hoch… {Math.round(laedt.anteil * 100)} %</> : <>Speichere „{laedt.name}“ als Titelbild…</>}</p>}
       {ladefehler && !gruppen && <p className="text-red-700 text-sm">{meldung(ladefehler)}</p>}
       {!gruppen && !ladefehler && <Skelett />}
-      {gruppen && <table className="text-sm w-full">
+      {gruppen && <div className="overflow-x-auto"><table className="text-sm w-full">
         <thead>
           <tr className="text-left text-gray-600">
-            <th className="w-16">Reihe</th><th>Titel</th><th>Kurztitel</th><th>Kennung</th><th>Titelbild</th>
+            <th className="w-16">Reihe</th><th>Titel</th><th>Kurztitel</th><th className="hidden sm:table-cell">Kennung</th><th>Titelbild</th>
           </tr>
         </thead>
         <tbody>
@@ -150,13 +150,13 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
                        onBlur={e => e.target.value !== (g.kurztitel ?? "")
                          && aendern(g, { kurztitel: e.target.value.trim() || null })} />
               </td>
-              <td className="font-mono text-gray-600">{g.id}</td>
+              <td className="font-mono text-gray-600 hidden sm:table-cell">{g.id}</td>
               <td>
                 <div className="flex gap-2 items-center">
                   {g.cover ? <Vorschaubild key={g.cover} pfad={g.cover} /> : <span className="text-gray-600 text-xs w-12">keins</span>}
                   {bearbeitbar && (
                     <label className={knopfKlein + " whitespace-nowrap" + (laedt || nichtGesetzt ? " opacity-40 cursor-not-allowed" : " cursor-pointer")}>
-                      Titelbild hochladen…
+                      Hochladen…
                       <input type="file" className="sr-only" accept={BILDTYPEN} disabled={!!laedt || !!nichtGesetzt}
                              aria-label={`Titelbild von ${g.titel} hochladen`}
                              onChange={e => { const d = e.target.files[0]; e.target.value = ""; if (d) titelbildHochladen(g, d); }} />
@@ -167,7 +167,7 @@ function Werkgruppen({ kuenstlerId, ich, bearbeitbar }) {
             </tr>
           ))}
         </tbody>
-      </table>}
+      </table></div>}
       {bearbeitbar && (
         <>
           <p className="text-xs text-gray-600">Änderungen werden beim Verlassen des Feldes gespeichert.</p>

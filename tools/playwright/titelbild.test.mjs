@@ -17,6 +17,7 @@ async function hochladenErlauben(page) {
 test("Titelbild hochladen: Pfad unter werkgruppen/, cover gesetzt mit Verlaufseintrag", async ({ verwaltung }) => {
   const page = await verwaltung(SEITE);
   const puts = await hochladenErlauben(page);
+  await expect(objekte(page).locator("img")).toHaveCount(1);   // das bisherige Titelbild
   await page.getByLabel("Titelbild von Objekte hochladen").setInputFiles(JPEG);
   await expect(page.getByText("Titelbild von „Objekte“ gespeichert.")).toBeVisible();
   expect(puts).toEqual(["PUT"]);
@@ -58,7 +59,7 @@ test("Hochgeladen, aber Speichern scheitert: noch einmal speichern, ohne neu hoc
   expect(puts).toEqual(["PUT"]);
   expect((await daten(page))["artists/k/werkgruppen/objekte"].cover)
     .toBe("artists/k/werkgruppen/objekte/test-neues-titelbild.jpg");
-  await expect(objekte(page).getByRole("img")).toHaveCount(0);   // neue Datei: noch keine Webversionen
+  await expect(objekte(page).locator("img")).toHaveCount(0);   // neue Datei: noch keine Webversionen
 });
 
 test("Nicht gespeichertes Titelbild verwerfen gibt das Hochladen wieder frei", async ({ verwaltung }) => {
