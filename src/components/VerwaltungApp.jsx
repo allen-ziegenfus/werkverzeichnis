@@ -15,17 +15,27 @@ import { knopf } from "./knoepfe.js";
  * Veröffentlichung neu zu laden. Die Bereiche werden erst bei Bedarf geladen.
  */
 
+// Ein kurzer Netzwerkfehler: nach einer Pause einmal erneut versuchen (#140).
 // Nach einem Deploy gibt es die Dateien eines älteren Stands nicht mehr; ein
 // Tab, der noch offen war, lädt dann einmal neu statt leer zu bleiben (#107).
 // Scheitert es gleich danach wieder, liegt es nicht daran: Fehler zeigen.
-const nachladen = laden => lazy(() => laden().catch(e => {
-  let zuletzt = 0;
-  try { zuletzt = Number(sessionStorage.getItem("verwaltung-neu-geladen")) || 0; } catch { throw e; }
-  if (Date.now() - zuletzt < 30_000) throw e;
-  try { sessionStorage.setItem("verwaltung-neu-geladen", String(Date.now())); } catch { throw e; }
-  location.reload();
-  return new Promise(() => {});
-}));
+// Jeder Fehlschlag steht mit Zeit und Bereich in der Konsole, um ihn einem
+// Deploy zuordnen zu können.
+const PAUSE_VOR_ZWEITEM_VERSUCH = 1000;
+const nachladen = (bereich, laden) => lazy(async () => {
+  const melden = (e, was) => console.warn(`Bereich ${bereich} nicht geladen (${new Date().toISOString()}), ${was}:`, e);
+  try { return await laden(); } catch (e) { melden(e, "noch ein Versuch"); }
+  await new Promise(r => setTimeout(r, PAUSE_VOR_ZWEITEM_VERSUCH));
+  try { return await laden(); } catch (e) {
+    let zuletzt = 0;
+    try { zuletzt = Number(sessionStorage.getItem("verwaltung-neu-geladen")) || 0; } catch { melden(e, "aufgegeben"); throw e; }
+    if (Date.now() - zuletzt < 30_000) { melden(e, "aufgegeben, schon neu geladen"); throw e; }
+    try { sessionStorage.setItem("verwaltung-neu-geladen", String(Date.now())); } catch { melden(e, "aufgegeben"); throw e; }
+    melden(e, "lade die Seite neu");
+    location.reload();
+    return new Promise(() => {});
+  }
+});
 
 /** Statt einer leeren Seite: was schiefging, und Neuladen. */
 class Fehlergrenze extends Component {
@@ -43,14 +53,14 @@ class Fehlergrenze extends Component {
 }
 
 const KOMPONENTEN = {
-  "/verwaltung/": nachladen(() => import("./Verwaltung.jsx")),
-  "/verwaltung/werke/": nachladen(() => import("./WerkEditor.jsx")),
-  "/verwaltung/import/": nachladen(() => import("./Import.jsx")),
-  "/verwaltung/werkgruppen/": nachladen(() => import("./Werkgruppen.jsx")),
-  "/verwaltung/seiten/": nachladen(() => import("./Seiten.jsx")),
-  "/verwaltung/einstellungen/": nachladen(() => import("./Einstellungen.jsx")),
-  "/verwaltung/verlauf/": nachladen(() => import("./Verlauf.jsx")),
-  "/verwaltung/personen/": nachladen(() => import("./Personen.jsx")),
+  "/verwaltung/": nachladen("/verwaltung/", () => import("./Verwaltung.jsx")),
+  "/verwaltung/werke/": nachladen("/verwaltung/werke/", () => import("./WerkEditor.jsx")),
+  "/verwaltung/import/": nachladen("/verwaltung/import/", () => import("./Import.jsx")),
+  "/verwaltung/werkgruppen/": nachladen("/verwaltung/werkgruppen/", () => import("./Werkgruppen.jsx")),
+  "/verwaltung/seiten/": nachladen("/verwaltung/seiten/", () => import("./Seiten.jsx")),
+  "/verwaltung/einstellungen/": nachladen("/verwaltung/einstellungen/", () => import("./Einstellungen.jsx")),
+  "/verwaltung/verlauf/": nachladen("/verwaltung/verlauf/", () => import("./Verlauf.jsx")),
+  "/verwaltung/personen/": nachladen("/verwaltung/personen/", () => import("./Personen.jsx")),
 };
 const TITEL = { "/verwaltung/": "Übersicht", ...Object.fromEntries(BEREICHE.map(b => [b.pfad, b.titel])) };
 

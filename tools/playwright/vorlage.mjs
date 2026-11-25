@@ -8,7 +8,9 @@
  *   test("…", async ({ verwaltung }) => { const page = await verwaltung("/verwaltung/werke/", { daten => … }); })
  *
  * `daten` ändert die Testdaten vor dem Laden (Pfad → Dokument); `schalter`
- * setzt window.__… für Fehlerfälle (siehe attrappen/firebase_firestore.js).
+ * setzt window.__… für Fehlerfälle (siehe attrappen/firebase_firestore.js);
+ * `erlaubteFehler` (RegExp) sind erwartete Fehler, etwa von einer Fehlergrenze:
+ * React meldet sie im Dev-Modus trotzdem als pageerror.
  * Im Browser stehen die Daten danach unter window.__daten.
  */
 import fs from "node:fs";
@@ -26,15 +28,17 @@ const ATTRAPPEN = [
 export const test = basis.extend({
   verwaltung: async ({ page }, use) => {
     const fehler = [];
+    let erlaubt = [];
     // Fehler aus Vites eigenem Client (Fehleranzeige des Dev-Servers, selten beim
     // ersten Bündeln mit kaltem Cache) sind keine der Verwaltung; die übrigen schon.
-    page.on("pageerror", e => !e.stack?.includes("/@vite/client") && fehler.push(`${e.message}\n${e.stack?.split("\n").slice(0, 4).join("\n")}`));
+    page.on("pageerror", e => !e.stack?.includes("/@vite/client") && !erlaubt.some(m => m.test(e.message)) && fehler.push(`${e.message}\n${e.stack?.split("\n").slice(0, 4).join("\n")}`));
     for (const [muster, quelltext] of ATTRAPPEN) {
       await page.route(muster, r => r.fulfill({ contentType: "text/javascript", body: quelltext }));
     }
     // Webversionen (/bilder/…) liegen auf der veröffentlichten Seite, nicht im Dev-Server: ein 1×1-Bild.
     await page.route(/\/bilder\//, r => r.fulfill({ contentType: "image/png", body: PIXEL }));
-    await use(async (pfad, { daten, schalter = {} } = {}) => {
+    await use(async (pfad, { daten, schalter = {}, erlaubteFehler = [] } = {}) => {
+      erlaubt = erlaubteFehler;
       const d = testdaten();
       daten?.(d);
       await page.addInitScript(([d, schalter]) => {
