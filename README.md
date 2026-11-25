@@ -21,6 +21,9 @@ FIRESTORE_PROJECT=vollrad-werkverzeichnis FIRESTORE_DATABASE=werkverzeichnis ART
 Die Verwaltung braucht dazu `PUBLIC_FIREBASE_PROJECT` (Projekt der Seite),
 `PUBLIC_FIREBASE_API_KEY` (Web-Schlüssel, `gcloud services api-keys get-key-string`)
 und `PUBLIC_KUENSTLER`, lokal in `.env`; im Cloud Build setzt sie der Trigger.
+Damit `yarn dev` die Bilder zeigt, in `.env` auch `BILDER_VON` auf die veröffentlichte
+Seite derselben Künstler:in setzen (`seiten_url` in `infra/sites/<seite>/`); der Dev-Server
+holt `/bilder/` dann dort.
 
 `yarn data` führt nur den Datenschritt aus; `yarn build` den und danach `astro build`
 nach `dist/`. Mit `STRICT=1` lassen Datenprobleme (ein Bild fehlt im Bucket,
