@@ -15,12 +15,14 @@ function warnungen(page) {
 test("Ein Fehlschlag: zweiter Versuch lädt den Bereich, ohne Neuladen", async ({ page, verwaltung }) => {
   const w = warnungen(page);
   let versuche = 0;
-  await page.route(MODUL, r => (++versuche === 1 ? r.abort() : r.continue()));
+  const zeiten = [];
+  await page.route(MODUL, r => { zeiten.push(Date.now()); return ++versuche === 1 ? r.abort() : r.continue(); });
   let neuGeladen = 0;
   page.on("load", () => neuGeladen++);
   await verwaltung("/verwaltung/werkgruppen/");
   await expect(page.getByRole("row", { name: /Objekte/ })).toBeVisible();
   expect(versuche).toBe(2);
+  expect(zeiten[1] - zeiten[0]).toBeGreaterThanOrEqual(900);   // erst nach der Pause
   expect(neuGeladen).toBe(1);
   expect(w).toHaveLength(1);
   expect(w[0]).toMatch(/Bereich \/verwaltung\/werkgruppen\/ nicht geladen \(\d{4}-.*\), noch ein Versuch/);
@@ -31,7 +33,7 @@ test("Scheitert immer: einmal neu laden, dann die Fehlermeldung mit „Neu laden
   await page.route(MODUL, r => r.abort());
   let neuGeladen = 0;
   page.on("load", () => neuGeladen++);
-  await verwaltung("/verwaltung/werkgruppen/", { erlaubteFehler: [/Failed to fetch dynamically imported module/] });
+  await verwaltung("/verwaltung/werkgruppen/", { erlaubteFehler: [/Failed to fetch dynamically imported module|Importing a module script failed/] });
   await expect(page.getByText("Dieser Bereich konnte nicht geladen werden")).toBeVisible();
   await expect(page.getByRole("button", { name: "Neu laden" })).toBeVisible();
   expect(neuGeladen).toBe(2);
